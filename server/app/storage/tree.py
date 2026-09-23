@@ -62,7 +62,7 @@ def find(nodes: list[Node], path: str | None) -> Node | None:
     layer, cur = nodes, None
     for seg in path.split(","):
         i = int(seg)
-        if i >= len(layer):
+        if not 0 <= i < len(layer):
             return None
         cur = layer[i]
         layer = cur.children

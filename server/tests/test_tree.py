@@ -24,6 +24,13 @@ def test_bad_indent_raises():
     with pytest.raises(TreeFormatError):
         parse("- a\n      - b\n  - c")  # 6 空格跳级
 
+def test_negative_path_rejected():
+    nodes = parse(MD)
+    assert find(nodes, "-1") is None
+    with pytest.raises(ValueError):
+        delete(nodes, "-1")
+    assert len(nodes) == 2 and nodes[0].children[0].children[1].name == "放款重试"
+
 def test_ops():
     nodes = parse(MD)
     add_node(nodes, "0,0", "重试监控告警")
