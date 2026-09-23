@@ -15,6 +15,7 @@ import {
   getGaps,
   resolveConflict,
   listBaselines,
+  getTree,
   type Assertion,
   type Card,
   type Clarification,
@@ -22,7 +23,7 @@ import {
   type EvidenceItem,
   type Gap,
 } from '../../api'
-import { curPath } from '../../router'
+import { baseTag, curName, curPath, view } from '../../router'
 
 vi.mock('../../api', () => ({
   PROJ: '风控云',
@@ -94,6 +95,8 @@ const CARD: Card = {
 beforeEach(() => {
   vi.clearAllMocks()
   curPath.value = '' // 共享视图状态复位
+  view.value = 'v-ev'
+  baseTag.value = '未建基线'
   vi.mocked(getEvidence).mockResolvedValue(EVIDENCE)
   vi.mocked(getAssertions).mockResolvedValue(ASSERTIONS)
   vi.mocked(getConflicts).mockResolvedValue(CONFLICTS)
@@ -102,6 +105,7 @@ beforeEach(() => {
   vi.mocked(getCard).mockResolvedValue(CARD)
   vi.mocked(getClarifications).mockResolvedValue(CLARS)
   vi.mocked(listBaselines).mockResolvedValue([{ commit: 'abc1234', tag: 'v1', v: 1 }])
+  vi.mocked(getTree).mockResolvedValue([])
   vi.mocked(getDoc).mockResolvedValue('# 结果文档\n正文')
 })
 
@@ -242,5 +246,56 @@ describe('Card 空态', () => {
     const w = mount(Card)
     await flushPromises()
     expect(w.text()).toContain('AI 组装卡片草稿')
+  })
+})
+
+describe('基线「当前」标记（gitops 升序返回，取最新）', () => {
+  const TWO = [
+    { commit: 'a1111111111111111111111111111', tag: 'v1', v: 1 },
+    { commit: 'b2222222222222222222222222222', tag: 'v2', v: 2 },
+  ]
+
+  it('App 顶栏显示最新 v2，v-base 时间线最后一项带 cur', async () => {
+    vi.mocked(listBaselines).mockResolvedValue(TWO)
+    const App = (await import('../../App.vue')).default
+    const w = mount(App)
+    await flushPromises()
+    expect(w.find('.baseline-tag').text()).toContain('v2')
+    expect(w.find('.baseline-tag').text()).toContain('b222222')
+    await w.findAll('nav .step').find(b => b.text() === '基线')!.trigger('click')
+    await flushPromises()
+    const items = w.findAll('.tl-item')
+    expect(items.length).toBe(2)
+    expect(items[0].classes()).not.toContain('cur')
+    expect(items[0].text()).not.toContain('当前')
+    expect(items[1].classes()).toContain('cur')
+    expect(items[1].text()).toContain('v2')
+    expect(items[1].text()).toContain('当前')
+    w.unmount() // 卸载，避免残留 watcher 覆写共享 curName
+  })
+
+  it('Save 时间线最后一项带 cur（当前=v2）', async () => {
+    vi.mocked(listBaselines).mockResolvedValue(TWO)
+    curPath.value = '0,1'
+    const Save = (await import('../Save.vue')).default
+    const w = mount(Save)
+    await flushPromises()
+    const items = w.findAll('.tl-item')
+    expect(items.length).toBe(2)
+    expect(items[0].classes()).not.toContain('cur')
+    expect(items[1].classes()).toContain('cur')
+    expect(items[1].text()).toContain('v2')
+  })
+
+  it('Save 并入基线 note 用节点名而非数字路径', async () => {
+    vi.mocked(createBaseline).mockResolvedValue({ commit: 'def5678', tag: 'v2', v: 2 })
+    curPath.value = '0,1'
+    curName.value = '放款重试'
+    const Save = (await import('../Save.vue')).default
+    const w = mount(Save)
+    await flushPromises()
+    await w.findAll('button').find(b => b.text().includes('并入基线'))!.trigger('click')
+    await flushPromises()
+    expect(createBaseline).toHaveBeenCalledWith('放款重试 并入基线')
   })
 })

@@ -10,7 +10,7 @@ import {
   listBaselines,
   type Baseline,
 } from '../api'
-import { baseTag, curPath } from '../router'
+import { baseTag, curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -53,7 +53,7 @@ const canSave = computed(() => hasCard.value)
 
 async function newBaseline() {
   try {
-    const b = await createBaseline(`${curPath.value} 并入基线`)
+    const b = await createBaseline(`${curName.value} 并入基线`)
     baseTag.value = `基线 ${b.tag} · ${b.commit.slice(0, 7)}`
     await load()
     toast(`已并入基线 ${b.tag}（commit+tag）`, 'ok')
@@ -114,8 +114,8 @@ function downloadDoc() {
       <div class="hd">版本时间线</div>
       <div class="bd">
         <div v-if="baselines.length" class="tl">
-          <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === 0 }">
-            <h4>{{ b.tag }} <span v-if="i === 0" class="badge b-blue">当前</span></h4>
+          <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === baselines.length - 1 }">
+            <h4>{{ b.tag }} <span v-if="i === baselines.length - 1" class="badge b-blue">当前</span></h4>
             <div class="meta">{{ b.commit }}</div>
           </div>
         </div>

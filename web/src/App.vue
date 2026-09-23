@@ -56,7 +56,8 @@ watch(
 async function refreshBaselines() {
   baselines.value = await listBaselines()
   if (baselines.value.length) {
-    const b = baselines.value[0]
+    // list_baselines 按版本号升序返回，「当前」= 最新（最后一项）
+    const b = baselines.value[baselines.value.length - 1]
     baseTag.value = `基线 ${b.tag} · ${b.commit.slice(0, 7)}`
   }
 }
@@ -168,8 +169,8 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
           <div class="hd">版本时间线</div>
           <div class="bd">
             <div v-if="baselines.length" class="tl">
-              <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === 0 }">
-                <h4>{{ b.tag }} <span v-if="i === 0" class="badge b-blue">当前</span></h4>
+              <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === baselines.length - 1 }">
+                <h4>{{ b.tag }} <span v-if="i === baselines.length - 1" class="badge b-blue">当前</span></h4>
                 <div class="meta">{{ b.commit }}</div>
               </div>
             </div>
