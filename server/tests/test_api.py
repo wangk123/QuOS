@@ -244,6 +244,44 @@ async def test_ai_error_maps_to_502(client, monkeypatch):
     assert r.status_code == 502
 
 
+async def test_binary_evidence_extract_rejected(client):
+    # 截图/压缩包不做 AI 提取，M1.x 才支持解析
+    for fname in ("shot.png", "bundle.zip"):
+        r = await client.post(f"{BASE}/evidence", content=b"\x89PNG",
+                              headers={"content-type": "application/octet-stream", "x-filename": fname})
+        ev_id = r.json()["id"]
+        r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
+        assert r.status_code == 422
+        assert "不支持 AI 提取" in r.json()["detail"]
+
+
+async def test_assemble_excludes_voided_assertions(client, monkeypatch):
+    # 裁决 C1 信 A2 后，A3 为作废断言，不得进入组装入参
+    from app.storage import findings as finding_store
+    from app.storage import assertions as assert_store
+
+    root = project_root("演示项目")
+    assert_store.save(root, [
+        Assertion(id="A1", text="回调超时 30s", src="retry.py:15", conf="实证", verified=True),
+        Assertion(id="A2", text="重试上限 3 次", src="retry.py:42", conf="实证", verified=True),
+        Assertion(id="A3", text="重试上限 5 次", src="设计文档§2", conf="文档", verified=True),
+    ])
+    finding_store.save_conflicts(root, [Conflict(id="C1", a="A2", b="A3", q="重试几次？", st="code", resolution="A2")])
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "放款"})
+
+    seen = {}
+
+    async def mock_assemble(assertions, node_name, note):
+        seen["ids"] = [a.id for a in assertions]
+        return Card(node=node_name, goal="不重复放款",
+                    rules=[Rule(id="R1", text="重试上限 3 次", src="retry.py:42", conf="实证")])
+
+    monkeypatch.setattr(tasks, "assemble", mock_assemble)
+    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0", "note": ""})
+    assert r.status_code == 200
+    assert "A3" not in seen["ids"] and "A2" in seen["ids"]
+
+
 async def test_project_name_traversal_rejected(client):
     # proj=".."（URL 编码 %2e%2e）slugify 后为空 → root 解析为文件系统根，必须 422 拒绝
     r = await client.get("/api/projects/%2e%2e/evidence")

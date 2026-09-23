@@ -39,3 +39,14 @@ async def test_filename_sanitized(root):
 async def test_id_length(root):
     e = await ev.add(root, {"type": "文本", "name": "t", "ext": "", "stars": 2})
     assert len(e.id) == len("文本") + 8
+
+@pytest.mark.asyncio
+async def test_corrupt_index_raises_runtime_error(root):
+    # index.json 损坏必须抛可读 RuntimeError，不吞不静默重建
+    import json as _json
+    (root / "evidence").mkdir(parents=True, exist_ok=True)
+    (root / "evidence" / "index.json").write_text("{坏json", "utf-8")
+    with pytest.raises(RuntimeError) as e:
+        await ev.list_all(root)
+    assert "evidence/index.json 损坏" in str(e.value)
+    assert not isinstance(e.value, _json.JSONDecodeError)

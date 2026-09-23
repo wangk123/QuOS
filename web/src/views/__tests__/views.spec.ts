@@ -14,6 +14,7 @@ import {
   getEvidence,
   getGaps,
   resolveConflict,
+  verifyClar,
   listBaselines,
   getTree,
   type Assertion,
@@ -235,6 +236,34 @@ describe('Ask 交互', () => {
     await w.findAll('button').find(b => b.text() === '记录')!.trigger('click')
     await flushPromises()
     expect(answerClar).toHaveBeenCalledWith(1, 0)
+  })
+
+  it('已答行显示「标记已确认」按钮（非「落码验证」）', async () => {
+    vi.mocked(getClarifications).mockResolvedValue([
+      { ...CLARS[0], st: 'answered', answer: '放款流水号' },
+    ])
+    const Ask = (await import('../Ask.vue')).default
+    const w = mount(Ask)
+    await flushPromises()
+    const texts = w.findAll('button').map(b => b.text())
+    expect(texts).toContain('标记已确认')
+    expect(texts).not.toContain('落码验证')
+  })
+
+  it('点击「标记已确认」调 verifyClar 且 toast 不再宣称已实证', async () => {
+    const toasts: string[] = []
+    vi.mocked(verifyClar).mockResolvedValue({ ...CLARS[0], st: 'verified', answer: '放款流水号' })
+    vi.mocked(getClarifications).mockResolvedValue([
+      { ...CLARS[0], st: 'answered', answer: '放款流水号' },
+    ])
+    const Ask = (await import('../Ask.vue')).default
+    const w = mount(Ask, { global: { provide: { toast: (msg: string) => { toasts.push(msg) } } } })
+    await flushPromises()
+    await w.findAll('button').find(b => b.text() === '标记已确认')!.trigger('click')
+    await flushPromises()
+    expect(verifyClar).toHaveBeenCalledWith(1)
+    expect(toasts.some(t => t.includes('已标记确认'))).toBe(true)
+    expect(toasts.some(t => t.includes('已实证'))).toBe(false)
   })
 })
 

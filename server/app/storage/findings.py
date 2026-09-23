@@ -11,7 +11,12 @@ def _file(root, kind: str) -> Path:
 
 def _load(root, kind: str, model) -> list:
     p = _file(root, kind)
-    return [model(**r) for r in json.loads(p.read_text("utf-8"))] if p.exists() else []
+    if not p.exists():
+        return []
+    try:
+        return [model(**r) for r in json.loads(p.read_text("utf-8"))]
+    except json.JSONDecodeError:
+        raise RuntimeError(f"{kind}.json 损坏，请人工修复或删除")
 
 
 def _save(root, kind: str, items: list) -> None:
@@ -36,21 +41,24 @@ def save_gaps(root, items: list[Gap]) -> None:
 
 
 def merge_conflicts(root, detected: list[Conflict]) -> list[Conflict]:
-    """重扫合并：已知 id 保留裁决状态，新发现追加，已消失不删除（保留裁决历史）"""
-    old = {i.id: i for i in load_conflicts(root)}
+    """重扫合并：按无序断言对去重（防重扫 id 漂移丢新冲突），已知对保留裁决状态，已消失不删除"""
+    items = load_conflicts(root)
+    seen = {frozenset((c.a, c.b)) for c in items}
     for d in detected:
-        if d.id not in old:
-            old[d.id] = d
-    items = list(old.values())
+        key = frozenset((d.a, d.b))
+        if key not in seen:
+            seen.add(key)
+            items.append(d)
     save_conflicts(root, items)
     return items
 
 
 def merge_gaps(root, detected: list[Gap]) -> list[Gap]:
-    old = {i.id: i for i in load_gaps(root)}
+    items = load_gaps(root)
+    seen = {(g.dim, g.text) for g in items}
     for d in detected:
-        if d.id not in old:
-            old[d.id] = d
-    items = list(old.values())
+        if (d.dim, d.text) not in seen:
+            seen.add((d.dim, d.text))
+            items.append(d)
     save_gaps(root, items)
     return items

@@ -51,9 +51,9 @@ async function verify(c: Clarification) {
   try {
     await verifyClar(c.no)
     await load()
-    toast(`${c.no} 已实证：答案与代码一致，规则升级实证`, 'ok')
+    toast(`${c.no} 已标记确认（真实代码比对 M1.x 实现）`, 'ok')
   } catch (e) {
-    toast(e instanceof ApiError ? `实证失败：${e.message}` : '实证失败', 'warn')
+    toast(e instanceof ApiError ? `标记失败：${e.message}` : '标记失败', 'warn')
   }
 }
 
@@ -99,7 +99,7 @@ function copyExport() {
               </template>
               <template v-else-if="c.st === 'answered'">
                 <span class="src">答：{{ c.answer }}</span>
-                <button class="btn-ok btn-sm" type="button" @click="verify(c)">落码验证</button>
+                <button class="btn-ok btn-sm" type="button" @click="verify(c)">标记已确认</button>
               </template>
               <span v-else class="src">答：{{ c.answer }} ✓</span>
             </td>

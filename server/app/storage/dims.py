@@ -11,7 +11,12 @@ def _f(root) -> Path:
 
 def get_dims(root) -> list[str]:
     p = _f(root)
-    return json.loads(p.read_text("utf-8")) if p.exists() else list(DEFAULT)
+    if not p.exists():
+        return list(DEFAULT)
+    try:
+        return json.loads(p.read_text("utf-8"))
+    except json.JSONDecodeError:
+        raise RuntimeError("dims.json 损坏，请人工修复或删除")
 
 
 def set_dims(root, dims: list[str]) -> None:

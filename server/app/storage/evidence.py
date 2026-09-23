@@ -13,7 +13,12 @@ def _idx(root: Path) -> Path:
 
 def _load(root) -> list[dict]:
     p = _idx(root)
-    return json.loads(p.read_text("utf-8")) if p.exists() else []
+    if not p.exists():
+        return []
+    try:
+        return json.loads(p.read_text("utf-8"))
+    except json.JSONDecodeError:
+        raise RuntimeError("evidence/index.json 损坏，请人工修复或删除")
 
 
 def _save(root, rows):

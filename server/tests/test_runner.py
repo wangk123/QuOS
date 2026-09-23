@@ -40,3 +40,12 @@ async def test_retry_recovers(monkeypatch):
     out = await complete("extract", {"material": "x"}, Out)
     assert out.assertions == [{"k": "v"}]
     assert len(calls) == 2
+
+async def test_fenced_json_stripped(monkeypatch):
+    # LLM 常把 JSON 包在 ```json 围栏里，应剥离后校验通过
+    def h(request):
+        content = '```json\n{"assertions": [{"k": "v"}]}\n```'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+    monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
+    out = await complete("extract", {"material": "x"}, Out)
+    assert out.assertions == [{"k": "v"}]

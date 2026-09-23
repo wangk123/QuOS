@@ -84,10 +84,6 @@ async function extractAll() {
 }
 
 async function checkAll() {
-  if (items.value.length < 3) {
-    toast('断言太少（≥3 条才能核验）')
-    return
-  }
   aiLabel.value = `AI 全量核验：${items.value.length} 条断言逐条比对材料…`
   try {
     const r = await verifyAll()
@@ -123,7 +119,7 @@ async function checkOne(id: string) {
       <span class="sub">AI 读材料，一句句写下「系统在干什么」，每句注明从哪看出来的。</span>
       <div class="spacer" style="flex: 1" />
       <button class="btn" type="button" @click="extractAll">提取池中相关材料</button>
-      <button class="btn-accent" type="button" :disabled="items.length < 3" @click="checkAll">AI 全量核验</button>
+      <button class="btn-accent" type="button" @click="checkAll">AI 全量核验</button>
     </div>
 
     <p v-if="err" class="err">{{ err }}</p>

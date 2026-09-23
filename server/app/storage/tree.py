@@ -11,15 +11,20 @@ class Node(BaseModel):
 
 
 class TreeFormatError(Exception):
-    def __init__(self, line):
-        super().__init__(f"tree.md 第 {line} 行缩进非法")
+    def __init__(self, line, msg=None):
+        super().__init__(msg or f"tree.md 第 {line} 行缩进非法")
 
 
 def parse(md_text: str) -> list[Node]:
     stack: list[tuple[int, Node]] = []  # (indent, node)
     roots: list[Node] = []
     for no, raw in enumerate(md_text.splitlines(), 1):
-        if not raw.strip() or not raw.lstrip().startswith("- "):
+        ls = raw.lstrip()
+        if not ls:
+            continue
+        if not ls.startswith("- "):
+            if ls.startswith("-"):  # `-名称` 缺空格：不静默丢行
+                raise TreeFormatError(no, f"tree.md 第 {no} 行「-」后缺空格")
             continue
         indent = len(raw) - len(raw.lstrip())
         if indent % 2 or (stack and indent > stack[-1][0] + 2) or (not stack and indent > 0):

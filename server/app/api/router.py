@@ -14,7 +14,7 @@ from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
 from app.storage import assertions as assert_store
 from app.storage import cards, clarifications, dims, evidence, findings, gitops, project, tree
-from app.storage.project import project_root, slugify
+from app.storage.project import is_valid_name, project_root
 
 api_router = APIRouter()
 
@@ -61,7 +61,7 @@ class BaselineIn(BaseModel):
 
 def _root(proj: str) -> Path:
     """项目根目录；项目名清洗后为空或逃逸 DATA_DIR 一律 422（防路径遍历）"""
-    if not slugify(proj):
+    if not is_valid_name(proj):
         raise HTTPException(status_code=422, detail=f"非法项目名: {proj}")
     root = project_root(proj)
     if not root.resolve().is_relative_to(Path(project.DATA_DIR).resolve()):
@@ -152,6 +152,8 @@ async def extract_evidence(proj: str, ev_id: str):
     ev = await evidence.get(root, ev_id)
     if ev is None:
         raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
+    if ev.type in ("截图", "压缩包"):
+        raise HTTPException(status_code=422, detail="该类型不支持 AI 提取（M1.x 支持解析）")
     got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type)
     items = assert_store.load(root)
     for i, a in enumerate(got, len(items) + 1):
@@ -326,6 +328,13 @@ async def mutate_tree(proj: str, body: TreeIn):
 
 # ---------- 卡片 ----------
 
+def _void_ids(root) -> set[str]:
+    """矛盾裁决信代码侧后，被否定一侧断言视为作废，不得进入组装"""
+    return {x for c in findings.load_conflicts(root)
+            if c.st == "code" and c.resolution
+            for x in (c.a, c.b) if x != c.resolution}
+
+
 @api_router.post("/cards/assemble")
 async def assemble_card(proj: str, body: AssembleIn):
     root = _root(proj)
@@ -333,7 +342,9 @@ async def assemble_card(proj: str, body: AssembleIn):
     node, full = _resolve(nodes, body.node_path)
     if node is None:
         raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
-    card = await _ai(tasks.assemble, assert_store.load(root), node.name, body.note)
+    void = _void_ids(root)
+    usable = [a for a in assert_store.load(root) if a.id not in void]
+    card = await _ai(tasks.assemble, usable, node.name, body.note)
     card.node = full  # 存储按树全路径寻址（load/export 匹配用）
     f = cards.save_card(root, full, card)
     return {"card": card.model_dump(), "file": f.name}

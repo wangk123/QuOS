@@ -52,11 +52,22 @@ async def _call(prompt: str) -> str:
             await client.aclose()
 
 
+def _strip_fence(content: str) -> str:
+    """LLM 输出常被 ```json 围栏包裹，校验前剥离首尾围栏"""
+    t = content.strip()
+    if not t.startswith("```"):
+        return t
+    t = t.split("\n", 1)[1] if "\n" in t else ""
+    if t.rstrip().endswith("```"):
+        t = t.rstrip()[:-3]
+    return t.strip()
+
+
 async def complete(task: str, variables: dict, schema: type[BaseModel]) -> BaseModel:
     prompt = (PROMPTS / f"{task}.md").read_text("utf-8").format(**variables)
     for attempt in (1, 2):
         try:
-            return schema.model_validate_json(await _call(prompt))
+            return schema.model_validate_json(_strip_fence(await _call(prompt)))
         except Exception as e:
             if attempt == 2:
                 raise AITaskError(task, f"输出校验失败: {str(e)[:200]}")
