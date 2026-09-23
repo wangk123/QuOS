@@ -34,11 +34,11 @@ def _ev(row: dict) -> Evidence:
 
 async def add(root, payload: dict, content: bytes | None = None) -> Evidence:
     rows = _load(root)
-    row = {"id": payload.get("type", "文本")[:4].upper() + uuid.uuid4().hex[:4],
+    row = {"id": payload.get("type", "文本")[:4].upper() + uuid.uuid4().hex[:8],
            "reg": date.today().isoformat(), "path": None, **payload}
     if content is not None:
         fdir = root / "evidence" / "files"; fdir.mkdir(parents=True, exist_ok=True)
-        f = fdir / payload["name"]; f.write_bytes(content); row["path"] = str(f.relative_to(root))
+        f = fdir / Path(payload["name"]).name; f.write_bytes(content); row["path"] = str(f.relative_to(root))
     rows.append(row); _save(root, rows)
     return _ev(row)
 

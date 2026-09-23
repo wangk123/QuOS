@@ -26,3 +26,16 @@ async def test_mark_extracted(root):
     e = await ev.add(root, {"type": "文本", "name": "t", "ext": "", "stars": 2})
     await ev.mark_extracted(root, e.id, 6)
     assert (await ev.get(root, e.id)).state == "extracted"
+
+@pytest.mark.asyncio
+async def test_filename_sanitized(root):
+    e = await ev.add(root, {"type": "文档", "name": "../evil.txt", "ext": "", "stars": 1}, content=b"x")
+    assert (root / "evidence" / "files" / "evil.txt").exists()
+    assert not (root.parent / "evil.txt").exists()
+    assert not (root / "evil.txt").exists()
+    assert e.path == "evidence/files/evil.txt"
+
+@pytest.mark.asyncio
+async def test_id_length(root):
+    e = await ev.add(root, {"type": "文本", "name": "t", "ext": "", "stars": 2})
+    assert len(e.id) == len("文本") + 8
