@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReqSpec · 需求结构化工作台（可交互原型）</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
+:root{
+  --primary:#1E40AF; --secondary:#3B82F6; --accent:#D97706;
+  --bg:#F8FAFC; --fg:#0F172A; --muted-fg:#475569;
+  --muted:#E9EEF6; --border:#DBEAFE; --border2:#CBD5E1;
+  --destructive:#DC2626; --ok:#16A34A; --warn:#B45309;
+  --amber-bg:#FEF3C7; --green-bg:#DCFCE7; --blue-bg:#DBEAFE; --red-bg:#FEE2E2;
+  --radius:8px; --font:'Fira Sans',system-ui,-apple-system,sans-serif; --mono:'Fira Code',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;font-size:12.5px;transition:all .18s}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn{background:var(--primary);color:#fff;padding:7px 14px;font-weight:600}
+.btn:hover:not(:disabled){background:#1D4ED8}
+.btn-ghost{background:#fff;color:var(--primary);border:1px solid var(--border2);padding:6px 12px}
+.btn-ghost:hover:not(:disabled){background:var(--muted)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-accent{background:var(--accent);color:#fff;font-weight:600;padding:6px 12px}
+.btn-accent:hover:not(:disabled){background:#C2660A}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-danger-ghost{background:#fff;color:var(--destructive);border:1px solid #FCA5A5;padding:6px 12px}
+
+header{display:flex;align-items:center;gap:16px;background:#fff;border-bottom:1px solid var(--border2);padding:0 20px;height:52px;position:sticky;top:0;z-index:50}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:var(--primary)}
+.proj{display:flex;align-items:center;gap:8px;color:var(--muted-fg)}
+.proj select{font-family:inherit;font-size:13px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px}
+.spacer{flex:1}
+.baseline-tag{font-family:var(--mono);font-size:12px;color:var(--muted-fg);background:var(--muted);padding:4px 10px;border-radius:999px}
+
+.navbar{display:flex;gap:18px;background:#fff;border-bottom:1px solid var(--border2);padding:8px 20px;overflow-x:auto;position:sticky;top:52px;z-index:49;align-items:center}
+.navgrp{display:flex;gap:4px;align-items:center}
+.navgrp .grp-lbl{font-size:10.5px;font-weight:700;color:var(--muted-fg);letter-spacing:.06em;margin-right:6px;white-space:nowrap}
+.navgrp .sep{width:1px;height:18px;background:var(--border2);margin:0 12px 0 18px}
+.step{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;white-space:nowrap;color:var(--muted-fg);background:transparent}
+.step:hover{background:var(--muted)}
+.step .n{width:20px;height:20px;border-radius:50%;background:var(--muted);color:var(--muted-fg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.step.active{background:var(--primary);color:#fff;font-weight:600}
+.step.active .n{background:rgba(255,255,255,.25);color:#fff}
+.step.done{color:var(--ok)}
+.step.done .n{background:var(--ok);color:#fff}
+.step-arrow{color:var(--border2);flex-shrink:0;align-self:center}
+.session-tag{margin-left:auto;font-size:11.5px;color:var(--primary);background:var(--blue-bg);padding:4px 12px;border-radius:999px;font-weight:600;white-space:nowrap}
+
+.main{display:flex;min-height:calc(100vh - 100px)}
+aside{width:264px;background:#fff;border-right:1px solid var(--border2);padding:10px 8px;flex-shrink:0;overflow-y:auto}
+.content{flex:1;padding:18px 22px;min-width:0}
+
+.tree-title{font-size:11px;font-weight:700;color:var(--muted-fg);letter-spacing:.05em;padding:4px 8px 8px;display:flex;justify-content:space-between;align-items:center}
+.tree-title button{font-size:11px;color:var(--primary);background:none;padding:2px 6px}
+/* ── 功能树（IDE 文件树规范） ── */
+.node{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 2px;border-radius:6px;color:#334155;font-size:12.5px;cursor:pointer;position:relative;min-height:26px}
+.node:hover{background:var(--muted)}
+.node.active{background:var(--blue-bg);color:var(--primary);font-weight:600;box-shadow:inset 2.5px 0 0 var(--primary)}
+.node .ig{width:14px;height:100%;flex-shrink:0;position:relative;margin:0 1px}
+.node .ig::before{content:'';position:absolute;left:7px;top:2px;bottom:2px;border-left:1px solid #E2E8F0}
+.node:hover .ig::before{border-color:#CBD5E1}
+.node .caret-btn{width:17px;height:17px;flex-shrink:0;border:none;background:none;color:#94A3B8;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0}
+.node .caret-btn:hover{background:#fff;color:var(--primary)}
+.node .caret-btn svg{width:11px;height:11px;transition:transform .15s}
+.node .caret-btn.open svg{transform:rotate(90deg)}
+.node .caret-btn.leaf{visibility:hidden}
+.node .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.node.l0>.nm{font-weight:600;letter-spacing:.01em}
+.nbadge{height:16px;min-width:17px;padding:0 5px;border-radius:9px;font-size:9.5px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;flex-shrink:0;line-height:1;margin-right:2px}
+.nbadge.warn{background:#F59E0B;color:#fff}
+.nbadge.cnt{color:#B6C2D2;font-weight:500}
+.nbadge.okc{width:16px;min-width:16px;padding:0;background:var(--green-bg);color:#16A34A;border-radius:50%}
+.nops{display:none;gap:1px;flex-shrink:0;position:absolute;right:4px;background:#fff;padding-left:14px;background:linear-gradient(to right,rgba(255,255,255,0),#fff 16px)}
+.node:hover .nops,.node.active .nops{display:flex}
+.node.active .nops{background:linear-gradient(to right,rgba(219,234,254,0),var(--blue-bg) 16px)}
+.nops button{width:20px;height:20px;border:none;background:transparent;color:#94A3B8;padding:0;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.nops button:hover{background:var(--blue-bg);color:var(--primary)}
+.nops button.del:hover{background:var(--red-bg);color:var(--destructive)}
+.nops svg{width:11px;height:11px}
+.tree-legend{font-size:10.5px;color:var(--muted-fg);padding:10px 8px 4px;line-height:1.9;border-top:1px solid var(--border);margin-top:8px}
+.tree-legend .pill{display:inline-flex;align-items:center;gap:4px}
+.tree-legend .swarn{background:#F59E0B;color:#fff;border-radius:9px;font-size:9px;padding:1px 5px;font-family:var(--mono);font-weight:700}
+.tree-legend .scnt{color:#B6C2D2;font-family:var(--mono);font-weight:700;font-size:10px}
+
+.view{display:none}.view.show{display:block}
+.view-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.view-head h2{font-size:16px}
+.view-head .sub{color:var(--muted-fg);font-size:12.5px}
+.statbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 16px;min-width:104px}
+.stat b{display:block;font-size:17px;color:var(--primary)}
+.stat span{font-size:11.5px;color:var(--muted-fg)}
+.stat.warn b{color:var(--destructive)}
+.stat.okc b{color:var(--ok)}
+
+.card-box{background:#fff;border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:14px}
+.card-box>.hd{padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-box>.bd{padding:14px 16px}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:11px;letter-spacing:.04em;color:var(--muted-fg);padding:8px 12px;border-bottom:1px solid var(--border);font-weight:700;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover td{background:#F1F5FD}
+.src{font-family:var(--mono);font-size:11.5px;color:var(--muted-fg);background:var(--muted);padding:2px 7px;border-radius:4px;white-space:nowrap}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.b-green{background:var(--green-bg);color:#166534}
+.b-blue{background:var(--blue-bg);color:var(--primary)}
+.b-amber{background:var(--amber-bg);color:var(--warn)}
+.b-red{background:var(--red-bg);color:var(--destructive)}
+.b-gray{background:var(--muted);color:var(--muted-fg)}
+.row-actions{display:flex;gap:6px}
+.strike{text-decoration:line-through;color:var(--muted-fg)}
+tr.suspect td{background:#FFFBEB}
+
+.dropzone{border:2px dashed var(--border2);border-radius:12px;background:#fff;text-align:center;padding:22px 20px;margin-bottom:14px;transition:all .2s;cursor:pointer}
+.dropzone:hover{border-color:var(--secondary)}
+.dropzone.over{border-color:var(--primary);background:var(--blue-bg)}
+.dropzone .big{font-size:14px;font-weight:600;margin-bottom:4px}
+.dropzone .tip{font-size:11.5px;color:var(--muted-fg)}
+/* ── 智能输入区：一个框收一切 ── */
+.smart-input{display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border2);border-radius:10px;padding:6px 8px;margin-bottom:14px;transition:all .2s}
+.smart-input:hover{border-color:var(--secondary)}
+.smart-input.over{border-color:var(--primary);background:#F5F8FF;box-shadow:0 0 0 3px var(--blue-bg)}
+.smart-input .att{width:32px;height:32px;flex-shrink:0;border:1px solid var(--border2);background:#fff;border-radius:8px;color:var(--muted-fg);display:flex;align-items:center;justify-content:center}
+.smart-input .att:hover{color:var(--primary);border-color:var(--secondary)}
+.smart-input input{flex:1;border:none;font-family:var(--mono);font-size:12.5px;background:transparent;padding:6px 2px;min-width:0}
+.smart-input input:focus{outline:none}
+.smart-input input::placeholder{color:#94A3B8}
+.smart-hint{font-size:11px;color:var(--muted-fg);margin:-8px 0 12px 46px;display:flex;gap:14px;flex-wrap:wrap}
+.smart-hint b{color:var(--primary);font-weight:600}
+tr.ev-danger td{background:#FFF7F7}
+
+.conflict{border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;background:#fff}
+.conflict .sides{display:grid;grid-template-columns:1fr 44px 1fr}
+.conflict .side{padding:12px 14px}
+.conflict .who{font-size:11px;font-weight:700;margin-bottom:4px}
+.conflict .vs{display:flex;align-items:center;justify-content:center;background:var(--red-bg);color:var(--destructive);font-weight:700;font-size:11px}
+.conflict-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--border);background:#FAFBFE;flex-wrap:wrap}
+.conflict-foot .q{font-size:11.5px;color:var(--muted-fg);margin-right:auto}
+.conflict.resolved{opacity:.72}
+
+.gap-group{margin-bottom:10px}
+.gap-group>.g-hd{display:flex;align-items:center;gap:8px;font-weight:600;padding:7px 10px;background:var(--muted);border-radius:6px;margin-bottom:6px;font-size:12.5px}
+.gap-group>.g-hd .rm{margin-left:auto;border:none;background:none;color:var(--destructive);font-size:11px;padding:0 4px}
+.gap-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-left:3px solid var(--border2);margin-left:6px;background:#fff;border-radius:0 6px 6px 0;margin-bottom:4px}
+.gap-item .t{flex:1}
+.gap-item.done{opacity:.6}
+
+.spec-head{display:flex;align-items:center;gap:10px;margin:6px 0 4px}
+.spec-head h3{font-size:17px}
+.spec-meta{display:flex;gap:14px;color:var(--muted-fg);font-size:12px;margin-bottom:16px;flex-wrap:wrap}
+.spec-grid{display:grid;grid-template-columns:140px 1fr;border:1px solid var(--border2);border-radius:var(--radius);background:#fff;overflow:hidden}
+.spec-grid .k{background:var(--muted);padding:9px 14px;font-weight:600;font-size:12px;color:var(--muted-fg);border-bottom:1px solid var(--border)}
+.spec-grid .v{padding:9px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.rule-row{display:flex;align-items:center;gap:8px;padding:5px 0;flex-wrap:wrap}
+.rule-id{font-family:var(--mono);font-weight:600;color:var(--primary);font-size:12px;width:26px;flex-shrink:0}
+.warn-strip{background:var(--amber-bg);border:1px solid #FDE68A;color:#92400E;border-radius:var(--radius);padding:10px 14px;margin:14px 0;font-size:12.5px}
+.warn-strip b{display:block;margin-bottom:4px}
+.empty{padding:40px;text-align:center;color:var(--muted-fg);background:#fff;border:1px dashed var(--border2);border-radius:var(--radius)}
+.q-export{background:#0F172A;color:#E2E8F0;font-family:var(--mono);font-size:11.5px;border-radius:var(--radius);padding:14px 16px;white-space:pre-wrap;line-height:1.7;margin-top:10px}
+
+.tl{border-left:2px solid var(--border2);margin-left:8px;padding-left:20px}
+.tl-item{position:relative;padding-bottom:18px}
+.tl-item::before{content:'';position:absolute;left:-26px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--border2)}
+.tl-item.cur::before{background:var(--primary);box-shadow:0 0 0 3px var(--blue-bg)}
+.tl-item h4{font-size:13px;display:flex;gap:8px;align-items:center}
+.tl-item .meta{font-size:11.5px;color:var(--muted-fg);font-family:var(--mono)}
+.impact-box{border:1px dashed var(--secondary);border-radius:var(--radius);padding:14px 16px;background:#F8FAFF;margin-bottom:16px}
+.impact-list .it{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border);flex-wrap:wrap}
+textarea.diff{font-family:var(--mono);font-size:12px;width:100%;min-height:64px;border:1px solid var(--border2);border-radius:6px;padding:8px 10px;resize:vertical}
+
+#toasts{position:fixed;top:64px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:#0F172A;color:#fff;padding:10px 16px;border-radius:8px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:tin .25s ease}
+.toast.ok{background:var(--ok)}.toast.warn{background:var(--warn)}
+@keyframes tin{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
+
+#modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:150;display:none;align-items:center;justify-content:center}
+#modal-bg.show{display:flex}
+#modal{background:#fff;border-radius:12px;width:440px;max-width:92vw;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:86vh;overflow:auto}
+#modal.wide{width:760px;padding:20px 24px}
+#modal h3{font-size:15px;margin-bottom:14px}
+#modal label{display:block;font-size:12px;font-weight:600;color:var(--muted-fg);margin:10px 0 4px}
+#modal input[type=text],#modal select,#modal textarea{width:100%;font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border2);border-radius:6px}
+#modal textarea{font-family:var(--mono);font-size:12px;min-height:70px;resize:vertical}
+#modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.dim-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border)}
+.dim-row .nm{flex:1;font-weight:600}
+.dim-row button{color:var(--destructive);background:none;font-size:11px}
+
+.ai-run{display:flex;align-items:center;gap:10px;background:#EEF2FF;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:10px 0;font-size:12.5px;color:var(--primary)}
+.ai-run .bar{flex:1;height:6px;background:#DBEAFE;border-radius:99px;overflow:hidden}
+.ai-run .bar i{display:block;height:100%;width:0;background:var(--primary);border-radius:99px;transition:width .3s}
+.ai-run .spin{width:14px;height:14px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:sp .8s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.pulse{animation:pl 1s ease-in-out 3}
+@keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,0)}50%{box-shadow:0 0 0 4px rgba(217,119,6,.55)}}
+.new-in{animation:ni .5s ease}
+@keyframes ni{from{background:#FEF3C7;transform:translateY(-3px);opacity:0}to{background:none;transform:none;opacity:1}}
+
+#demo-bar{position:fixed;bottom:18px;right:18px;z-index:180;background:#0F172A;color:#fff;border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 12px 32px rgba(0,0,0,.3)}
+#demo-bar button{background:#fff;color:#0F172A;font-weight:700}
+#demo-bar .lbl{font-size:11.5px;color:#CBD5E1;max-width:210px}
+#demo-log{position:fixed;bottom:74px;right:18px;z-index:180;background:#0F172AEE;color:#E2E8F0;border-radius:10px;padding:10px 14px;font-size:12px;max-width:340px;display:none}
+#demo-log.show{display:block}
+#demo-log b{color:#FBBF24}
+
+@media (max-width:960px){aside{display:none}.conflict .sides{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>ReqSpec</div>
+  <div class="proj">项目 <select id="proj-sel"><option>风控云</option><option>信贷核心</option></select></div>
+  <span class="baseline-tag" id="base-tag">未建基线</span>
+  <div class="spacer"></div>
+  <button class="btn-ghost btn-sm" data-action="goto" data-v="v-base">增量定位</button>
+</header>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="main">
+<aside aria-label="功能树">
+  <div class="tree-title"><span>功能树（任意层级）</span><button data-action="node-add" data-path="">＋ 根节点</button></div>
+  <div id="tree"></div>
+  <div class="tree-legend">
+    <span class="pill"><span class="swarn">2</span>待确认项数</span> · <span class="pill"><span class="scnt">13</span>断言数</span> · <span class="pill"><span class="nbadge okc" style="display:inline-flex"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg></span>已实证</span><br>hover 节点 → 右侧出图标按钮（加 / 改 / 删）
+  </div>
+</aside>
+<main class="content" id="content"></main>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<div id="modal-bg"><div id="modal" role="dialog" aria-modal="true"></div></div>
+<div id="demo-log"></div>
+<div id="demo-bar"><span class="lbl" id="demo-lbl"></span><button id="demo-btn">▶ 播放</button></div>
+
+<script>
+/* ═══════════════ 状态 ═══════════════ */
+const S={
+  view:'v-ev', curPath:'0,1,1',
+  /* 功能树：任意层级嵌套，path 定位 */
+  tree:[
+    {name:'放款',open:true,children:[
+      {name:'放款执行',children:[
+        {name:'发起放款',stats:{asrt:9,warn:1}},
+        {name:'放款回调',stats:{asrt:6,ok:true}},
+      ]},
+      {name:'放款失败处理',open:true,children:[
+        {name:'放款失败登记',stats:{asrt:4}},
+        {name:'放款重试',stats:{asrt:13,warn:2},children:[
+          {name:'重试调度',stats:{asrt:7,warn:1}},
+          {name:'重试监控告警',stats:{}},
+        ]},
+      ]},
+    ]},
+    {name:'额度管理',children:[
+      {name:'授信审批',stats:{asrt:18}},
+      {name:'额度冻结/解冻',stats:{asrt:5,ok:true}},
+    ]},
+    {name:'还款',children:[{name:'还款计划生成',stats:{asrt:11,warn:1}}]},
+  ],
+  dims:['状态','异常','边界','幂等','数据','依赖'],
+  evidence:[
+    {id:'REPO1',name:'git@git.internal:riskcloud/loan-service.git',ext:'@feature/retry',type:'仓库',stars:3,reg:'今天',state:'pending',count:0},
+    {id:'TXT1', name:'「回调偶尔超时，加个重试」— 张开发',ext:'文本·口头转录',type:'文本',stars:2,reg:'09-20',state:'extracted',count:1},
+    {id:'IMG1', name:'微信截图_20260920.png',ext:'含口头约定',type:'截图',stars:2,reg:'09-20',state:'pending',count:0},
+    {id:'DOC1', name:'放款重试设计文档 v0.3.docx',ext:'',type:'文档',stars:2,reg:'上周',state:'pending',count:0},
+    {id:'DOC2', name:'放款流程分析（AI 生成）.md',ext:'',type:'AI生成',stars:0,reg:'昨天',state:'pending',count:0},
+    {id:'DOC3', name:'放款模块需求说明 2024-03.pdf',ext:'',type:'旧文档',stars:1,reg:'2024-03',state:'pending',count:0},
+  ],
+  assertions:[ {id:'A5',text:'幂等键为放款流水号',src:'TXT1 口头转录',conf:'推测',st:'card',verified:false} ],
+  conflicts:[
+    {id:'C1',a:'A2',b:'A3',q:'上限到底生效几个？',st:'open',resolution:null},
+    {id:'C2',a:'A5',b:'A6',q:'幂等键用哪个字段？（口头与代码相反，疑似 bug）',st:'open',resolution:null},
+    {id:'C3',a:'A4',b:'A11',q:'重试金额到底校不校验？',st:'open',resolution:null},
+  ],
+  gaps:[
+    {id:'G1',dim:'状态',text:'「重试中」状态无出口——人工干预路径未定义',st:'open'},
+    {id:'G2',dim:'异常',text:'重试过程中服务重启，重试是否恢复',st:'open'},
+    {id:'G3',dim:'边界',text:'月末/跨天触发的重试，计息日按哪天算',st:'open'},
+    {id:'G4',dim:'幂等',text:'并发触发两次重试未覆盖',st:'open'},
+  ],
+  clarifications:[], card:{assembled:false,note:''}, baselines:[],
+};
+const SCRIPTS={
+  REPO1:[['A1','当放款回调超时 30s，触发重试','loan/retry.py:15','实证'],
+         ['A2','重试上限为 3 次','loan/retry.py:42','实证'],
+         ['A4','重试携带原流水号，金额不可变','loan/retry.py:58','实证'],
+         ['A6','幂等键取订单号字段','retry_service.py:73','实证'],
+         ['A7','重试间隔固定 60s','retry_service.py:31','实证'],
+         ['A9','3 次耗尽后标记失败','retry_service.py:88','实证']],
+  DOC1:[['A3','重试上限为 5 次','设计文档§2','文档'],['A8','3 次耗尽后进入人工处理队列','设计文档§3','文档']],
+  DOC2:[['A10','重试上限为 10 次','AI分析§5','待实证'],['A11','重试不校验金额一致性','AI分析§7','待实证']],
+  IMG1:[['A13','张开发口头确认：重试不查余额直接发','IMG1 截图','推测']],
+  DOC3:[['A12','放款成功后 T+1 结算利息','旧需求 p4','旧文档']],
+};
+const VOID={C1:['A3'],C2:['A5'],C3:['A11']};
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(msg,cls=''){const t=document.createElement('div');t.className='toast '+cls;t.textContent=msg;$('#toasts').appendChild(t);setTimeout(()=>{t.style.opacity=0;t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400)},2800)}
+function modal(html,wide){const m=$('#modal');m.className=wide?'wide':'';m.innerHTML=html;$('#modal-bg').classList.add('show')}
+function closeModal(){$('#modal-bg').classList.remove('show')}
+$('#modal-bg').addEventListener('click',e=>{if(e.target.id==='modal-bg')closeModal()});
+async function aiRun(container,label,ms=1500){
+  if(!container)return;
+  const box=document.createElement('div');box.className='ai-run';
+  box.innerHTML=`<span class="spin"></span><span>${esc(label)}</span><div class="bar"><i></i></div>`;
+  container.prepend(box);
+  const bar=box.querySelector('i'),t0=Date.now();
+  await new Promise(res=>{const iv=setInterval(()=>{const p=Math.min(1,(Date.now()-t0)/ms);bar.style.width=(p*100)+'%';if(p>=1){clearInterval(iv);res()}},60)});
+  box.remove();
+}
+/* 树工具 */
+function nodeByPath(path){let ns=S.tree;let n=null;for(const i of path.split(',').filter(x=>x!=='')){n=ns[+i];if(!n)return null;ns=n.children||[]}return n}
+function curNode(){return nodeByPath(S.curPath)||{name:'放款重试'}}
+function parentPath(path){const p=path.split(',');p.pop();return p.join(',')}
+
+/* ═══════════════ 导航 ═══════════════ */
+const NAV={
+  proj:[['v-ev','证据池'],['v-base','基线']],
+  flow:[['v-fact','提事实'],['v-conf','挑矛盾'],['v-gap','找空白'],['v-card','成卡片'],['v-ask','问人'],['v-save','存档']],
+};
+function flowDone(v){
+  if(v==='v-fact')return S.assertions.length>=8&&S.checked;
+  if(v==='v-conf')return S.conflicts.every(c=>c.st!=='open');
+  if(v==='v-gap')return S.gaps.every(g=>g.st!=='open');
+  if(v==='v-card')return S.card.assembled;
+  if(v==='v-ask')return S.clarifications.length>0&&S.clarifications.every(c=>c.st!=='wait');
+  if(v==='v-save')return S.baselines.length>0;
+  return false;
+}
+function renderNav(){
+  const cn=curNode().name;
+  const P=NAV.proj.map(([v,n])=>`<button class="step ${S.view===v?'active':''}" data-action="goto" data-v="${v}">${n}</button>`).join('');
+  const F=NAV.flow.map(([v,n],i)=>{const d=flowDone(v);
+    return `<button class="step ${S.view===v?'active':''} ${d?'done':''}" data-action="goto" data-v="${v}"><span class="n">${d?'✓':i+1}</span>${n}</button>`+(i<5?'<span class="step-arrow">›</span>':'')}).join('');
+  $('#navbar').innerHTML=`<div class="navgrp"><span class="grp-lbl">项目</span>${P}</div>
+  <div class="navgrp"><span class="sep"></span><span class="grp-lbl">整理 · ${esc(cn)}</span>${F}</div>
+  <span class="session-tag">目标：${esc(cn)} <span style="opacity:.6">（点左侧树叶切换）</span></span>`;
+}
+function liveStats(n){
+  if(n.path!==S.curPath)return n.stats||{};
+  return {asrt:S.assertions.length,warn:S.clarifications.filter(c=>c.st==='wait').length+(S.gaps.filter(g=>g.st==='open').length)}
+}
+function renderTree(){
+  const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M9 6l6 6-6 6"/></svg>';
+  const ICO_ADD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
+  const ICO_REN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
+  const ICO_DEL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>';
+  const ICO_OK='<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg>';
+  const html=[];
+  (function walk(nodes,path,depth){
+    nodes.forEach((n,i)=>{
+      const p=path?path+','+i:''+i;
+      const hasKids=n.children&&n.children.length;
+      const act=p===S.curPath;
+      const st=liveStats({...n,path:p});
+      const guides='<span class="ig"></span>'.repeat(depth);
+      html.push(`<div class="node ${depth===0?'l0':''} ${act?'active':''}" data-action="pick-leaf" data-path="${p}" role="button" tabindex="0">
+        ${guides}
+        <button class="caret-btn ${hasKids?(n.open?'open':''):'leaf'}" data-action="toggle" data-path="${p}" aria-label="展开">${CHEV}</button>
+        <span class="nm">${esc(n.name)}</span>
+        ${st.ok&&!st.warn?`<span class="nbadge okc" title="卡片已实证">${ICO_OK}</span>`:''}
+        ${st.warn?`<span class="nbadge warn" title="待确认 ${st.warn} 项（空白/矛盾/推测）">${st.warn}</span>`:''}
+        ${st.asrt?`<span class="nbadge cnt" title="${st.asrt} 条断言">${st.asrt}</span>`:''}
+        <span class="nops">
+          <button data-action="node-add" data-path="${p}" title="加子节点">${ICO_ADD}</button>
+          <button data-action="node-ren" data-path="${p}" title="改名">${ICO_REN}</button>
+          <button class="del" data-action="node-del" data-path="${p}" title="删除">${ICO_DEL}</button>
+        </span>
+      </div>`);
+      if(hasKids&&n.open)walk(n.children,p,depth+1);
+    });
+  })(S.tree,'',0);
+  $('#tree').innerHTML=html.join('');
+  $('#base-tag').textContent=S.baselines.length?`基线 ${S.baselines[0].v} · ${S.baselines[0].commit} · 断言 ${S.assertions.filter(a=>a.st==='card').length}`:'未建基线';
+}
+
+/* ═══════════════ 渲染 ═══════════════ */
+const confBadge={'实证':['b-green','代码实证'],'文档':['b-blue','文档'],'推测':['b-amber','推测 ⚠'],'待实证':['b-red','AI待实证'],'旧文档':['b-gray','旧文档']};
+function render(){renderNav();renderTree();
+  const R={'v-ev':vPool,'v-fact':vFact,'v-conf':vConflict,'v-gap':vGap,'v-card':vCard,'v-ask':vAsk,'v-base':vBaseline,'v-save':vSave};
+  $('#content').innerHTML=(R[S.view]||vPool)();
+}
+
+const evMeta={
+  '仓库':['b-blue','#3B82F6','<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>'],
+  '文本':['b-amber','#B45309','<path d="M4 7V4h16v3M9 20h6M12 4v16"/>'],
+  '截图':['b-amber','#B45309','<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'],
+  '文档':['b-gray','#64748B','<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>'],
+  '压缩包':['b-gray','#64748B','<path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>'],
+  'AI生成':['b-red','#DC2626','<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>'],
+  '旧文档':['b-gray','#94A3B8','<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>'],
+};
+function vPool(){
+  return `<div class="view show">
+  <div class="view-head"><h2>证据池</h2><span class="sub">项目级材料库——文本、截图、文档、压缩包、仓库，先入池；整理节点时来挑。</span></div>
+  <div class="smart-input" id="dropzone">
+    <button class="att" data-action="dz-click" title="选择文件" aria-label="选择文件"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.4 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+    <input id="paste-in" placeholder="粘贴 / 输入：文本 · 聊天记录 · git 仓库地址（自动识别）——文件直接拖进本框" aria-label="智能输入">
+    <button class="btn" data-action="smart-add">入池</button>
+  </div>
+  <div class="smart-hint">
+    <span><b>文本</b>→文字材料</span><span><b>截图</b>→⌘V 直接入池</span><span><b>git@… / xxx.git</b>→自动挂仓库</span><span><b>拖文件</b>→按扩展名归类</span>
+  </div>
+  <div class="statbar">
+    <div class="stat"><b>${S.evidence.length}</b><span>池内材料</span></div>
+    <div class="stat"><b>${S.evidence.filter(e=>e.type==='仓库').length}</b><span>代码仓库</span></div>
+    <div class="stat warn"><b>${S.evidence.filter(e=>e.type==='AI生成').length}</b><span>AI 生成（警示）</span></div>
+    <div class="stat okc"><b>${S.evidence.filter(e=>e.state==='extracted').length}</b><span>已提取</span></div>
+  </div>
+  <div id="ai-slot-ev"></div>
+  <div class="card-box"><div class="hd">材料清单（项目级）</div><table>
+  <thead><tr><th>材料</th><th>类型</th><th>可信度</th><th>登记</th><th>状态</th><th style="width:110px">操作</th></tr></thead><tbody>
+  ${S.evidence.map(e=>{const m=evMeta[e.type]||evMeta['文档'];return `<tr class="${e.type==='AI生成'?'ev-danger':''}">
+    <td><svg style="width:15px;height:15px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="${m[1]}" stroke-width="2">${m[2]}</svg> <span style="font-family:var(--mono)">${esc(e.name)}</span>${e.ext?` <span class="src">${esc(e.ext)}</span>`:''}</td>
+    <td><span class="badge ${m[0]}">${e.type}${e.type==='AI生成'?' ⚠':''}</span></td>
+    <td>${'★'.repeat(e.stars)||'?'}</td><td><span class="src">${e.reg}</span></td>
+    <td>${e.state==='extracted'?`<span class="badge b-green">已提取 ${e.count}</span>`:'<span class="badge b-gray">未提取</span>'}</td>
+    <td class="row-actions"><button class="btn btn-sm" data-action="extract" data-id="${e.id}" ${e.state==='extracted'?'disabled':''}>提取</button></td></tr>`}).join('')}
+  </tbody></table></div>
+  <div class="warn-strip"><b>入库规则</b>AI 生成的材料标红：格式漂亮 ≠ 内容真实，提取断言一律「待实证」。口头/截图不登记就永远丢了——先入池。</div>
+  </div>`;
+}
+
+function vFact(){
+  const cn=curNode().name;
+  const g=k=>S.assertions.filter(a=>a.conf===k).length;
+  const nv=S.assertions.filter(a=>!a.verified).length;
+  return `<div class="view show">
+  <div class="view-head"><h2>① 提事实 · ${esc(cn)}</h2><span class="sub">AI 读材料，一句句写下「系统在干什么」，每句注明从哪看出来的。</span>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn" data-action="extract-all">提取池中相关材料</button>
+  <button class="btn-accent" data-action="check-all" ${S.assertions.length<3?'disabled':''}>AI 全量核验</button></div>
+  <div class="statbar">
+    <div class="stat"><b>${S.assertions.length}</b><span>断言</span></div>
+    <div class="stat okc"><b>${S.assertions.filter(a=>a.verified).length}</b><span>已核验 ✓</span></div>
+    <div class="stat ${nv?'warn':'okc'}"><b>${nv}</b><span>未核验</span></div>
+    <div class="stat"><b>${g('推测')+g('待实证')}</b><span>推测/待实证 ⚠</span></div>
+  </div>
+  <div id="ai-slot-as"></div>
+  <div class="card-box"><div class="hd">断言表 · ${esc(cn)}<span class="sub" style="font-weight:400">AI 全量核验 + 任意行单点「核」指定核验；AI 读错会当场标黄修正</span></div><table>
+  <thead><tr><th style="width:38px">#</th><th>断言（必须能判对错）</th><th style="width:140px">出处</th><th style="width:88px">置信度</th><th style="width:86px">状态</th><th style="width:56px">核验</th></tr></thead><tbody>
+  ${S.assertions.length?S.assertions.map(a=>{
+    const cb=confBadge[a.conf]||confBadge['文档'];
+    const inC=S.conflicts.some(c=>c.st==='open'&&(c.a===a.id||c.b===a.id));
+    const gone=S.conflicts.some(c=>c.st!=='open'&&(VOID[c.id]||[]).includes(a.id));
+    return `<tr id="row-${a.id}" class="${a.suspect?'suspect':''}"><td><span class="src">${a.id}</span></td>
+    <td class="${gone?'strike':''}">${esc(a.text)}</td><td><span class="src">${esc(a.src)}</span></td>
+    <td><span class="badge ${cb[0]}">${cb[1]}</span></td>
+    <td>${gone?'<span class="badge b-gray">已作废</span>':inC?'<span class="badge b-red">冲突</span>':a.st==='clar'?'<span class="badge b-amber">待问人</span>':'<span class="badge b-blue">已入卡</span>'}</td>
+    <td>${a.verified?'<span class="badge b-green">✓ 核过</span>':`<button class="btn-ghost btn-sm" data-action="check-one" data-a="${a.id}">核</button>`}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" style="color:var(--muted-fg);padding:24px;text-align:center">还没有断言——点「提取池中相关材料」</td></tr>'}
+  </tbody></table></div>
+  ${S.checked?`<div class="card-box"><div class="hd">全量核验记录</div><div class="bd" style="font-size:12.5px"><span class="badge b-green">AI 逐条比对代码：${S.assertions.length} 条全查 · 1 条读错（A7 固定60s → 实为指数退避，已修正）· 其余与代码一致 ✓</span><span style="color:var(--muted-fg);margin-left:10px">可疑项标黄置顶待人工确认；单点「核」可随时指定核验任意一条</span></div></div>`:''}
+  </div>`;
+}
+
+function vConflict(){
+  const cn=curNode().name;
+  const byId=id=>S.assertions.find(a=>a.id===id)||{id,text:'（'+id+'）',src:'',conf:'文档'};
+  const cc={'实证':'var(--primary)','文档':'var(--muted-fg)','推测':'var(--warn)','待实证':'var(--destructive)','旧文档':'var(--muted-fg)'};
+  const open=S.conflicts.filter(c=>c.st==='open');
+  return `<div class="view show">
+  <div class="view-head"><h2>② 挑矛盾 · ${esc(cn)}</h2><span class="sub">所有材料之间对不上的地方：代码 vs 文档 vs 口头——矛盾 = 需求没对齐的实锤。</span>
+  <div class="spacer" style="flex:1"></div><span class="badge ${open.length?'b-red':'b-green'}">待裁决 ${open.length}</span></div>
+  ${S.conflicts.map(c=>{const A=byId(c.a),B=byId(c.b);return `<div class="conflict ${c.st!=='open'?'resolved':''}">
+  <div class="sides">
+    <div class="side"><div class="who" style="color:${cc[A.conf]||'var(--muted-fg)'}">${A.id} · ${A.conf}</div><div class="txt">${esc(A.text)}</div><div style="margin-top:6px"><span class="src">${esc(A.src)}</span></div></div>
+    <div class="vs">VS</div>
+    <div class="side"><div class="who" style="color:${cc[B.conf]||'var(--muted-fg)'}">${B.id} · ${B.conf}</div><div class="txt">${esc(B.text)}</div><div style="margin-top:6px"><span class="src">${esc(B.src)}</span></div></div>
+  </div>
+  <div class="conflict-foot"><span class="q">${c.id} · ${esc(c.q)}</span>
+  ${c.st==='open'?`<button class="btn-ghost btn-sm" data-action="resolve" data-c="${c.id}" data-side="a">信 ${c.a}</button>
+    <button class="btn-ghost btn-sm" data-action="resolve" data-c="${c.id}" data-side="b">信 ${c.b}</button>
+    <button class="btn btn-sm" data-action="to-clar-c" data-c="${c.id}">转问人</button>`
+  :`<span class="badge ${c.st==='clar'?'b-amber':'b-green'}">${c.st==='clar'?'已转问人':'已裁决：信 '+c.resolution}</span>`}
+  </div></div>`}).join('')}
+  <div class="warn-strip"><b>裁决规则</b>代码 vs 文档默认倾向代码；「代码与口头意图相反」可能是生产 bug，必须问人，不能自动裁决。</div>
+  </div>`;
+}
+
+function vGap(){
+  const cn=curNode().name;
+  return `<div class="view show">
+  <div class="view-head"><h2>③ 找空白 · ${esc(cn)}</h2><span class="sub">按可配置的维度清单挨个问「这里说清了吗」——文档没写、代码看不出、口头没提的，就是空白。</span>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn-ghost" data-action="dim-config">⚙ 维度配置（${S.dims.length}）</button>
+  <button class="btn" data-action="rescan">AI 重扫（按当前维度）</button>
+  <span class="badge ${S.gaps.some(g=>g.st==='open')?'b-red':'b-green'}">待处理 ${S.gaps.filter(g=>g.st==='open').length}</span></div>
+  <div id="ai-slot-gap"></div>
+  ${S.dims.map(d=>{const items=S.gaps.filter(g=>g.dim===d);
+    return `<div class="gap-group"><div class="g-hd"><span class="badge b-blue">${esc(d)}</span>${esc(d)}完备性${items.length?`<span class="src">${items.filter(g=>g.st==='open').length} 项待处理</span>`:'<span class="src">干净</span>'}</div>
+    ${items.map(g=>`<div class="gap-item ${g.st!=='open'?'done':''}">
+      <span class="t" style="${g.st!=='open'?'text-decoration:line-through':''}">${esc(g.text)}</span>
+      ${g.st==='open'?`<button class="btn btn-sm" data-action="to-clar-g" data-g="${g.id}">转问人</button><button class="btn-ghost btn-sm" data-action="gap-ok" data-g="${g.id}">设计如此</button>`
+      :`<span class="badge ${g.st==='clar'?'b-amber':'b-gray'}">${g.st==='clar'?'已转问人':'设计如此'}</span>`}
+    </div>`).join('')}</div>`}).join('')}
+  </div>`;
+}
+
+function liveRules(){
+  const get=id=>S.assertions.find(a=>a.id===id);
+  const c1=S.conflicts.find(c=>c.id==='C1'),c2=S.conflicts.find(c=>c.id==='C2'),c3=S.conflicts.find(c=>c.id==='C3');
+  return [
+    get('A2')&&{id:'R1',text:`重试上限 3 次${c1&&c1.st==='clar'?'（待确认）':''}`,src:'retry.py:42',conf:c1&&c1.st==='open'?'冲突':c1&&c1.st==='clar'?'推测':'实证'},
+    get('A4')&&{id:'R2',text:'重试金额 ≡ 首次金额',src:'retry.py:58',conf:c3&&c3.st==='open'?'冲突':'实证'},
+    get('A6')&&{id:'R3',text:'幂等键 = '+(c2&&c2.st==='open'?'？':c2&&c2.st==='clar'?'订单号（待确认）':'订单号'),src:'retry_service.py:73',conf:c2&&c2.st==='open'?'冲突':c2&&c2.st==='clar'?'推测':'实证'},
+    get('A7')&&{id:'R4',text:'重试间隔指数退避',src:'retry_service.py:31',conf:'实证'},
+    get('A9')&&{id:'R5',text:'耗尽终态：'+(S.clarifications.some(q=>q.ref==='G1'&&q.st!=='wait')?'人工处理队列':'未定义 ⚠'),src:'retry_service.py:88',conf:'实证'},
+  ].filter(Boolean);
+}
+function vCard(){
+  const cn=curNode().name,rules=liveRules();
+  if(!S.card.assembled)return `<div class="view show">
+  <div class="view-head"><h2>④ 成卡片 · ${esc(cn)}</h2><span class="sub">断言挂到树叶上；挂不上的 = 树缺枝，补。</span>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn-ghost" data-action="preview-doc" disabled>预览结果文档</button>
+  <button class="btn" data-action="assemble-modal" ${S.assertions.length<5?'disabled':''}>AI 组装卡片草稿</button></div>
+  <div id="ai-slot-card"></div>
+  <div class="empty">${S.assertions.length<5?'断言还不够（'+S.assertions.length+'/5）——先回 ① 提事实':'断言就绪，点击「AI 组装卡片草稿」· '+esc(cn)}</div></div>`;
+  return `<div class="view show">
+  <div class="view-head"><h2>④ 成卡片 · ${esc(cn)}</h2><span class="sub">断言挂到树叶上；挂不上的 = 树缺枝，补。</span>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn-accent" data-action="preview-doc">预览结果文档</button>
+  <button class="btn" data-action="assemble-modal">补充意见并重新生成</button></div>
+  <div class="spec-head"><h3>${esc(cn)}</h3><span class="badge b-red">本次修改 · 高风险</span><span class="src">L2 放款失败处理</span></div>
+  <div class="spec-meta"><span>更新：${S.card.note?'刚刚（含补充意见）':'今天'}</span><span>断言 ${S.assertions.length} · 规则 ${rules.length} · 待确认 ${rules.filter(r=>r.conf!=='实证').length}</span></div>
+  <div class="spec-grid">
+    <div class="k">业务目标</div><div class="v">回调超时后不产生重复放款</div>
+    <div class="k">入口 / 触发</div><div class="v">放款回调超时 30s</div>
+    <div class="k">主流程</div><div class="v">① 进入重试队列 → ② 以原流水号重发 → ③ 最多 3 次</div>
+    <div class="k">规则</div><div class="v">${rules.map(r=>`<div class="rule-row"><span class="rule-id">${r.id}</span>${esc(r.text)}<span class="src">${r.src}</span><span class="badge ${confBadge[r.conf]?confBadge[r.conf][0]:'b-gray'}">${confBadge[r.conf]?confBadge[r.conf][1]:r.conf}</span></div>`).join('')}</div>
+    <div class="k">状态机</div><div class="v">待放款 → 放款中 → 成功｜失败｜重试中${S.gaps.some(g=>g.id==='G1'&&g.st==='open')?'<span style="color:var(--destructive)">（重试中无出口）</span>':''}</div>
+    <div class="k">异常边界</div><div class="v">服务重启？并发重试？<span class="badge ${S.gaps.some(g=>g.st==='open')?'b-amber':'b-green'}">空白 ${S.gaps.filter(g=>g.st==='open').length} 项</span></div>
+    <div class="k">补充说明</div><div class="v">${S.card.note?esc(S.card.note)+' <span class="badge b-amber">人工补充</span>':'—（AI 生成后可补充意见重新生成）'}</div>
+    <div class="k">依赖</div><div class="v">核心账务（写）· 回调网关（读）</div>
+  </div>
+  ${rules.some(r=>r.conf!=='实证')?`<div class="warn-strip"><b>未确认项（转「问人」）</b>${rules.filter(r=>r.conf!=='实证').map(r=>r.id+' '+r.text).join(' · ')}</div>`:`<div class="warn-strip" style="background:var(--green-bg);border-color:#BBF7D0;color:#166534"><b>✓ 全部规则已实证</b>卡片可存档进基线</div>`}
+  </div>`;
+}
+
+function buildClarExport(){
+  return S.clarifications.filter(c=>c.st==='wait').map(c=>`${c.no}. ${c.q}\n   ${c.opts.map((o,i)=>String.fromCharCode(65+i)+'. '+o).join('  ')}`).join('\n');
+}
+function vAsk(){
+  const cn=curNode().name;
+  return `<div class="view show">
+  <div class="view-head"><h2>⑤ 问人 · ${esc(cn)}</h2><span class="sub">攒一批一次问，给选择题不给问答题。</span>
+  <div class="spacer" style="flex:1"></div>
+  <button class="btn" data-action="export-q" ${S.clarifications.some(c=>c.st==='wait')?'':'disabled'}>导出提问文本（发 IM）</button></div>
+  <div class="card-box"><div class="hd">待问 / 已答 · ${S.clarifications.length} 项</div><table>
+  <thead><tr><th style="width:40px">#</th><th>问题</th><th style="width:210px">选项</th><th style="width:110px">状态</th><th style="width:180px">答案回收</th></tr></thead><tbody>
+  ${S.clarifications.length?S.clarifications.map(c=>`<tr><td><span class="src">${c.no}</span></td><td>${esc(c.q)}</td>
+  <td>${c.opts.map((o,i)=>String.fromCharCode(65+i)+'. '+esc(o)).join('<br>')}</td>
+  <td><span class="badge ${c.st==='wait'?'b-amber':c.st==='answered'?'b-blue':'b-green'}">${c.st==='wait'?'待问':c.st==='answered'?'已答·待实证':'已实证'}</span></td>
+  <td>${c.st==='wait'?`<select class="ans-sel" data-q="${c.no}" style="font-size:12px;padding:3px 6px;border:1px solid var(--border2);border-radius:5px">${c.opts.map((o,i)=>`<option value="${i}">${String.fromCharCode(65+i)}</option>`).join('')}</select> <button class="btn-ghost btn-sm" data-action="answer" data-q="${c.no}">记录</button>`
+    :c.st==='answered'?`<span class="src">答：${esc(c.opts[c.answer])}</span> <button class="btn-ok btn-sm" data-action="verify" data-q="${c.no}">落码验证</button>`
+    :`<span class="src">答：${esc(c.opts[c.answer])} ✓</span>`}</td></tr>`).join(''):'<tr><td colspan="5" style="color:var(--muted-fg);padding:24px;text-align:center">空——在 ②③ 把矛盾/空白转过来</td></tr>'}
+  </tbody></table></div>
+  ${S.exported?`<div class="card-box"><div class="hd">导出预览（复制发 IM）</div><div class="bd"><div class="q-export" id="q-export">【需求确认 ×${S.clarifications.filter(c=>c.st==='wait').length}】${esc(cn)}，麻烦一次性回我：\n${esc(buildClarExport())}\n——回个编号+选项就行</div>
+  <div style="margin-top:10px"><button class="btn-ghost btn-sm" data-action="copy-q">复制文本</button></div></div></div>`:''}
+  </div>`;
+}
+
+function vSave(){
+  const cn=curNode().name;
+  return `<div class="view show">
+  <div class="view-head"><h2>⑥ 存档 · ${esc(cn)}</h2><span class="sub">本节点整理完成 → 卡片并入项目基线（git commit+tag）。</span></div>
+  <div id="ai-slot-save"></div>
+  ${S.card.assembled?`<div class="card-box"><div class="hd">存档预览</div><div class="bd">
+    <div class="rule-row"><span class="badge b-green">规则 ${liveRules().length} 条</span><span class="badge ${S.clarifications.filter(c=>c.st==='wait').length?'b-amber':'b-green'}">待确认 ${S.clarifications.filter(c=>c.st==='wait').length} 项</span><span class="badge b-blue">断言 ${S.assertions.length} 条</span></div>
+    <div style="margin-top:10px"><button class="btn" data-action="new-baseline">并入基线（commit + tag）</button>
+    <button class="btn-accent" data-action="preview-doc">预览结果文档</button></div>
+  </div></div>`:`<div class="empty">卡片还没组装——先回 ④ 成卡片</div>`}
+  </div>`;
+}
+
+function vBaseline(){
+  return `<div class="view show">
+  <div class="view-head"><h2>基线</h2><span class="sub">项目级版本存档。新需求 diff 定位受影响卡片，只重跑那部分整理。</span></div>
+  <div class="impact-box"><div style="font-weight:600;margin-bottom:8px">增量定位 · 新变更来了怎么省事</div>
+    <textarea class="diff" id="diff-in" placeholder="粘贴 git diff 或 commit 范围…（演示：随便输入点什么）"></textarea>
+    <div style="margin-top:8px"><button class="btn btn-sm" data-action="impact" id="btn-impact">AI 定位受影响卡片</button></div>
+    <div class="impact-list" id="impact-out" style="margin-top:6px">
+      ${S.impacted?`<div class="it new-in"><span class="badge b-red">命中</span>放款重试<span class="src">retry.py 改动 3 处</span><span class="badge b-amber">需重跑整理 ①-⑤</span></div>
+      <div class="it new-in"><span class="badge b-amber">关联</span>放款失败登记<span class="src">共享 retry_service</span><span class="badge b-gray">抽验</span></div>
+      <div style="margin-top:8px"><button class="btn btn-sm" data-action="rerun">重跑该子树</button></div>`
+      :`<div style="font-size:11.5px;color:var(--muted-fg)">定位漏了 = 增量失真 → 结果必须人工过目再重跑</div>`}
+    </div>
+  </div>
+  <div class="card-box"><div class="hd">版本时间线</div><div class="bd">${S.baselines.length?`<div class="tl">${S.baselines.map((b,i)=>`<div class="tl-item ${i===0?'cur':''}"><h4>${b.v} ${i===0?'<span class="badge b-blue">当前</span>':''} <span class="badge b-gray">${b.cards} 规则</span></h4><div class="meta">${b.date} · ${b.commit} · ${b.note}</div></div>`).join('')}</div></div>`:'<div class="bd" style="color:var(--muted-fg)">还没有基线——某节点整理完成（⑥存档）后出现</div>'}</div></div>
+  </div>`;
+}
+
+function buildDoc(){
+  const cn=curNode().name,rules=liveRules();
+  const confTag={'实证':'✅实证','文档':'📄文档','推测':'⚠️推测','待实证':'⚠️待实证','冲突':'❌冲突','旧文档':'📄旧文档'};
+  const wait=S.clarifications.filter(c=>c.st!=='verified');
+  return `# 风控云 · 结构化需求规格
+> 基线 ${S.baselines.length?'v'+S.baselines.length:'未定版'} ｜ 断言 ${S.assertions.length} ｜ 规则 ${rules.length} ｜ 待确认 ${wait.length}
+> 生成于 ${new Date().toLocaleString('zh-CN')} ｜ 来源：碎片证据逆向重建（代码实证优先）
+
+## 1. 放款
+### 1.2 放款失败处理
+#### ${cn}【本次修改 · 高风险】
+**业务目标**：回调超时后不产生重复放款
+**入口/触发**：放款回调超时 30s
+**主流程**：① 进入重试队列 → ② 以原流水号重发 → ③ 最多 3 次
+**规则**：
+${rules.map(r=>`- ${r.id} ${r.text} ｜ ${r.src} ｜ ${confTag[r.conf]||r.conf}`).join('\n')}
+**状态机**：待放款 → 放款中 → 成功｜失败｜重试中
+**依赖**：核心账务（写）· 回调网关（读）
+${S.card.note?`**补充说明（人工）**：${S.card.note}\n`:''}${wait.length?`**未确认项（问人跟进）**：\n${wait.map(c=>`- ${c.no} ${c.q}${c.st==='answered'?'（已答：'+c.opts[c.answer]+'，待实证）':''}`).join('\n')}`:`**✓ 本卡片无未确认项，可冻结为基线**`}
+
+> 本文档由 ReqSpec 从卡片树自动导出；维护的是树和卡片，文档永远是生成物。`;
+}
+
+/* ═══════════════ 动作 ═══════════════ */
+function addClar(q,opts,ref){const no='Q'+(S.clarifications.length+1);S.clarifications.push({no,q,opts,st:'wait',answer:null,ref});return no}
+const ACTIONS={
+  goto(v){S.view=v;render()},
+  'pick-leaf'(path,el){if(!el.dataset.path)return;S.curPath=el.dataset.path;render();toast('整理目标：'+curNode().name)},
+  'toggle'(path,el){const n=nodeByPath(el.dataset.path);if(n&&n.children&&n.children.length){n.open=!n.open;render()}},
+  'node-add'(path,el){
+    const p=el.dataset.path||'';
+    modal(`<h3>加子节点${p?' · '+esc((nodeByPath(p)||{}).name||'根'):'（根层级）'}</h3>
+    <label>节点名称</label><input type="text" id="m-name" placeholder="如：重试监控告警">
+    <label>节点说明（可选）</label><input type="text" id="m-desc" placeholder="一句话">
+    <div class="foot"><button class="btn-ghost" data-action="close-m">取消</button><button class="btn" data-action="node-add-save" data-path="${p}">添加</button></div>`);
+  },
+  'node-add-save'(path,el){
+    const name=$('#m-name').value.trim();if(!name){toast('填名称');return}
+    const p=el.dataset.path;
+    const node={name,stats:{}};
+    if(!p){S.tree.push(node)}
+    else{const par=nodeByPath(p);if(!par)return;par.children=par.children||[];par.open=true;par.children.push(node)}
+    closeModal();render();toast('已加节点：'+name+'（任意层级均可）','ok');
+  },
+  'node-ren'(path,el){
+    const n=nodeByPath(el.dataset.path);if(!n)return;
+    modal(`<h3>改名</h3><label>新名称</label><input type="text" id="m-name" value="${esc(n.name)}">
+    <div class="foot"><button class="btn-ghost" data-action="close-m">取消</button><button class="btn" data-action="node-ren-save" data-path="${el.dataset.path}">保存</button></div>`);
+  },
+  'node-ren-save'(path,el){const n=nodeByPath(el.dataset.path);if(!n)return;n.name=$('#m-name').value.trim()||n.name;closeModal();render();toast('已改名','ok')},
+  'node-del'(path,el){
+    const n=nodeByPath(el.dataset.path);if(!n)return;
+    modal(`<h3>删除节点「${esc(n.name)}」？</h3><p style="font-size:12.5px;color:var(--muted-fg)">${(n.children&&n.children.length)?'含 '+n.children.length+' 个子节点，将一并删除。':''}已提取的断言保留在证据层，可重新挂载。</p>
+    <div class="foot"><button class="btn-ghost" data-action="close-m">取消</button><button class="btn-danger-ghost" data-action="node-del-save" data-path="${el.dataset.path}">删除</button></div>`);
+  },
+  'node-del-save'(path,el){
+    const p=el.dataset.path.split(',');const idx=+p.pop();const parPath=p.join(',');
+    const arr=parPath?nodeByPath(parPath).children:S.tree;
+    if(arr&&arr[idx]){arr.splice(idx,1);if(parPath){const par=nodeByPath(parPath);if(par&&!par.children.length)delete par.children}}
+    closeModal();render();toast('节点已删除（断言保留在证据层）');
+  },
+  'dz-click'(){toast('真实实现：弹出文件选择器；原型可直接拖文件进上方输入框')},
+  smartClassify(v){
+    v=v.trim();if(!v)return null;
+    const isRepo=/^git@/.test(v)||/\.git([@\s]|$)/.test(v)||/^https?:\/\/\S*(github|gitlab|gitee|git)/i.test(v);
+    if(isRepo){
+      const mm=v.match(/^(.+?)(?:[@\s]+([\w][\w\/\-\.]*))?$/);
+      return {type:'仓库',name:mm[1],ext:mm[2]?'@'+mm[2]:'',stars:3};
+    }
+    const isUrl=/^https?:\/\//i.test(v);
+    return {type:'文本',name:v.length>38?v.slice(0,38)+'…':v,ext:isUrl?'文本·链接':'文本·粘贴',stars:2};
+  },
+  'smart-add'(){
+    const inp=$('#paste-in');if(!inp)return;
+    const c=ACTIONS.smartClassify(inp.value);
+    if(!c){toast('先粘贴或输入内容（文本 / git 地址）');return}
+    S.evidence.push({id:(c.type==='仓库'?'REPO':'TXT')+(Date.now()%97),...c,reg:'刚刚',state:'pending',count:0});
+    inp.value='';render();
+    toast(c.type==='仓库'?'识别为仓库，已挂载'+(c.ext||''):'识别为文本，已入池（项目级）','ok');
+  },
+  async 'extract'(id){
+    const ev=S.evidence.find(e=>e.id===id);if(!ev||ev.state==='extracted')return;
+    S.view='v-fact';render();
+    await aiRun($('#ai-slot-as'),`AI 正在读《${ev.name}》提炼行为断言…`,1400);
+    (SCRIPTS[ev.id]||[]).forEach(([id2,text,src,conf])=>{if(!S.assertions.find(a=>a.id===id2))S.assertions.push({id:id2,text,src,conf,st:'card',verified:false})});
+    ev.state='extracted';ev.count=(SCRIPTS[ev.id]||[]).length;
+    if(ev.type==='AI生成')toast(`+${ev.count} 断言（全部「待实证」⚠）`,'warn');
+    else toast(`+${ev.count} 条断言 · 出处已标注`,'ok');
+    render();
+    (SCRIPTS[ev.id]||[]).forEach(([id2])=>{const r=document.getElementById('row-'+id2);if(r)r.classList.add('new-in')});
+  },
+  async 'extract-all'(){
+    const pend=S.evidence.filter(e=>e.state==='pending'&&SCRIPTS[e.id]);
+    if(!pend.length){toast('池中没有可提取的新材料');return}
+    for(const ev of pend){await ACTIONS.extract(ev.id)}
+  },
+  async 'check-all'(){
+    if(S.assertions.length<3){toast('断言太少');return}
+    S.view='v-fact';render();
+    await aiRun($('#ai-slot-as'),`AI 全量核验：${S.assertions.length} 条断言逐条比对源码…`,1800);
+    S.assertions.forEach(a=>a.verified=true);
+    const a7=S.assertions.find(a=>a.id==='A7');
+    if(a7&&!a7.fixed){a7.suspect=true;a7.text='重试间隔指数退避（base 30s）';a7.fixed=true;
+      S.assertions=[a7,...S.assertions.filter(x=>x.id!=='A7')];
+      toast('核验完成：1 条 AI 读错（A7 已修正标黄，人工确认）· 其余与代码一致','warn');
+    }else toast('核验完成：全部与代码一致 ✓','ok');
+    S.checked=true;render();
+  },
+  async 'check-one'(id,el){
+    const a=S.assertions.find(x=>x.id===el.dataset.a);if(!a)return;
+    const row=document.getElementById('row-'+a.id);if(row)row.classList.add('pulse');
+    await sleep(900);
+    a.verified=true;
+    if(a.id==='A7'&&!a.fixed){a.suspect=true;a.text='重试间隔指数退避（base 30s）';a.fixed=true;toast('A7 与代码不符：AI 原文「固定60s」→ 实为指数退避，已修正','warn')}
+    else toast(a.id+' 已核验：与代码一致 ✓','ok');
+    render();
+  },
+  async 'rescan'(){
+    await aiRun($('#ai-slot-gap'),'AI 按 '+S.dims.length+' 个维度扫描：'+S.dims.join('/')+'…',1400);
+    toast('扫描完成：空白 '+S.gaps.filter(g=>g.st==='open').length+' 项（无新增）');
+  },
+  'dim-config'(){
+    modal(`<h3>找空白 · 维度配置</h3>
+    <p style="font-size:12px;color:var(--muted-fg);margin-bottom:8px">项目级规则库，预置六维；按业务域增删（如金融加「审计留痕」「监管报送」）。</p>
+    <div id="dim-list">${S.dims.map((d,i)=>`<div class="dim-row"><span class="nm">${esc(d)}</span><span class="src">${S.gaps.filter(g=>g.dim===d).length} 项</span><button data-action="dim-del" data-d="${i}">删除</button></div>`).join('')}</div>
+    <label>新增维度</label>
+    <div style="display:flex;gap:8px"><input type="text" id="m-dim" placeholder="如：审计留痕"><button class="btn-ghost" data-action="dim-add">添加</button></div>
+    <div class="foot"><button class="btn" data-action="close-m">完成</button></div>`);
+  },
+  'dim-add'(){
+    const v=$('#m-dim').value.trim();if(!v){toast('填维度名');return}
+    if(S.dims.includes(v)){toast('已存在');return}
+    S.dims.push(v);$('#m-dim').value='';
+    ACTIONS['dim-config']();render();
+    toast('维度「'+v+'」已加，重扫后生效','ok');
+  },
+  'dim-del'(i,el){S.dims.splice(+el.dataset.d,1);ACTIONS['dim-config']();render();toast('维度已删（空白项保留，不匹配任何维度则归入「未分组」）')},
+  'resolve'(id,el){
+    const c=S.conflicts.find(x=>x.id===id);if(!c||c.st!=='open')return;
+    c.st='code';c.resolution=el.dataset.side==='a'?c.a:c.b;
+    (VOID[id]||[]).forEach(aid=>{const a=S.assertions.find(x=>x.id===aid);if(a)a.strike=true});
+    toast(`${id} 已裁决：信 ${c.resolution} · 对方作废`,'ok');render();
+  },
+  'to-clar-c'(id){
+    const c=S.conflicts.find(x=>x.id===id);if(!c||c.st!=='open')return;
+    c.st='clar';
+    const a=S.assertions.find(x=>x.id===c.a),b=S.assertions.find(x=>x.id===c.b);
+    if(a)a.st='clar';if(b)b.st='clar';
+    addClar(c.q,[a?a.text:'A',b?b.text:'B'],c.id);
+    toast(`${id} → 已进「问人」清单`);render();
+  },
+  'to-clar-g'(id){
+    const g=S.gaps.find(x=>x.id===id);if(!g||g.st!=='open')return;
+    g.st='clar';addClar(g.text+'？',['支持/是','不支持/否','不清楚'],g.id);
+    toast('空白 → 「问人」清单');render();
+  },
+  'gap-ok'(id){const g=S.gaps.find(x=>x.id===id);if(g){g.st='ok';toast('已判读：设计如此');render()}},
+  'assemble-modal'(){
+    modal(`<h3>AI 组装 / 重新生成卡片</h3>
+    <p style="font-size:12px;color:var(--muted-fg);margin-bottom:8px">补充你的意见（AI 不知道的：口头约定、历史坑、业务约束）——它会并入卡片「补充说明」并影响规则。</p>
+    <textarea id="m-note" placeholder="如：张开发说重试时余额要校验；上次生产事故就是金额改了没同步">${esc(S.card.note||'')}</textarea>
+    <div class="foot"><button class="btn-ghost" data-action="close-m">取消</button><button class="btn" data-action="assemble">生成卡片</button></div>`);
+  },
+  async 'assemble'(){
+    if(S.assertions.length<5){closeModal();toast('断言不足，先 ① 提事实');return}
+    const note=$('#m-note')?$('#m-note').value.trim():'';
+    closeModal();S.view='v-card';render();
+    await aiRun($('#ai-slot-card'),'AI 组装卡片：断言挂树 · 标置信度 · 并入补充意见…',1600);
+    S.card.assembled=true;S.card.note=note;
+    toast('卡片已生成'+(note?'（补充意见已并入「补充说明」）':' · 未实证规则标黄'),'ok');render();
+  },
+  'preview-doc'(){
+    if(!S.card.assembled){toast('卡片未组装');return}
+    modal(`<h3>最终结果文档 · 结构化需求规格（自动生成）</h3>
+    <div class="q-export" id="doc-out" style="max-height:52vh;overflow:auto">${esc(buildDoc())}</div>
+    <div class="foot" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+    <button class="btn-ghost" data-action="close-m">关闭</button>
+    <button class="btn-ghost" data-action="copy-doc">复制</button>
+    <button class="btn" data-action="download-doc">下载 .md</button></div>`,true);
+  },
+  'copy-doc'(){const txt=$('#doc-out').textContent;if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>toast('已复制','ok'));else toast('手动选择复制')},
+  'download-doc'(){
+    const blob=new Blob([buildDoc()],{type:'text/markdown'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='风控云-结构化需求规格.md';a.click();
+    toast('已下载 .md','ok');
+  },
+  'export-q'(){S.exported=true;render();toast('提问文本已生成 → 复制发 IM','ok')},
+  'copy-q'(){const txt=$('#q-export').textContent;if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>toast('已复制','ok'));else toast('手动选择复制')},
+  'answer'(no){
+    const sel=document.querySelector(`.ans-sel[data-q="${no}"]`);
+    const c=S.clarifications.find(x=>x.no===no);if(!c||!sel)return;
+    c.st='answered';c.answer=+sel.value;
+    toast(no+' 已记录（口头答案=推测级）');render();
+  },
+  'verify'(no){const c=S.clarifications.find(x=>x.no===no);if(!c)return;c.st='verified';toast(no+' 已实证：答案与代码一致，规则升级实证','ok');render()},
+  'new-baseline'(){
+    if(!S.card.assembled){toast('卡片未就绪');return}
+    const commit=Math.random().toString(16).slice(2,7);
+    S.baselines.unshift({v:'v'+(S.baselines.length+1),commit,date:new Date().toLocaleDateString('zh-CN'),cards:liveRules().length,note:`${curNode().name} 并入 · 断言 ${S.assertions.length}`});
+    const n=curNode();n.stats={...n.stats,asrt:S.assertions.length,ok:!S.clarifications.some(c=>c.st==='wait')};
+    S.view='v-save';render();toast('已并入基线 '+S.baselines[0].v+'（commit+tag）','ok');
+  },
+  async 'impact'(){
+    const v=$('#diff-in').value;if(!v.trim()){toast('先粘贴 diff（演示：随便输入）');return}
+    await aiRun($('#impact-out'),'AI 分析 diff → 映射功能树…',1400);
+    S.impacted=true;render();toast('定位：1 张命中 + 1 张关联','ok');
+  },
+  async 'rerun'(){
+    S.view='v-fact';render();
+    toast('进入子树重跑：只重做受影响卡片的 ①-⑤','ok');
+    await aiRun($('#ai-slot-as'),'重跑受影响子树：'+curNode().name+'…',1200);
+  },
+};
+
+/* ═══════════════ 事件 ═══════════════ */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-action]');if(!t)return;
+  const a=t.dataset.action;if(ACTIONS[a])ACTIONS[a](t.dataset.id||t.dataset.q||t.dataset.v||t.dataset.path,t);
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeModal();
+  if(e.target.id==='paste-in'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();ACTIONS['smart-add']()}
+});
+document.addEventListener('dragover',e=>{const dz=$('#dropzone');if(dz&&S.view==='v-ev'){e.preventDefault();dz.classList.add('over')}});
+document.addEventListener('dragleave',()=>{const dz=$('#dropzone');if(dz)dz.classList.remove('over')});
+document.addEventListener('drop',e=>{
+  const dz=$('#dropzone');if(!dz||S.view!=='v-ev')return;e.preventDefault();dz.classList.remove('over');
+  const files=[...(e.dataTransfer.files||[])];
+  if(files.length){
+    files.forEach(f=>{
+      const ext=f.name.split('.').pop().toLowerCase();
+      const type=['zip','rar','7z','tar','gz'].includes(ext)?'压缩包':'文档';
+      S.evidence.push({id:'FILE'+Math.floor(Math.random()*900+100),name:f.name,ext:(f.size/1024).toFixed(0)+'KB',type,stars:2,reg:'刚刚',state:'pending',count:0});
+    });
+    toast(files.length+' 个文件已入池','ok');render();
+  }else{
+    const txt=e.dataTransfer.getData('text');
+    if(txt){S.evidence.push({id:'TXT'+(Date.now()%83),name:txt.length>34?txt.slice(0,34)+'…':txt,ext:'文本·拖入',type:'文本',stars:2,reg:'刚刚',state:'pending',count:0});toast('文本已入池','ok');render()}
+  }
+});
+document.addEventListener('paste',e=>{
+  if(S.view!=='v-ev'||e.target.id==='paste-in')return;
+  const items=[...(e.clipboardData?.items||[])];
+  if(items.find(i=>i.type.startsWith('image/'))){
+    S.evidence.push({id:'IMG'+(Date.now()%71),name:'截图_'+new Date().toLocaleTimeString('zh-CN')+'.png',ext:'剪贴板粘贴',type:'截图',stars:2,reg:'刚刚',state:'pending',count:0});
+    toast('截图已入池','ok');render();
+  }
+});
+
+/* ═══════════════ 自动演示 ═══════════════ */
+let demoRunning=false;
+function dlog(msg){const l=$('#demo-log');l.classList.add('show');l.innerHTML='▶ <b>'+msg+'</b>'}
+async function highlight(sel){
+  const el=document.querySelector(sel);if(!el)return;
+  el.classList.add('pulse');el.scrollIntoView({behavior:'smooth',block:'center'});
+  await sleep(1200);el.classList.remove('pulse');
+}
+const DEMO=[
+  ['功能树：任意层级 · hover 节点出 ＋✎✕ 增删改 · 徽章=状态预览',async()=>{S.view='v-card';S.card.assembled||render();dlog('树已支持 4 层示例（放款>失败处理>重试>重试调度）；⚠n=待确认，n条=断言数')}],
+  ['项目层 · 证据池：智能输入——文本自动识别为材料',async()=>{S.view='v-ev';render();const ta=$('#paste-in');if(ta){ta.value='张开发 10:32：重试的时候不用查余额，直接发就行';await sleep(400)}await highlight('[data-action="smart-add"]');ACTIONS['smart-add']()}],
+  ['同框输入 git 地址——自动识别挂载仓库（@分支）',async()=>{const ta=$('#paste-in');if(ta){ta.value='git@git.internal:riskcloud/core.git feature/retry';await sleep(400)}await highlight('[data-action="smart-add"]');ACTIONS['smart-add']()}],
+  ['整理层 · ① 提事实：提取仓库与文档断言',async()=>{S.view='v-fact';render();await highlight('[data-action="extract-all"]');await ACTIONS['extract-all']()}],
+  ['AI 全量核验（不再是抽检）：逐条比对源码，读错的当场修正',async()=>{await highlight('[data-action="check-all"]');await ACTIONS['check-all']()}],
+  ['② 挑矛盾：C1/C3 信代码；C2 疑似 bug → 转问人',async()=>{S.view='v-conf';render();await highlight('[data-action="resolve"][data-c="C1"][data-side="a"]');ACTIONS.resolve('C1',{dataset:{side:'a'}});await sleep(600);ACTIONS.resolve('C3',{dataset:{side:'a'}});await sleep(500);await highlight('[data-action="to-clar-c"][data-c="C2"]');ACTIONS['to-clar-c']('C2')}],
+  ['③ 找空白：维度可配置——加「审计留痕」维度再重扫',async()=>{S.view='v-gap';render();await highlight('[data-action="dim-config"]');ACTIONS['dim-config']();await sleep(600);const inp=$('#m-dim');if(inp){inp.value='审计留痕';await sleep(300)}await highlight('[data-action="dim-add"]');ACTIONS['dim-add']();await sleep(400);closeModal();
+    S.gaps.push({id:'G5',dim:'审计留痕',text:'重试操作是否写审计日志未确认',st:'open'});render();await highlight('[data-action="rescan"]');await ACTIONS.rescan()}],
+  ['空白处置：转问人 / 设计如此',async()=>{await highlight('[data-action="to-clar-g"][data-g="G1"]');ACTIONS['to-clar-g']('G1');await sleep(450);ACTIONS['to-clar-g']('G2');await sleep(450);ACTIONS['gap-ok']('G3')}],
+  ['④ 成卡片：补充人工意见 → 重新生成',async()=>{S.view='v-card';render();await highlight('[data-action="assemble-modal"]');ACTIONS['assemble-modal']();await sleep(500);const ta=$('#m-note');if(ta){ta.value='张开发口头确认：重试前必须校验账户余额（上次事故就是没查）';await sleep(400)}
+    const btn=document.querySelector('[data-action="assemble"]');if(btn){btn.classList.add('pulse');await sleep(900)}await ACTIONS.assemble()}],
+  ['结果文档预览：树+卡片 → 结构化需求规格',async()=>{await highlight('[data-action="preview-doc"]');ACTIONS['preview-doc']();await sleep(3000);closeModal()}],
+  ['⑤ 问人：导出提问 → 回收答案 → 落码实证',async()=>{S.view='v-ask';render();await highlight('[data-action="export-q"]');ACTIONS['export-q']();await sleep(800);
+    const c=S.clarifications.find(x=>x.st==='wait');
+    if(c){const sel=document.querySelector(`.ans-sel[data-q="${c.no}"]`);if(sel){sel.classList.add('pulse');await sleep(900);ACTIONS.answer(c.no)}}
+    await sleep(400);const v=document.querySelector('[data-action="verify"]');if(v){await highlight('[data-action="verify"]');ACTIONS.verify(v.dataset.q)}}],
+  ['⑥ 存档：卡片并入基线',async()=>{S.view='v-save';render();await highlight('[data-action="new-baseline"]');ACTIONS['new-baseline']()}],
+  ['项目层 · 基线：diff 增量定位 → 只重跑子树',async()=>{S.view='v-base';render();const ta=$('#diff-in');if(ta){ta.value='diff --git a/loan/retry.py\n@@ -42 +42 @@\n-RETRY_LIMIT = 2\n+RETRY_LIMIT = 3';await sleep(300)}
+    await highlight('#btn-impact');await ACTIONS.impact();await sleep(600);await highlight('[data-action="rerun"]');await ACTIONS.rerun()}],
+  ['✔ 闭环完成',async()=>{dlog('全量核验防编造 · 可配维度找空白 · 任意层级功能树 · 意见并入重新生成');await sleep(1600);$('#demo-log').classList.remove('show')}],
+];
+$('#demo-btn').addEventListener('click',async()=>{
+  if(demoRunning){demoRunning=false;$('#demo-btn').textContent='▶ 播放';$('#demo-log').classList.remove('show');return}
+  demoRunning=true;$('#demo-btn').textContent='⏸ 停止';
+  for(const [msg,fn] of DEMO){
+    if(!demoRunning)break;
+    dlog(msg);$('#demo-lbl').textContent=msg;
+    try{await fn()}catch(err){console.warn(err)}
+    await sleep(400);
+  }
+  demoRunning=false;$('#demo-btn').textContent='▶ 重播';
+});
+$('#demo-lbl').textContent='▶ 一键播放（含全量核验/维度配置/树增删改/意见重生成）';
+
+render();
+toast('已升级：全量核验+单点核验 · 维度可配置 · 树任意层级增删改 · 补充意见重新生成','ok');
+</script>
+</body>
+</html>
