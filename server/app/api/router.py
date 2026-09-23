@@ -12,8 +12,8 @@ from app.ai.runner import AITaskError
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
 from app.storage import assertions as assert_store
-from app.storage import cards, clarifications, dims, evidence, findings, gitops, tree
-from app.storage.project import project_root
+from app.storage import cards, clarifications, dims, evidence, findings, gitops, project, tree
+from app.storage.project import project_root, slugify
 
 api_router = APIRouter()
 
@@ -59,7 +59,13 @@ class BaselineIn(BaseModel):
 
 
 def _root(proj: str) -> Path:
-    return project_root(proj)
+    """项目根目录；项目名清洗后为空或逃逸 DATA_DIR 一律 422（防路径遍历）"""
+    if not slugify(proj):
+        raise HTTPException(status_code=422, detail=f"非法项目名: {proj}")
+    root = project_root(proj)
+    if not root.resolve().is_relative_to(Path(project.DATA_DIR).resolve()):
+        raise HTTPException(status_code=422, detail=f"非法项目名: {proj}")
+    return root
 
 
 def _load_tree(root):

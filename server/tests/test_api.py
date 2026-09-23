@@ -232,3 +232,26 @@ async def test_ai_error_maps_to_502(client, monkeypatch):
     ev_id = (await client.get(f"{BASE}/evidence")).json()[0]["id"]
     r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
     assert r.status_code == 502
+
+
+async def test_project_name_traversal_rejected(client):
+    # proj=".."（URL 编码 %2e%2e）slugify 后为空 → root 解析为文件系统根，必须 422 拒绝
+    r = await client.get("/api/projects/%2e%2e/evidence")
+    assert r.status_code == 422
+    r = await client.post("/api/projects/%2e%2e/baseline", json={"note": "x"})
+    assert r.status_code == 422
+    # 混入可清洗字符的变体同样拒绝
+    r = await client.get("/api/projects/%2e%2e%2e%2e/evidence")
+    assert r.status_code == 422
+
+
+async def test_baseline_tag_after_deletion(client):
+    import subprocess
+
+    await client.post(f"{BASE}/evidence", json={"raw": "x"})
+    await client.post(f"{BASE}/baseline", json={"note": "一"})
+    await client.post(f"{BASE}/baseline", json={"note": "二"})
+    root = project_root("演示项目")
+    subprocess.run(["git", "tag", "-d", "v1"], cwd=root, check=True, capture_output=True)
+    b3 = (await client.post(f"{BASE}/baseline", json={"note": "三"})).json()
+    assert b3["tag"] == "v3" and b3["v"] == 3  # max+1，不与残留 v2 撞号

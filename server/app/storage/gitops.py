@@ -34,7 +34,8 @@ def save_baseline(root, note: str) -> dict:
     if _git(root, "status", "--porcelain"):  # 无变更时跳过 commit
         _git(root, "commit", *_commit_args(root), "-m", note)
     commit = _git(root, "rev-parse", "HEAD")
-    v = len(_tags(root)) + 1
+    nums = [int(re.sub(r"\D", "", t["tag"]) or 0) for t in _tags(root)]
+    v = max(nums, default=0) + 1  # 删除中间 tag 后不与残留 vN 撞号
     tag = f"v{v}"
     _git(root, "tag", tag)
     return {"commit": commit, "tag": tag, "v": v}
