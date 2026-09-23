@@ -110,11 +110,27 @@ def save_card(root, node_path: str, card: Card) -> Path:
     return f
 
 
+def _file_no(f: Path) -> int:
+    m = re.match(r"^(.*)-(\d+)$", f.stem)
+    return int(m.group(2)) if m else 1
+
+
+def _latest_cards(root) -> dict[str, Card]:
+    """node -> 最新卡片（同节点取后缀数字最大的文件；重复 save 视为迭代，最新生效）"""
+    d = _dir(root)
+    if not d.exists():
+        return {}
+    best: dict[str, tuple[int, Card]] = {}
+    for f in sorted(d.glob("*.md")):
+        card = _parse(f.read_text("utf-8"))
+        no = _file_no(f)
+        if card.node not in best or no > best[card.node][0]:
+            best[card.node] = (no, card)
+    return {node: c for node, (_, c) in best.items()}
+
+
 def load_card(root, node_path: str) -> Card | None:
-    for card in load_all(root):
-        if card.node == node_path:
-            return card
-    return None
+    return _latest_cards(root).get(node_path)
 
 
 def load_all(root) -> list[Card]:
@@ -144,7 +160,7 @@ def _render_card(card: Card, with_title: bool = True) -> list[str]:
 
 
 def export_doc(root) -> str:
-    cards = {c.node: c for c in load_all(root)}
+    cards = _latest_cards(root)
     out = ["# 结果文档", ""]
     used: set[str] = set()
 

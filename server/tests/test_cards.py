@@ -26,6 +26,19 @@ def test_export_doc(tmp_path):
     doc = export_doc(tmp_path)
     assert "R1" in doc and "放款/重试" in doc
 
+def test_slug_special_chars(tmp_path):
+    p = save_card(tmp_path, "放款/重 试!", _card(node="放款/重 试!"))
+    assert "/" not in p.name and " " not in p.name and "!" not in p.name
+    assert load_card(tmp_path, "放款/重 试!").rules[0].id == "R1"
+
+def test_duplicate_latest_wins(tmp_path):
+    save_card(tmp_path, "放款/重试", _card(goal="v1"))
+    save_card(tmp_path, "放款/重试", _card(goal="v2"))
+    save_card(tmp_path, "放款/重试", _card(goal="v3"))
+    assert load_card(tmp_path, "放款/重试").goal == "v3"
+    doc = export_doc(tmp_path)
+    assert "v3" in doc and "v1" not in doc and "v2" not in doc
+
 def test_roundtrip_full(tmp_path):
     card = Card(node="还款/扣款", goal="准确扣款", entry="到期日触发",
                 flow="计算→扣款→记账",
