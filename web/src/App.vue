@@ -38,13 +38,14 @@ const curName = computed(() => findNode(curPath.value)?.name ?? '（未选中节
 
 async function loadTree() {
   nodes.value = await getTree()
+  if (curPath.value && !findNode(curPath.value)) curPath.value = '' // 删选中节点后悬挂重置
 }
 
 onMounted(async () => {
   try {
     await loadTree()
     const bl = await listBaselines()
-    if (bl.length) baseTag.value = `基线 ${bl[0].v} · ${bl[0].commit}`
+    if (bl.length) baseTag.value = `基线 ${bl[0].tag} · ${bl[0].commit}`
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'
   }

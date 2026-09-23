@@ -153,6 +153,16 @@ async def test_evidence_file_upload(client):
     assert r.json()["type"] == "文档" and r.json()["name"] == "spec v1.pdf"
 
 
+async def test_evidence_filename_urlencoded(client):
+    # 前端 encodeURIComponent 后传入，入库应还原原文（中文/空格不落 %XX）
+    from urllib.parse import quote
+    r = await client.post(f"{BASE}/evidence", content=b"PK\x03\x04",
+                          headers={"content-type": "application/octet-stream",
+                                   "x-filename": quote("需求 文档.docx")})
+    assert r.status_code == 200
+    assert r.json()["name"] == "需求 文档.docx"
+
+
 async def test_evidence_invalid_input(client):
     assert (await client.post(f"{BASE}/evidence", json={"raw": ""})).status_code == 422
     assert (await client.post(f"{BASE}/evidence", content=b"")).status_code == 422

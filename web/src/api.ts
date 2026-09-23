@@ -83,10 +83,11 @@ export interface Card {
   unconfirmed: string[]
 }
 
+/** GET /baseline 仅含 tag/commit；v 仅 POST /baseline 创建时返回 */
 export interface Baseline {
   commit: string
   tag: string
-  v: string
+  v?: number
 }
 
 export type TreeOpName = 'add' | 'rename' | 'del'

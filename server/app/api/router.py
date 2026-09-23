@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
@@ -137,7 +138,8 @@ async def add_evidence(proj: str, request: Request):
         data = await request.body()
         if not data:
             raise HTTPException(status_code=422, detail="请求体为空")
-        name = request.headers.get("x-filename") or request.query_params.get("filename") or "upload.bin"
+        # 前端以 encodeURIComponent 传 X-Filename，解码还原中文/空格
+        name = unquote(request.headers.get("x-filename") or request.query_params.get("filename") or "upload.bin")
         payload = {"type": classify_file(name), "name": Path(name).name,
                    "ext": Path(name).suffix.lstrip("."), "stars": 2}
         ev = await evidence.add(root, payload, content=data)

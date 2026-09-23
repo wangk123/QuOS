@@ -7,7 +7,7 @@ const tree = [
     name: '放款',
     open: true,
     children: [
-      { name: '放款执行', open: true, children: [{ name: '发起放款', open: true, children: [] }] },
+      { name: '放款执行', open: true, children: [{ name: '发起放款', open: true, children: [], stats: { warn: 3 } }] },
       { name: '放款失败处理', open: false, children: [{ name: '放款失败登记', open: true, children: [] }] },
     ],
   },
@@ -24,6 +24,11 @@ describe('FuncTree', () => {
     expect(w.text()).not.toContain('放款失败登记') // 父 open:false 折叠
     // 两层缩进引导线：孙节点 depth=2
     expect(w.findAll('.node .ig').length).toBeGreaterThan(2)
+    // 徽章：stats.warn 渲染为 warn 药丸
+    const warnBadge = w.find('.nbadge.warn')
+    expect(warnBadge.exists()).toBe(true)
+    expect(warnBadge.text()).toBe('3')
+    expect(warnBadge.attributes('title')).toContain('待确认 3 项')
   })
 
   it('点击节点 emit pick(path)', async () => {
