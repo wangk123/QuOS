@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 
 from app.ai.runner import complete
-from app.core.models import Assertion
+from app.core.models import Assertion, Conflict, Gap
 
 
 class ExtractOut(BaseModel):
@@ -11,6 +11,14 @@ class ExtractOut(BaseModel):
 
 class VerifyOut(BaseModel):
     results: list[dict]
+
+
+class ConflictOut(BaseModel):
+    conflicts: list[Conflict]
+
+
+class GapOut(BaseModel):
+    gaps: list[Gap]
 
 
 def _fmt_assertions(assertions: list[Assertion]) -> str:
@@ -32,3 +40,21 @@ async def verify(assertions: list[Assertion], evidence_content: str) -> VerifyOu
         {"assertions": _fmt_assertions(assertions), "material": evidence_content},
         VerifyOut,
     )
+
+
+async def conflict(assertions: list[Assertion]) -> list[Conflict]:
+    out = await complete(
+        "conflict",
+        {"assertions": _fmt_assertions(assertions)},
+        ConflictOut,
+    )
+    return out.conflicts
+
+
+async def gaps(card_summary: str, dims: list[str]) -> list[Gap]:
+    out = await complete(
+        "gap",
+        {"card_summary": card_summary, "dims": "、".join(dims)},
+        GapOut,
+    )
+    return out.gaps
