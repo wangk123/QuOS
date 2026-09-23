@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { ApiError, PROJ, getTree, listBaselines, treeOp, type TreeNode } from './api'
+import { computed, onMounted, provide, ref, watch } from 'vue'
+import { ApiError, PROJ, getTree, listBaselines, treeOp, type Baseline, type TreeNode } from './api'
 import FuncTree from './components/FuncTree.vue'
+import Ask from './views/Ask.vue'
+import Card from './views/Card.vue'
+import Conflict from './views/Conflict.vue'
+import Fact from './views/Fact.vue'
+import Gap from './views/Gap.vue'
+import Pool from './views/Pool.vue'
+import Save from './views/Save.vue'
+import { NAV_FLOW, NAV_PROJ, baseTag, curName, curPath, goto, view } from './router'
 
-// M1 骨架：视图区占位，具体视图 Task 12 实现
 const nodes = ref<TreeNode[]>([])
-const curPath = ref('')
-const baseTag = ref('未建基线')
 const err = ref('')
-const view = ref('v-ev')
+const baselines = ref<Baseline[]>([])
 
-const NAV_PROJ: [string, string][] = [
-  ['v-ev', '证据池'],
-  ['v-base', '基线'],
-]
-const NAV_FLOW: [string, string][] = [
-  ['v-fact', '提事实'],
-  ['v-conf', '挑矛盾'],
-  ['v-gap', '找空白'],
-  ['v-card', '成卡片'],
-  ['v-ask', '问人'],
-  ['v-save', '存档'],
-]
+interface Toast {
+  id: number
+  msg: string
+  cls: string
+}
+let toastSeq = 0
+const toasts = ref<Toast[]>([])
+
+function toast(msg: string, cls = '') {
+  const t = { id: ++toastSeq, msg, cls }
+  toasts.value.push(t)
+  setTimeout(() => (toasts.value = toasts.value.filter(x => x.id !== t.id)), 2800)
+}
+provide('toast', toast)
 
 function findNode(path: string): TreeNode | null {
   if (!path) return null
@@ -34,18 +41,35 @@ function findNode(path: string): TreeNode | null {
   }
   return cur
 }
-const curName = computed(() => findNode(curPath.value)?.name ?? '（未选中节点）')
 
 async function loadTree() {
   nodes.value = await getTree()
   if (curPath.value && !findNode(curPath.value)) curPath.value = '' // 删选中节点后悬挂重置
 }
 
+watch(
+  () => [nodes.value, curPath.value],
+  () => (curName.value = findNode(curPath.value)?.name ?? '（未选中节点）'),
+  { deep: true },
+)
+
+async function refreshBaselines() {
+  baselines.value = await listBaselines()
+  if (baselines.value.length) {
+    const b = baselines.value[0]
+    baseTag.value = `基线 ${b.tag} · ${b.commit.slice(0, 7)}`
+  }
+}
+
+// 切到「基线」视图时重新拉取（Save 并入基线后本组件数组不会自动更新）
+watch(view, v => {
+  if (v === 'v-base') void refreshBaselines().catch(() => {})
+})
+
 onMounted(async () => {
   try {
     await loadTree()
-    const bl = await listBaselines()
-    if (bl.length) baseTag.value = `基线 ${bl[0].tag} · ${bl[0].commit}`
+    await refreshBaselines()
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'
   }
@@ -79,6 +103,17 @@ async function onOp(op: 'add' | 'rename' | 'del', path: string) {
     err.value = e instanceof ApiError ? `操作失败（HTTP ${e.status}）：${e.message}` : String(e)
   }
 }
+
+const VIEW_CMP = {
+  'v-ev': Pool,
+  'v-fact': Fact,
+  'v-conf': Conflict,
+  'v-gap': Gap,
+  'v-card': Card,
+  'v-ask': Ask,
+  'v-save': Save,
+} as const
+const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value])
 </script>
 
 <template>
@@ -102,14 +137,14 @@ async function onOp(op: 'add' | 'rename' | 'del', path: string) {
         class="step"
         :class="{ active: view === v }"
         type="button"
-        @click="view = v"
+        @click="goto(v)"
       >{{ n }}</button>
     </div>
     <div class="navgrp">
       <span class="sep" />
       <span class="grp-lbl">整理{{ curPath ? ` · ${curName}` : '' }}</span>
       <template v-for="([v, n], i) in NAV_FLOW" :key="v">
-        <button class="step" :class="{ active: view === v }" type="button" @click="view = v">
+        <button class="step" :class="{ active: view === v }" type="button" @click="goto(v)">
           <span class="n">{{ i + 1 }}</span>{{ n }}
         </button>
         <span v-if="i < NAV_FLOW.length - 1" class="step-arrow">›</span>
@@ -123,11 +158,33 @@ async function onOp(op: 'add' | 'rename' | 'del', path: string) {
       <FuncTree :nodes="nodes" :cur-path="curPath" @pick="p => (curPath = p)" @toggle="onToggle" @op="onOp" />
     </aside>
     <main class="content">
-      <div class="placeholder">
-        <h2>{{ curName }}</h2>
-        <p>视图在 Task 12 实现</p>
+      <component :is="viewCmp" v-if="viewCmp" />
+      <div v-else-if="view === 'v-base'">
+        <div class="view-head">
+          <h2>基线</h2>
+          <span class="sub">项目级版本存档。新需求 diff 定位受影响卡片，只重跑那部分整理。</span>
+        </div>
+        <div class="card-box">
+          <div class="hd">版本时间线</div>
+          <div class="bd">
+            <div v-if="baselines.length" class="tl">
+              <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === 0 }">
+                <h4>{{ b.tag }} <span v-if="i === 0" class="badge b-blue">当前</span></h4>
+                <div class="meta">{{ b.commit }}</div>
+              </div>
+            </div>
+            <div v-else style="color: var(--muted-fg)">还没有基线——某节点整理完成（⑥存档）后出现</div>
+          </div>
+        </div>
+        <div class="warn-strip">
+          <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响卡片 → 只重跑该子树的 ①-⑤。当前 M1 先建立基线闭环。
+        </div>
       </div>
     </main>
+  </div>
+
+  <div class="toasts" aria-live="polite">
+    <div v-for="t in toasts" :key="t.id" class="toast" :class="t.cls">{{ t.msg }}</div>
   </div>
 </template>
 
@@ -221,14 +278,5 @@ aside {
   margin-bottom: 8px;
 }
 .content { flex: 1; padding: 18px 22px; min-width: 0; }
-.placeholder {
-  padding: 40px;
-  text-align: center;
-  color: var(--muted-fg);
-  background: #fff;
-  border: 1px dashed var(--border2);
-  border-radius: var(--radius);
-}
-.placeholder h2 { color: var(--fg); margin-bottom: 6px; }
 @media (max-width: 960px) { aside { display: none; } }
 </style>
