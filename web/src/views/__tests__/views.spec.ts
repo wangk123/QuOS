@@ -1,6 +1,7 @@
 // Task 12 视图冒烟测试：api 全 mock，断言各视图渲染核心数据行与交互按钮
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import {
   ApiError,
   answerClar,
@@ -24,10 +25,12 @@ import {
   type EvidenceItem,
   type Gap,
 } from '../../api'
-import { baseTag, curName, curPath, view } from '../../router'
+import { baseTag, curName, curPath, view, top } from '../../router'
 
 vi.mock('../../api', () => ({
-  PROJ: '风控云',
+  curSlug: ref('演示项目'),
+  setProject: vi.fn(),
+  openProject: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number
     unqualified: string[] | null = null
@@ -98,6 +101,8 @@ beforeEach(() => {
   curPath.value = '' // 共享视图状态复位
   view.value = 'v-ev'
   baseTag.value = '未建基线'
+  top.value = 'proj' // App 挂载处于工作台态（默认 home 会渲染项目首页）
+  location.hash = '#/p/演示项目' // 配套工作台 hash：App onMounted 的 syncFromHash 需一致才不被拉回 home
   vi.mocked(getEvidence).mockResolvedValue(EVIDENCE)
   vi.mocked(getAssertions).mockResolvedValue(ASSERTIONS)
   vi.mocked(getConflicts).mockResolvedValue(CONFLICTS)

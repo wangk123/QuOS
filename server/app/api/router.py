@@ -60,12 +60,14 @@ class BaselineIn(BaseModel):
 
 
 def _root(proj: str) -> Path:
-    """项目根目录；项目名清洗后为空或逃逸 DATA_DIR 一律 422（防路径遍历）"""
+    """项目根目录；非法名 422（防路径遍历），项目不存在或已归档 404（防拼错 URL 凭空建目录）"""
     if not is_valid_name(proj):
         raise HTTPException(status_code=422, detail=f"非法项目名: {proj}")
     root = project_root(proj)
     if not root.resolve().is_relative_to(Path(project.DATA_DIR).resolve()):
         raise HTTPException(status_code=422, detail=f"非法项目名: {proj}")
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"项目不存在或已归档: {proj}")
     return root
 
 

@@ -1,14 +1,28 @@
 # server/app/main.py
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.api.projects import projects_router
 from app.api.router import api_router
+from app.storage import db, project
 
-app = FastAPI(title="QuOS")
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # 启动对账：文件系统两侧扫描为准，DB 行同步（幽灵行删除、缺失行补齐）
+    rows = project.scan("active") + project.scan("archived")
+    db.reconcile([{**r, "status": "active" if project.exists_active(r["slug"]) else "archived"}
+                  for r in rows])
+    yield
+
+
+app = FastAPI(title="QuOS", lifespan=lifespan)
+
+app.include_router(projects_router, prefix="/api/projects")
 app.include_router(api_router, prefix="/api/projects/{proj}")
 
 

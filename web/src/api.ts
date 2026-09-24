@@ -1,7 +1,12 @@
 // QuOS reqspec API 封装：路由与 server/app/api/router.py 一一对应。
-// M1 项目固定为"风控云"，不做项目切换。
-export const PROJ = '风控云'
-const BASE = `/api/projects/${encodeURIComponent(PROJ)}`
+// 项目上下文动态化：curSlug 由首页进入工作台时设置（见 router.ts enterProject）。
+import { ref } from 'vue'
+
+export const curSlug = ref('')
+export function setProject(slug: string) {
+  curSlug.value = slug
+}
+const base = () => `/api/projects/${encodeURIComponent(curSlug.value)}`
 
 // ---------- 类型（对应 server/app/core/models.py、cards.py） ----------
 
@@ -111,7 +116,7 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, init)
+  const res = await fetch(base() + path, init)
   if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null))
   const ct = res.headers.get('content-type') ?? ''
   return (ct.includes('json') ? res.json() : res.text()) as Promise<T>
@@ -210,3 +215,37 @@ export const createBaseline = (note = '基线存档') =>
   req<Baseline>('/baseline', json('POST', { note }))
 
 export const listBaselines = () => req<Baseline[]>('/baseline')
+
+// ---------- 项目管理（无 proj 前缀，对应 server/app/api/projects.py） ----------
+
+export interface ProjectInfo {
+  slug: string
+  name: string
+  description: string
+  created_at: string
+  last_opened_at: string | null
+}
+
+/** /api/projects 不含 proj 段，独立于 req 的项目级 BASE */
+async function reqRoot<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/projects${path}`, init)
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null))
+  // 204 无响应体（archive/restore/purge），跳过解析
+  if (res.status === 204) return undefined as T
+  return (await res.json()) as Promise<T>
+}
+
+export const getProjects = () => reqRoot<ProjectInfo[]>('')
+export const getArchivedProjects = () => reqRoot<ProjectInfo[]>('/archived')
+export const createProject = (name: string, description = '') =>
+  reqRoot<ProjectInfo>('', json('POST', { name, description }))
+export const openProject = (slug: string) =>
+  reqRoot<void>(`/${encodeURIComponent(slug)}/open`, { method: 'POST' })
+export const patchProject = (slug: string, description: string) =>
+  reqRoot<{ slug: string }>(`/${encodeURIComponent(slug)}`, json('PATCH', { description }))
+export const archiveProject = (slug: string) =>
+  reqRoot<void>(`/${encodeURIComponent(slug)}/archive`, { method: 'POST' })
+export const restoreProject = (slug: string) =>
+  reqRoot<void>(`/${encodeURIComponent(slug)}/restore`, { method: 'POST' })
+export const purgeProject = (slug: string) =>
+  reqRoot<void>(`/${encodeURIComponent(slug)}`, { method: 'DELETE' })

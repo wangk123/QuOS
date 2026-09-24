@@ -1,12 +1,12 @@
 # server/tests/test_evidence.py
 import pytest
-from app.storage.project import project_root
+from app.storage.project import ensure_root
 from app.storage import evidence as ev
 
 @pytest.fixture
 def root(tmp_path, monkeypatch):
     monkeypatch.setattr("app.storage.project.DATA_DIR", tmp_path)
-    return project_root("测试项目")
+    return ensure_root("测试项目")
 
 @pytest.mark.asyncio
 async def test_add_and_list(root):

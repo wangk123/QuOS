@@ -25,5 +25,17 @@ if [ -z "${QUOS_LLM_API_KEY:-}" ] && [ "${QUOS_FAKE_AI:-}" != "1" ]; then
   echo "    ⚠ 未配置 AI：设置 QUOS_LLM_API_KEY/BASE_URL/MODEL，或用 QUOS_FAKE_AI=1 假数据模式"
 fi
 
+# MySQL 索引库默认值（文件为源：不可达仅警告不阻断，详见 docs/environments.md）
+export QUOS_DB_HOST="${QUOS_DB_HOST:-192.168.17.216}"
+export QUOS_DB_PORT="${QUOS_DB_PORT:-3306}"
+export QUOS_DB_USER="${QUOS_DB_USER:-perftest}"
+export QUOS_DB_PASSWORD="${QUOS_DB_PASSWORD:-perftest}"
+export QUOS_DB_NAME="${QUOS_DB_NAME:-quos}"
+if (cd server && uv run python -c "
+from app.storage import db
+print('ok' if db.connect() else '不可达')") | grep -q 不可达; then
+  echo "    ⚠ MySQL 索引库不可达，将以目录扫描模式运行（排序信息缺失）"
+fi
+
 command -v open >/dev/null && open "http://localhost:${PORT}" || true
 cd server && exec uv run uvicorn app.main:app --host 127.0.0.1 --port "${PORT}"

@@ -9,7 +9,7 @@ from app.ai.runner import AITaskError
 from app.core.models import Assertion, Conflict, Gap
 from app.main import app
 from app.storage.cards import Card, Rule
-from app.storage.project import project_root
+from app.storage.project import ensure_root
 
 BASE = "/api/projects/演示项目"
 
@@ -22,7 +22,7 @@ async def client(tmp_path, monkeypatch):
 
 
 async def test_end_to_end(client, monkeypatch):
-    root = project_root("演示项目")
+    root = ensure_root("演示项目")
 
     # ① 入池：raw 文本走 classify
     r = await client.post(f"{BASE}/evidence",
@@ -147,6 +147,7 @@ async def test_end_to_end(client, monkeypatch):
 
 
 async def test_evidence_file_upload(client):
+    ensure_root("演示项目")
     r = await client.post(f"{BASE}/evidence", content=b"%PDF-1.4",
                           headers={"content-type": "application/octet-stream", "x-filename": "spec v1.pdf"})
     assert r.status_code == 200
@@ -154,6 +155,7 @@ async def test_evidence_file_upload(client):
 
 
 async def test_evidence_filename_urlencoded(client):
+    ensure_root("演示项目")
     # 前端 encodeURIComponent 后传入，入库应还原原文（中文/空格不落 %XX）
     from urllib.parse import quote
     r = await client.post(f"{BASE}/evidence", content=b"PK\x03\x04",
@@ -164,6 +166,7 @@ async def test_evidence_filename_urlencoded(client):
 
 
 async def test_evidence_invalid_input(client):
+    ensure_root("演示项目")
     assert (await client.post(f"{BASE}/evidence", json={"raw": ""})).status_code == 422
     assert (await client.post(f"{BASE}/evidence", content=b"")).status_code == 422
     r = await client.post(f"{BASE}/evidence/NOPE/extract")
@@ -171,6 +174,7 @@ async def test_evidence_invalid_input(client):
 
 
 async def test_verify_correction_written_back(client, monkeypatch):
+    ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "材料内容"})
 
     async def mock_extract(content, evidence_type):
@@ -196,6 +200,7 @@ async def test_verify_correction_written_back(client, monkeypatch):
 
 
 async def test_dims_get_put(client):
+    ensure_root("演示项目")
     r = await client.get(f"{BASE}/dims")
     assert r.status_code == 200 and "幂等" in r.json()
     r = await client.put(f"{BASE}/dims", json={"dims": ["状态", "审计留痕"]})
@@ -206,6 +211,7 @@ async def test_dims_get_put(client):
 
 
 async def test_tree_validation(client):
+    ensure_root("演示项目")
     r = await client.post(f"{BASE}/tree", json={"op": "add", "name": ""})
     assert r.status_code == 422
     r = await client.post(f"{BASE}/tree", json={"op": "add", "name": "a\nb"})
@@ -216,6 +222,7 @@ async def test_tree_validation(client):
 
 
 async def test_node_addressing_errors(client):
+    ensure_root("演示项目")
     r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "7", "note": ""})
     assert r.status_code == 404
     r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "a,b", "note": ""})
@@ -225,6 +232,7 @@ async def test_node_addressing_errors(client):
 
 
 async def test_baseline_without_changes(client):
+    ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
     b1 = (await client.post(f"{BASE}/baseline", json={"note": "一"})).json()
     b2 = (await client.post(f"{BASE}/baseline", json={"note": "二"})).json()
@@ -234,6 +242,7 @@ async def test_baseline_without_changes(client):
 
 
 async def test_ai_error_maps_to_502(client, monkeypatch):
+    ensure_root("演示项目")
     async def boom(*args, **kwargs):
         raise AITaskError("extract", "输出校验失败")
 
@@ -245,6 +254,7 @@ async def test_ai_error_maps_to_502(client, monkeypatch):
 
 
 async def test_binary_evidence_extract_rejected(client):
+    ensure_root("演示项目")
     # 截图/压缩包不做 AI 提取，M1.x 才支持解析
     for fname in ("shot.png", "bundle.zip"):
         r = await client.post(f"{BASE}/evidence", content=b"\x89PNG",
@@ -260,7 +270,7 @@ async def test_assemble_excludes_voided_assertions(client, monkeypatch):
     from app.storage import findings as finding_store
     from app.storage import assertions as assert_store
 
-    root = project_root("演示项目")
+    root = ensure_root("演示项目")
     assert_store.save(root, [
         Assertion(id="A1", text="回调超时 30s", src="retry.py:15", conf="实证", verified=True),
         Assertion(id="A2", text="重试上限 3 次", src="retry.py:42", conf="实证", verified=True),
@@ -296,10 +306,10 @@ async def test_project_name_traversal_rejected(client):
 async def test_baseline_tag_after_deletion(client):
     import subprocess
 
+    root = ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
     await client.post(f"{BASE}/baseline", json={"note": "一"})
     await client.post(f"{BASE}/baseline", json={"note": "二"})
-    root = project_root("演示项目")
     subprocess.run(["git", "tag", "-d", "v1"], cwd=root, check=True, capture_output=True)
     b3 = (await client.post(f"{BASE}/baseline", json={"note": "三"})).json()
     assert b3["tag"] == "v3" and b3["v"] == 3  # max+1，不与残留 v2 撞号
