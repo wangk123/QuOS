@@ -10,11 +10,11 @@ from app.storage.cards import Card, Rule
 _PAIR = ("重试上限为 3 次", "重试上限为 5 次")
 
 
-async def fake_extract(evidence_content: str, evidence_type: str) -> list[Assertion]:
+async def fake_extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Assertion]:
     return [
-        Assertion(id="", text="回调超时 30s 触发自动重试", src="材料实证", conf="实证"),
-        Assertion(id="", text=_PAIR[0], src="材料实证", conf="实证"),
-        Assertion(id="", text=_PAIR[1], src="材料文档", conf="文档"),
+        Assertion(id="", text="回调超时 30s 触发自动重试", src="材料实证", conf="实证", node=""),
+        Assertion(id="", text=_PAIR[0], src="材料实证", conf="实证", node=""),
+        Assertion(id="", text=_PAIR[1], src="材料文档", conf="文档", node=""),
     ]
 
 
@@ -61,6 +61,13 @@ async def fake_impact(diff_text: str, tree_dump: str, card_list: list[str]) -> l
     return card_list[:1]
 
 
+async def fake_outline(material: str) -> list[tasks.OutlineNode]:
+    return [tasks.OutlineNode(name="支付", children=[
+        tasks.OutlineNode(name="放款重试", children=[]),
+        tasks.OutlineNode(name="回调处理", children=[]),
+    ])]
+
+
 def install() -> None:
     """把假实现挂到 tasks 模块上（router 以 tasks.fn 形式调用，运行时生效）"""
     tasks.extract = fake_extract
@@ -69,3 +76,4 @@ def install() -> None:
     tasks.gaps = fake_gaps
     tasks.assemble = fake_assemble
     tasks.impact = fake_impact
+    tasks.outline = fake_outline

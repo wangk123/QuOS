@@ -1,4 +1,5 @@
 # server/app/storage/tree.py
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -8,6 +9,10 @@ class Node(BaseModel):
     name: str
     children: list["Node"] = Field(default_factory=list)
     open: bool = True
+    priority: str = ""  # ''|'P0'|'P1'|'P2'：仅前端分组排序展示用，不改树序
+
+
+_PRIO_RE = re.compile(r"\s*@(P[012])$")
 
 
 class TreeFormatError(Exception):
@@ -29,7 +34,9 @@ def parse(md_text: str) -> list[Node]:
         indent = len(raw) - len(raw.lstrip())
         if indent % 2 or (stack and indent > stack[-1][0] + 2) or (not stack and indent > 0):
             raise TreeFormatError(no)
-        node = Node(name=raw.lstrip()[2:].strip())
+        body = raw.lstrip()[2:].strip()
+        m = _PRIO_RE.search(body)
+        node = Node(name=body[: m.start()] if m else body, priority=m.group(1) if m else "")
         while stack and stack[-1][0] >= indent:
             stack.pop()
         if not stack:
@@ -45,7 +52,7 @@ def dump(nodes: list[Node]) -> str:
 
     def walk(items: list[Node], depth: int):
         for n in items:
-            lines.append("  " * depth + "- " + n.name)
+            lines.append("  " * depth + "- " + n.name + (f" @{n.priority}" if n.priority else ""))
             walk(n.children, depth + 1)
 
     walk(nodes, 0)
@@ -99,3 +106,20 @@ def delete(nodes: list[Node], path: str) -> None:
     parent_path, _, idx = path.rpartition(",")
     layer = find(nodes, parent_path).children if parent_path else nodes
     layer.pop(int(idx))
+
+
+def set_priority(nodes: list[Node], path: str, priority: str) -> None:
+    node = find(nodes, path)
+    if node is None:
+        raise ValueError(f"非法路径: {path}")
+    node.priority = priority
+
+
+def paths(nodes: list[Node], prefix: str = "") -> list[str]:
+    """全部节点全路径（树序）——extract 归属白名单与前端分组索引共用"""
+    out: list[str] = []
+    for n in nodes:
+        full = f"{prefix}/{n.name}" if prefix else n.name
+        out.append(full)
+        out.extend(paths(n.children, full))
+    return out

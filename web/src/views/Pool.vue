@@ -4,6 +4,7 @@ import {
   ApiError,
   addEvidence,
   addEvidenceFile,
+  deleteEvidence,
   extractEvidence,
   getEvidence,
   type EvidenceItem,
@@ -90,17 +91,33 @@ async function onPaste(e: ClipboardEvent) {
 
 async function extract(id: string) {
   const ev = items.value.find(x => x.id === id)
-  if (!ev || ev.state === 'extracted') return
-  aiLabel.value = `AI 正在读《${ev.name}》提炼行为断言…`
+  if (!ev) return
+  const again = ev.state === 'extracted'
+  if (again && !confirm(`重新提取《${ev.name}》？上次提取的 ${ev.count} 条规则将被替换`)) return
+  aiLabel.value = `AI 正在读《${ev.name}》提炼行为规则…`
   try {
     const r = await extractEvidence(id)
-    toast(`+${r.added} 条断言 · 出处已标注`, 'ok')
+    toast(again ? `已替换为 ${r.added} 条规则 · 出处已标注` : `+${r.added} 条规则 · 出处已标注`, 'ok')
     await load()
-    goto('v-fact') // 跳到 ① 提事实查看新断言
+    goto('v-fact') // 跳到 ① 规则提取查看新规则
   } catch (e) {
     toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
   } finally {
     aiLabel.value = ''
+  }
+}
+
+async function remove(id: string) {
+  const ev = items.value.find(x => x.id === id)
+  if (!ev) return
+  const hint = ev.state === 'extracted' ? `，其提取的 ${ev.count} 条规则将一并移除` : ''
+  if (!confirm(`删除《${ev.name}》${hint}？`)) return
+  try {
+    await deleteEvidence(id)
+    await load()
+    toast(`已删除《${ev.name}》`, 'ok')
+  } catch (e) {
+    toast(e instanceof ApiError ? `删除失败：${e.message}` : '删除失败', 'warn')
   }
 }
 
@@ -156,7 +173,7 @@ const stat = {
       <table>
         <thead>
           <tr>
-            <th>材料</th><th>类型</th><th>可信度</th><th>登记</th><th>状态</th><th style="width: 110px">操作</th>
+            <th>材料</th><th>类型</th><th>可信度</th><th>登记</th><th>状态</th><th style="width: 150px">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -171,7 +188,8 @@ const stat = {
               <span v-if="e.missing" class="badge b-red">文件丢失</span>
             </td>
             <td class="row-actions">
-              <button class="btn btn-sm" type="button" :disabled="e.state === 'extracted'" @click="extract(e.id)">提取</button>
+              <button class="btn btn-sm" type="button" @click="extract(e.id)">{{ e.state === 'extracted' ? '重提' : '提取' }}</button>
+              <button class="danger btn-sm" type="button" @click="remove(e.id)">删除</button>
             </td>
           </tr>
           <tr v-if="!items.length">
@@ -182,7 +200,7 @@ const stat = {
     </div>
 
     <div class="warn-strip">
-      <b>入库规则</b>AI 生成的材料标红：格式漂亮 ≠ 内容真实，提取断言一律「待实证」。口头/截图不登记就永远丢了——先入池。
+      <b>入库规则</b>AI 生成的材料标红：格式漂亮 ≠ 内容真实，提取规则一律「待实证」。口头/截图不登记就永远丢了——先入池。
     </div>
   </div>
 </template>

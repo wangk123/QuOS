@@ -18,12 +18,15 @@ import {
   verifyClar,
   listBaselines,
   getTree,
+  scaffoldTree,
+  setAssertionNode,
   type Assertion,
   type Card,
   type Clarification,
   type Conflict,
   type EvidenceItem,
   type Gap,
+  type TreeNode,
 } from '../../api'
 import { baseTag, curName, curPath, view, top } from '../../router'
 
@@ -56,6 +59,8 @@ vi.mock('../../api', () => ({
   setDims: vi.fn(),
   getTree: vi.fn(),
   treeOp: vi.fn(),
+  scaffoldTree: vi.fn(),
+  setAssertionNode: vi.fn(),
   assemble: vi.fn(),
   getCard: vi.fn(),
   getDoc: vi.fn(),
@@ -82,6 +87,20 @@ const ASSERTIONS: Assertion[] = [
 ]
 const CONFLICTS: Conflict[] = [
   { id: 'C1', a: 'A2', b: 'A3', q: '重试上限到底几次？', st: 'open', resolution: null },
+]
+// Fact 分组场景：树带 P0/P1/P2 标记，规则分挂各功能点
+const FACT_TREE: TreeNode[] = [
+  { name: '支付', children: [{ name: '放款重试', children: [], open: true, priority: 'P1' }], open: true, priority: '' },
+  { name: '风控', children: [
+    { name: '额度', children: [], open: true, priority: 'P0' },
+    { name: '黑名单', children: [], open: true, priority: '' },
+  ], open: true, priority: 'P2' },
+]
+const GROUPED: Assertion[] = [
+  asrt({ id: 'A1', text: '回调超时 30s 触发重试', src: 'retry.py:15', node: '支付/放款重试', verified: true }),
+  asrt({ id: 'A2', text: '重试上限为 3 次', src: 'retry.py:42', node: '风控/额度', verified: true }),
+  asrt({ id: 'A3', text: '重试上限为 5 次', src: '设计文档§2', conf: '文档', node: '风控/额度' }),
+  asrt({ id: 'A4', text: '黑名单 T+1 生效', src: 'risk.py:7', node: '风控/黑名单' }),
 ]
 const GAPS: Gap[] = [{ id: 'G1', dim: '状态', text: '「重试中」无出口', st: 'open' }]
 const CLARS: Clarification[] = [
@@ -129,15 +148,76 @@ describe('Pool.vue', () => {
 })
 
 describe('Fact.vue', () => {
-  it('渲染断言行含置信度徽章与单点「核」按钮', async () => {
+  it('无树时规则落未归类桶，行内含置信度徽章与单点「核」按钮', async () => {
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
     await flushPromises()
+    expect(w.find('.unclass-box').text()).toContain('未归类 · 3 条')
     expect(w.text()).toContain('回调超时 30s 触发重试')
     expect(w.text()).toContain('retry.py:42')
     const badges = w.findAll('.badge').map(b => b.text())
     expect(badges).toContain('代码实证') // conf=实证 的徽章文案
     expect(w.findAll('button').some(b => b.text() === '核')).toBe(true)
+  })
+
+  it('按模块›功能点分组：组头序列、P0 先行、功能点头带核验 x/y', async () => {
+    vi.mocked(getTree).mockResolvedValue(FACT_TREE)
+    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    const Fact = (await import('../Fact.vue')).default
+    const w = mount(Fact)
+    await flushPromises()
+    expect(w.findAll('.grp-hd').map(h => h.find('b').text())).toEqual(['支付', '风控']) // 组按树序
+    const pts = w.findAll('.pt-hd').map(h => h.text())
+    expect(pts).toHaveLength(3)
+    expect(pts[0]).toContain('支付/放款重试')
+    expect(pts[1]).toContain('风控/额度')
+    expect(pts[1]).toContain('P0') // P0 排在同组无标记的黑名单前
+    expect(pts[1]).toContain('核验 1/2')
+    expect(pts[2]).toContain('风控/黑名单')
+    expect(w.text()).toContain('重试上限为 3 次') // 组内规则行照常渲染
+  })
+
+  it('点击组头折叠/展开该组', async () => {
+    vi.mocked(getTree).mockResolvedValue(FACT_TREE)
+    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    const Fact = (await import('../Fact.vue')).default
+    const w = mount(Fact)
+    await flushPromises()
+    await w.findAll('.grp-hd')[1].trigger('click') // 折叠「风控」
+    expect(w.text()).not.toContain('重试上限为 3 次')
+    expect(w.findAll('.pt-hd')).toHaveLength(1) // 只剩「支付」组的功能点
+    await w.findAll('.grp-hd')[1].trigger('click') // 再点展开
+    expect(w.text()).toContain('重试上限为 3 次')
+  })
+
+  it('未归类行选路径挂载调 setAssertionNode（选项 2 空格缩进/层）', async () => {
+    vi.mocked(getTree).mockResolvedValue(FACT_TREE)
+    const Fact = (await import('../Fact.vue')).default
+    const w = mount(Fact)
+    await flushPromises()
+    const row = w.findAll('.unclass-box tbody tr').find(r => r.text().includes('回调超时'))!
+    const sel = row.find('select')
+    const opt = sel.findAll('option').find(o => o.text().includes('风控/额度'))!
+    expect((opt.element as HTMLOptionElement).textContent).toBe('  风控/额度') // 二级节点缩进两格，value 为原始路径
+    await sel.setValue('风控/额度')
+    await flushPromises()
+    expect(setAssertionNode).toHaveBeenCalledWith('A1', '风控/额度')
+  })
+
+  it('树空时渲染骨架引导块，点击「AI 从证据池生成」调 scaffoldTree', async () => {
+    vi.mocked(scaffoldTree).mockResolvedValue(FACT_TREE)
+    const Fact = (await import('../Fact.vue')).default
+    const w = mount(Fact)
+    await flushPromises()
+    const guide = w.find('.scaffold-guide')
+    expect(guide.exists()).toBe(true)
+    expect(guide.text()).toContain('功能树还没有骨架')
+    expect(guide.text()).toContain('手工在左侧添加节点')
+    const aiBtn = w.findAll('button').find(b => b.text() === 'AI 从证据池生成')!
+    expect((aiBtn.element as HTMLButtonElement).disabled).toBe(false) // 证据池非空可点
+    await aiBtn.trigger('click')
+    await flushPromises()
+    expect(scaffoldTree).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -153,7 +233,7 @@ describe('Conflict.vue', () => {
     const texts = w.findAll('button').map(b => b.text())
     expect(texts).toContain('信 A2')
     expect(texts).toContain('信 A3')
-    expect(texts).toContain('转问人')
+    expect(texts).toContain('转澄清')
   })
 
   it('点击「信 A2」调 resolveConflict(code/a)', async () => {
@@ -177,7 +257,7 @@ describe('Gap.vue', () => {
     expect(group.find('.g-hd').text()).toContain('状态')
     expect(w.text()).toContain('「重试中」无出口')
     const texts = w.findAll('button').map(b => b.text())
-    expect(texts).toContain('转问人')
+    expect(texts).toContain('转澄清')
     expect(texts).toContain('设计如此')
     expect(w.findAll('button').some(b => b.text().includes('AI 重扫'))).toBe(true)
   })
@@ -197,14 +277,25 @@ describe('Card.vue', () => {
   })
 })
 
-describe('Ask.vue', () => {
-  it('渲染待问行：问题、选项与状态徽章', async () => {
-    const Ask = (await import('../Ask.vue')).default
-    const w = mount(Ask)
+describe('AskDrawer（顶栏澄清池抽屉）', () => {
+  it('open 时拉取并渲染待问行：问题、选项与状态徽章', async () => {
+    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
+    const w = mount(AskDrawer, { props: { open: false } })
+    await w.setProps({ open: true })
     await flushPromises()
+    expect(w.find('[role="dialog"][aria-modal="true"]').exists()).toBe(true)
     expect(w.text()).toContain('幂等键用哪个字段？')
     expect(w.text()).toContain('A. 放款流水号')
     expect(w.text()).toContain('待问')
+  })
+
+  it('空态文案指向冲突/缺口/无依据规则来源', async () => {
+    vi.mocked(getClarifications).mockResolvedValueOnce([])
+    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
+    const w = mount(AskDrawer, { props: { open: false } })
+    await w.setProps({ open: true })
+    await flushPromises()
+    expect(w.text()).toContain('空——②冲突、④缺口、①无依据规则可转到这里')
   })
 })
 
@@ -233,40 +324,48 @@ describe('Save.vue', () => {
 })
 
 describe('Ask 交互', () => {
-  it('记录答案调 answerClar', async () => {
+  it('记录答案调 answerClar 并 emit changed（App 重算角标）', async () => {
     vi.mocked(answerClar).mockResolvedValue({ ...CLARS[0], st: 'answered', answer: '放款流水号' })
-    const Ask = (await import('../Ask.vue')).default
-    const w = mount(Ask)
+    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
+    const w = mount(AskDrawer, { props: { open: false } })
+    await w.setProps({ open: true })
     await flushPromises()
     await w.findAll('button').find(b => b.text() === '记录')!.trigger('click')
     await flushPromises()
     expect(answerClar).toHaveBeenCalledWith(1, 0)
+    expect(w.emitted('changed')).toBeTruthy()
   })
 
   it('已答行显示「标记已确认」按钮（非「落码验证」）', async () => {
     vi.mocked(getClarifications).mockResolvedValue([
       { ...CLARS[0], st: 'answered', answer: '放款流水号' },
     ])
-    const Ask = (await import('../Ask.vue')).default
-    const w = mount(Ask)
+    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
+    const w = mount(AskDrawer, { props: { open: false } })
+    await w.setProps({ open: true })
     await flushPromises()
     const texts = w.findAll('button').map(b => b.text())
     expect(texts).toContain('标记已确认')
     expect(texts).not.toContain('落码验证')
   })
 
-  it('点击「标记已确认」调 verifyClar 且 toast 不再宣称已实证', async () => {
+  it('点击「标记已确认」调 verifyClar、emit changed 且 toast 不再宣称已实证', async () => {
     const toasts: string[] = []
     vi.mocked(verifyClar).mockResolvedValue({ ...CLARS[0], st: 'verified', answer: '放款流水号' })
     vi.mocked(getClarifications).mockResolvedValue([
       { ...CLARS[0], st: 'answered', answer: '放款流水号' },
     ])
-    const Ask = (await import('../Ask.vue')).default
-    const w = mount(Ask, { global: { provide: { toast: (msg: string) => { toasts.push(msg) } } } })
+    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
+    const w = mount(AskDrawer, {
+      props: { open: false },
+      global: { provide: { toast: (msg: string) => { toasts.push(msg) } } },
+    })
+    await w.setProps({ open: true })
     await flushPromises()
     await w.findAll('button').find(b => b.text() === '标记已确认')!.trigger('click')
     await flushPromises()
     expect(verifyClar).toHaveBeenCalledWith(1)
+    expect(w.emitted('changed')).toBeTruthy()
     expect(toasts.some(t => t.includes('已标记确认'))).toBe(true)
     expect(toasts.some(t => t.includes('已实证'))).toBe(false)
   })
@@ -279,7 +378,7 @@ describe('Card 空态', () => {
     const Card = (await import('../Card.vue')).default
     const w = mount(Card)
     await flushPromises()
-    expect(w.text()).toContain('AI 组装卡片草稿')
+    expect(w.text()).toContain('AI 生成画像草稿')
   })
 })
 

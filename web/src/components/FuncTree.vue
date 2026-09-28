@@ -6,7 +6,7 @@ defineProps<{ nodes: TreeNode[]; curPath: string }>()
 const emit = defineEmits<{
   pick: [path: string]
   toggle: [path: string]
-  op: [op: 'add' | 'rename' | 'del', path: string]
+  op: [op: 'add' | 'rename' | 'del' | 'prio', path: string]
 }>()
 </script>
 

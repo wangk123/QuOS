@@ -9,6 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PORT="${QUOS_PORT:-8000}"
 
+# 本地密钥配置（.env 不入 git）：LLM key 等，已设置的环境变量不被覆盖
+[ -f .env ] && set -a && . ./.env && set +a
+
 echo "==> 1/3 依赖检查"
 [ -d web/node_modules ] || (cd web && npm install)
 (cd server && uv sync --quiet)

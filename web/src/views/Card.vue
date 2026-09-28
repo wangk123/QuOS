@@ -49,16 +49,16 @@ function openAssemble() {
 
 async function doAssemble() {
   showAssemble.value = false
-  aiLabel.value = 'AI 组装卡片：断言挂树 · 标置信度 · 并入补充意见…'
+  aiLabel.value = 'AI 生成画像：规则挂树 · 标置信度 · 并入补充意见…'
   try {
     await assemble(curPath.value, note.value.trim())
     await load()
-    toast(note.value.trim() ? '卡片已生成（补充意见已并入「补充说明」）' : '卡片已生成 · 未实证规则标黄', 'ok')
+    toast(note.value.trim() ? '画像已生成（补充意见已并入「补充说明」）' : '画像已生成 · 未实证规则标黄', 'ok')
   } catch (e) {
     if (e instanceof ApiError && e.unqualified) {
-      toast(`组装被阻断：${e.unqualified.join('、')} 未核验/待实证——先回 ① 核验`, 'warn')
+      toast(`生成被阻断：${e.unqualified.join('、')} 未核验/待实证——先回 ① 核验`, 'warn')
     } else {
-      toast(e instanceof ApiError ? `组装失败：${e.message}` : '组装失败', 'warn')
+      toast(e instanceof ApiError ? `生成失败：${e.message}` : '生成失败', 'warn')
     }
   } finally {
     aiLabel.value = ''
@@ -95,11 +95,11 @@ function downloadDoc() {
 <template>
   <div>
     <div class="view-head">
-      <h2>④ 成卡片 · {{ curName }}</h2>
-      <span class="sub">断言挂到树叶上；挂不上的 = 树缺枝，补。</span>
+      <h2>③ 生成画像 · {{ curName }}</h2>
+      <span class="sub">核验通过的规则聚合成需求画像草稿——挂不上的 = 树缺枝，补。</span>
       <div class="spacer" style="flex: 1" />
       <button class="btn-ghost" type="button" :disabled="!card" @click="openDoc">预览结果文档</button>
-      <button v-if="!card" class="btn" type="button" :disabled="!curPath" @click="openAssemble">AI 组装卡片草稿</button>
+      <button v-if="!card" class="btn" type="button" :disabled="!curPath" @click="openAssemble">AI 生成画像草稿</button>
       <button v-else class="btn" type="button" @click="openAssemble">补充意见并重新生成</button>
     </div>
 
@@ -110,7 +110,7 @@ function downloadDoc() {
 
     <div v-if="!card" class="empty">
       <template v-if="!curPath">先在左侧功能树选中整理目标（树叶节点）</template>
-      <template v-else>断言就绪，点击「AI 组装卡片草稿」· {{ curName }}<br /><span style="font-size: 11.5px">（组装要求全部断言已核验且非「待实证」）</span></template>
+      <template v-else>规则就绪，点击「AI 生成画像草稿」· {{ curName }}<br /><span style="font-size: 11.5px">（要求全部规则已核验且非「待实证」）</span></template>
     </div>
 
     <template v-else>
@@ -119,7 +119,7 @@ function downloadDoc() {
         <span class="badge b-red">本次修改 · 高风险</span>
       </div>
       <div class="spec-meta">
-        <span>断言 {{ card.rules.length }} 条规则</span>
+        <span>画像 {{ card.rules.length }} 条规则</span>
         <span>待确认 {{ waitCnt }} 项</span>
       </div>
       <div class="spec-grid">
@@ -144,7 +144,7 @@ function downloadDoc() {
         <div class="k">依赖</div><div class="v">{{ card.deps || '—' }}</div>
       </div>
       <div v-if="waitCnt" class="warn-strip">
-        <b>未确认项（转「问人」）</b>{{ card.unconfirmed.join(' · ') }}
+        <b>未确认项（转澄清池）</b>{{ card.unconfirmed.join(' · ') }}
       </div>
       <div v-else class="warn-strip ok-strip">
         <b>✓ 全部规则已实证</b>卡片可存档进基线
@@ -153,14 +153,14 @@ function downloadDoc() {
 
     <div v-if="showAssemble" class="modal-bg" @click.self="showAssemble = false">
       <div class="modal" role="dialog" aria-modal="true">
-        <h3>AI 组装 / 重新生成卡片</h3>
+        <h3>AI 生成 / 重新生成画像</h3>
         <p style="font-size: 12px; color: var(--muted-fg); margin-bottom: 8px">
           补充你的意见（AI 不知道的：口头约定、历史坑、业务约束）——它会并入卡片「补充说明」并影响规则。
         </p>
         <textarea v-model="note" placeholder="如：张开发说重试时余额要校验；上次生产事故就是金额改了没同步" />
         <div class="foot">
           <button class="btn-ghost" type="button" @click="showAssemble = false">取消</button>
-          <button class="btn" type="button" @click="doAssemble">生成卡片</button>
+          <button class="btn" type="button" @click="doAssemble">生成画像</button>
         </div>
       </div>
     </div>

@@ -25,6 +25,10 @@ class Assertion(BaseModel):
     st: str = "open"
     verified: bool = False
     suspect: bool = False
+    src_id: str = ""  # 来源证据 id；空 = 历史数据，重提/删证据时不清理
+    node: str = ""  # 归属功能点全路径；空 = 未归类（树缺枝探伤器入口）
+    nb: str = ""  # AI 核验「材料无依据」的原因；空 = 无此结论
+    clar: Optional[int] = None  # 已转「问人」的问题编号
 
 
 class Conflict(BaseModel):

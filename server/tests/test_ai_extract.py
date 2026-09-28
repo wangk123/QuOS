@@ -5,9 +5,11 @@ from app.core.models import Assertion
 
 async def test_extract(monkeypatch):
     fake = tasks.ExtractOut(assertions=[Assertion(id="A1", text="当超时30s触发重试", src="retry.py:15", conf="实证")])
-    async def mock(task, variables, schema): return fake
+    async def mock(task, variables, schema):
+        assert variables["tree_list"] == "支付/放款重试"
+        return fake
     monkeypatch.setattr(tasks, "complete", mock)
-    out = await tasks.extract("代码内容", "代码")
+    out = await tasks.extract("代码内容", "代码", "支付/放款重试")
     assert out[0].conf == "实证"
 
 async def test_verify_marks_correction(monkeypatch):
@@ -16,3 +18,13 @@ async def test_verify_marks_correction(monkeypatch):
     monkeypatch.setattr(tasks, "complete", mock)
     out = await tasks.verify([Assertion(id="A7", text="固定60s", src="x:1", conf="实证")], "代码")
     assert out.results[0]["corrected_text"] == "指数退避"
+
+async def test_outline(monkeypatch):
+    fake = tasks.OutlineOut(nodes=[tasks.OutlineNode(name="支付", children=[
+        tasks.OutlineNode(name="放款重试", children=[])])])
+    async def mock(task, variables, schema):
+        assert "材料" in variables["material"]
+        return fake
+    monkeypatch.setattr(tasks, "complete", mock)
+    out = await tasks.outline("材料内容")
+    assert out[0].name == "支付" and out[0].children[0].name == "放款重试"

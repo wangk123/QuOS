@@ -44,6 +44,9 @@ class TreeIn(BaseModel):
     name: Optional[str] = None
 
 
+_PRIO = {"", "P0", "P1", "P2"}
+
+
 class AssembleIn(BaseModel):
     node_path: str
     note: str = ""
@@ -57,6 +60,10 @@ class ClarIn(BaseModel):
 
 class BaselineIn(BaseModel):
     note: str = "基线存档"
+
+
+class NodeIn(BaseModel):
+    node: str
 
 
 def _root(proj: str) -> Path:
@@ -103,10 +110,22 @@ def _resolve(nodes, path: str):
     return node, "/".join(names)
 
 
+def _docx_text(f: Path) -> str:
+    """docx = zip 包内的 XML：剥标签取正文（零依赖；解析失败退回原文错误）"""
+    import re
+    import zipfile
+    with zipfile.ZipFile(f) as z:
+        xml = z.read("word/document.xml").decode("utf-8", errors="replace")
+    xml = re.sub(r"</w:p>", "\n", xml)
+    return re.sub(r"<[^>]+>", "", xml)
+
+
 def _evidence_text(root, ev) -> str:
     if ev.path:
         f = Path(root) / ev.path
         if f.exists():
+            if f.suffix.lower() == ".docx":
+                return _docx_text(f)
             return f.read_text("utf-8", errors="replace")
     return ev.name
 
@@ -156,13 +175,31 @@ async def extract_evidence(proj: str, ev_id: str):
         raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
     if ev.type in ("截图", "压缩包"):
         raise HTTPException(status_code=422, detail="该类型不支持 AI 提取（M1.x 支持解析）")
-    got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type)
-    items = assert_store.load(root)
-    for i, a in enumerate(got, len(items) + 1):
-        items.append(a.model_copy(update={"id": f"A{i}"}))
+    nodes = _load_tree(root)
+    paths_list = tree.paths(nodes)
+    valid = set(paths_list)
+    got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(paths_list) or "（空树：全部留空）")
+    items = [a for a in assert_store.load(root) if a.src_id != ev_id]  # 重提：替换上次产出
+    n = max((int(a.id[1:]) for a in items if a.id.startswith("A") and a.id[1:].isdigit()), default=0)
+    for a in got:
+        n += 1
+        if a.node not in valid:  # AI 编造路径 → 白名单外置空（未归类）
+            a.node = ""
+        items.append(a.model_copy(update={"id": f"A{n}", "src_id": ev_id}))
     assert_store.save(root, items)
     await evidence.mark_extracted(root, ev_id, len(got))
-    return {"added": len(got), "assertions": [a.model_dump() for a in items[len(items) - len(got):]]}
+    return {"added": len(got),
+            "assertions": [a.model_dump() for a in items[len(items) - len(got):]] if got else []}
+
+
+@api_router.delete("/evidence/{ev_id}", status_code=204)
+async def delete_evidence(proj: str, ev_id: str):
+    root = _root(proj)
+    if await evidence.get(root, ev_id) is None:
+        raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
+    await evidence.remove(root, ev_id)
+    kept = [a for a in assert_store.load(root) if a.src_id != ev_id]  # 其产出的断言一并移除
+    assert_store.save(root, kept)
 
 
 # ---------- 断言 ----------
@@ -191,12 +228,55 @@ async def verify_assertions(proj: str, body: VerifyIn):
         if a is None:
             continue
         if r.get("ok") is True:
-            a.verified = True
+            a.verified, a.nb = True, ""
         elif r.get("corrected_text"):
-            a.text, a.suspect, a.verified = r["corrected_text"], True, True
+            a.text, a.suspect, a.verified, a.nb = r["corrected_text"], True, True, ""
+        else:
+            a.nb = r.get("reason") or "材料中无对应依据"  # 推测类断言：留给人工核过/转问人
         applied.append(a.id)
     assert_store.save(root, items)
     return {"applied": applied, "results": out.results}
+
+
+@api_router.post("/assertions/{aid}/confirm", status_code=204)
+async def confirm_assertion(proj: str, aid: str):
+    """人工核过：不经 AI，直接确认该断言与实际一致"""
+    root = _root(proj)
+    amap = _assert_map(root)
+    if aid not in amap:
+        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
+    a = amap[aid]
+    a.verified, a.nb, a.clar = True, "", None
+    assert_store.save(root, list(amap.values()))
+
+
+@api_router.post("/assertions/{aid}/ask", status_code=204)
+async def ask_assertion(proj: str, aid: str):
+    """转问人：推测/无依据断言进「问人」清单，答案确认后自动核过"""
+    root = _root(proj)
+    amap = _assert_map(root)
+    if aid not in amap:
+        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
+    a = amap[aid]
+    if a.clar:
+        raise HTTPException(status_code=409, detail=f"{aid} 已转问人（问#{a.clar}）")
+    c = await clarifications.add(root, a.text + "——该推测与实际系统一致吗？",
+                                 ["确认一致", "与实际不符", "不清楚"], ref=a.id)
+    a.clar = c.no
+    assert_store.save(root, list(amap.values()))
+
+
+@api_router.put("/assertions/{aid}/node", status_code=204)
+async def set_assertion_node(proj: str, aid: str, body: NodeIn):
+    """人工挂载/改归属：node 必须为空（回未归类）或树中全路径"""
+    root = _root(proj)
+    amap = _assert_map(root)
+    if aid not in amap:
+        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
+    if body.node and body.node not in tree.paths(_load_tree(root)):
+        raise HTTPException(status_code=422, detail=f"节点不存在: {body.node}")
+    amap[aid].node = body.node
+    assert_store.save(root, list(amap.values()))
 
 
 # ---------- 矛盾 ----------
@@ -244,10 +324,20 @@ async def list_gaps(proj: str):
 
 
 @api_router.post("/gaps/rescan")
-async def rescan_gaps(proj: str):
+async def rescan_gaps(proj: str, node_path: str = ""):
     root = _root(proj)
     dim_list = dims.get_dims(root)
-    summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无卡片）"
+    if node_path:
+        nodes = _load_tree(root)
+        node, full = _resolve(nodes, node_path)
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
+        card = cards.load_card(root, full)
+        if card is None:
+            raise HTTPException(status_code=422, detail=f"节点无卡片，请先生成画像: {node_path}")
+        summary = _card_summary(card)
+    else:
+        summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无卡片）"
     detected = await _ai(tasks.gaps, summary, dim_list)
     detected = [g for g in detected if g.dim in dim_list]  # 防 AI 自造维度
     items = findings.merge_gaps(root, detected)
@@ -320,10 +410,37 @@ async def mutate_tree(proj: str, body: TreeIn):
             if body.path is None:
                 raise HTTPException(status_code=422, detail="del 需要 path")
             tree.delete(nodes, body.path)
+        elif body.op == "prio":
+            if body.path is None:
+                raise HTTPException(status_code=422, detail="prio 需要 path")
+            if body.name not in _PRIO:
+                raise HTTPException(status_code=422, detail="name 必须为 P0/P1/P2 或空串")
+            tree.set_priority(nodes, body.path, body.name)
         else:
-            raise HTTPException(status_code=422, detail="op 必须为 add/rename/del")
+            raise HTTPException(status_code=422, detail="op 必须为 add/rename/del/prio")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    tree.save(root, nodes)
+    return [n.model_dump() for n in nodes]
+
+
+def _to_tree_nodes(items) -> list[tree.Node]:
+    return [tree.Node(name=i.name, children=_to_tree_nodes(i.children)) for i in items]
+
+
+@api_router.post("/tree/scaffold")
+async def scaffold_tree(proj: str):
+    """AI 从证据池生成功能树骨架（仅树空时可用；生成后人工在侧栏调整即采纳）"""
+    root = _root(proj)
+    if _load_tree(root):
+        raise HTTPException(status_code=409, detail="功能树非空，不覆盖——如需调整请在左侧手工编辑")
+    texts = [_evidence_text(root, e) for e in await evidence.list_all(root)
+             if e.type not in ("截图", "压缩包")]
+    if not texts:
+        raise HTTPException(status_code=422, detail="证据池没有可提取材料，请先入池")
+    material = "\n\n".join(t[:8000] for t in texts)  # 每份截断防超长
+    items = await _ai(tasks.outline, material)
+    nodes = _to_tree_nodes(items)
     tree.save(root, nodes)
     return [n.model_dump() for n in nodes]
 
@@ -345,7 +462,7 @@ async def assemble_card(proj: str, body: AssembleIn):
     if node is None:
         raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
     void = _void_ids(root)
-    usable = [a for a in assert_store.load(root) if a.id not in void]
+    usable = [a for a in assert_store.load(root) if a.id not in void and a.node == full]
     card = await _ai(tasks.assemble, usable, node.name, body.note)
     card.node = full  # 存储按树全路径寻址（load/export 匹配用）
     f = cards.save_card(root, full, card)
@@ -398,6 +515,11 @@ async def resolve_clarification(proj: str, body: ClarIn):
             raise HTTPException(status_code=422, detail="action 必须为 answer 或 verify")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    # 闭环联动：ref 指向断言（① 转来的推测）时，人工确认答案 = 断言核过
+    amap = _assert_map(root)
+    if cl.ref in amap:
+        amap[cl.ref].verified, amap[cl.ref].nb, amap[cl.ref].clar = True, "", None
+        assert_store.save(root, list(amap.values()))
     return cl.model_dump()
 
 

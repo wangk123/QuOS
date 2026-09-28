@@ -4,6 +4,7 @@ import { ApiError, getAssertions, getConflicts, resolveConflict, rescanConflicts
 import { curName } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
+const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
 
 const conflicts = ref<Conflict[]>([])
 const assertions = ref<Assertion[]>([])
@@ -53,19 +54,20 @@ async function toClar(c: Conflict) {
   try {
     await resolveConflict(c.id, 'clar')
     await load()
-    toast(`${c.id} → 已进「问人」清单`)
+    void refreshClar()
+    toast(`${c.id} → 已进澄清池`)
   } catch (e) {
-    toast(e instanceof ApiError ? `转问人失败：${e.message}` : '转问人失败', 'warn')
+    toast(e instanceof ApiError ? `转澄清失败：${e.message}` : '转澄清失败', 'warn')
   }
 }
 
-/** AI 重扫：对当前断言全集跑矛盾检测 */
+/** AI 重扫：对当前规则全集跑冲突检测 */
 async function rescan() {
-  aiLabel.value = `AI 重扫矛盾：${assertions.value.length} 条断言两两比对…`
+  aiLabel.value = `AI 重扫冲突：${assertions.value.length} 条规则两两比对…`
   try {
     const items = await rescanConflicts()
     await load()
-    toast(`扫描完成：矛盾 ${items.filter(c => c.st === 'open').length} 项待裁决`)
+    toast(`扫描完成：冲突 ${items.filter(c => c.st === 'open').length} 项待裁决`)
   } catch (e) {
     toast(e instanceof ApiError ? `重扫失败：${e.message}` : '重扫失败', 'warn')
   } finally {
@@ -77,8 +79,8 @@ async function rescan() {
 <template>
   <div>
     <div class="view-head">
-      <h2>② 挑矛盾 · {{ curName }}</h2>
-      <span class="sub">所有材料之间对不上的地方：代码 vs 文档 vs 口头——矛盾 = 需求没对齐的实锤。</span>
+      <h2>② 冲突裁决 · {{ curName }}</h2>
+      <span class="sub">所有材料之间对不上的地方：代码 vs 文档 vs 口头——冲突 = 需求没对齐的实锤。</span>
       <div class="spacer" style="flex: 1" />
       <button class="btn" type="button" :disabled="!assertions.length" @click="rescan">AI 重扫</button>
       <span class="badge" :class="open.length ? 'b-red' : 'b-green'">待裁决 {{ open.length }}</span>
@@ -107,18 +109,18 @@ async function rescan() {
         <template v-if="c.st === 'open'">
           <button class="btn-ghost btn-sm" type="button" @click="resolve(c, 'a')">信 {{ c.a }}</button>
           <button class="btn-ghost btn-sm" type="button" @click="resolve(c, 'b')">信 {{ c.b }}</button>
-          <button class="btn btn-sm" type="button" @click="toClar(c)">转问人</button>
+          <button class="btn btn-sm" type="button" @click="toClar(c)">转澄清</button>
         </template>
-        <span v-else-if="c.st === 'clar'" class="badge b-amber">已转问人</span>
+        <span v-else-if="c.st === 'clar'" class="badge b-amber">已转澄清</span>
         <span v-else class="badge b-green">已裁决：信 {{ c.resolution }}</span>
       </div>
     </div>
     <div v-if="!conflicts.length" class="empty">
-      {{ err ? '' : '没有矛盾——去 ① 提取更多材料后点「AI 重扫」或回 ③ 继续找空白' }}
+      {{ err ? '' : '没有冲突——去 ① 提取更多材料后点「AI 重扫」或回 ④ 继续查漏补缺' }}
     </div>
 
     <div class="warn-strip">
-      <b>裁决规则</b>代码 vs 文档默认倾向代码；「代码与口头意图相反」可能是生产 bug，必须问人，不能自动裁决。
+      <b>裁决规则</b>代码 vs 文档默认倾向代码；「代码与口头意图相反」可能是生产 bug，必须转澄清池，不能自动裁决。
     </div>
   </div>
 </template>

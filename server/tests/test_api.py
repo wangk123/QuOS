@@ -39,10 +39,12 @@ async def test_end_to_end(client, monkeypatch):
     assert r.status_code == 200 and len(r.json()) == 1
 
     # ② 提取：mock ai.extract 返回 2 断言落库
-    async def mock_extract(content, evidence_type):
+    async def mock_extract(content, evidence_type, tree_text):
         assert "重试" in content and evidence_type == "文本"
-        return [Assertion(id="E1", text="当请求超时，客户端应重试3次", src="retry.py:15", conf="实证"),
-                Assertion(id="E2", text="当余额不足，系统应拒绝放款", src="loan.py:30", conf="文档")]
+        return [Assertion(id="E1", text="当请求超时，客户端应重试3次", src="retry.py:15", conf="实证",
+                          node="放款/放款重试"),
+                Assertion(id="E2", text="当余额不足，系统应拒绝放款", src="loan.py:30", conf="文档",
+                          node="放款/放款重试")]
 
     monkeypatch.setattr(tasks, "extract", mock_extract)
     r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
@@ -177,7 +179,7 @@ async def test_verify_correction_written_back(client, monkeypatch):
     ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "材料内容"})
 
-    async def mock_extract(content, evidence_type):
+    async def mock_extract(content, evidence_type, tree_text):
         return [Assertion(id="E1", text="固定60s重试", src="retry.py:15", conf="实证"),
                 Assertion(id="E2", text="重试上限5次", src="spec.md#3", conf="文档")]
 
@@ -272,9 +274,9 @@ async def test_assemble_excludes_voided_assertions(client, monkeypatch):
 
     root = ensure_root("演示项目")
     assert_store.save(root, [
-        Assertion(id="A1", text="回调超时 30s", src="retry.py:15", conf="实证", verified=True),
-        Assertion(id="A2", text="重试上限 3 次", src="retry.py:42", conf="实证", verified=True),
-        Assertion(id="A3", text="重试上限 5 次", src="设计文档§2", conf="文档", verified=True),
+        Assertion(id="A1", text="回调超时 30s", src="retry.py:15", conf="实证", verified=True, node="放款"),
+        Assertion(id="A2", text="重试上限 3 次", src="retry.py:42", conf="实证", verified=True, node="放款"),
+        Assertion(id="A3", text="重试上限 5 次", src="设计文档§2", conf="文档", verified=True, node="放款"),
     ])
     finding_store.save_conflicts(root, [Conflict(id="C1", a="A2", b="A3", q="重试几次？", st="code", resolution="A2")])
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "放款"})
@@ -292,6 +294,39 @@ async def test_assemble_excludes_voided_assertions(client, monkeypatch):
     assert "A3" not in seen["ids"] and "A2" in seen["ids"]
 
 
+async def test_assemble_filters_by_node(client, monkeypatch):
+    from app.storage import assertions as assert_store
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
+    assert_store.save(root, [
+        Assertion(id="A1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
+        Assertion(id="A2", text="风控拦截", src="r.py:2", conf="实证", verified=True, node="风控"),
+        Assertion(id="A3", text="未归类规则", src="r.py:3", conf="实证", verified=True, node=""),
+    ])
+    seen = {}
+    async def mock_assemble(assertions, node_name, note):
+        seen["ids"] = [a.id for a in assertions]
+        return Card(node=node_name, goal="g")
+    monkeypatch.setattr(tasks, "assemble", mock_assemble)
+
+    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0,0", "note": ""})
+    assert r.status_code == 200 and seen["ids"] == ["A1"]  # 只吃本节点规则
+
+
+async def test_assemble_empty_rules_ok(client, monkeypatch):
+    # 节点无任何归属规则 → 空规则集组装不 500（AI 仍产出画像框架）
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    async def mock_assemble(assertions, node_name, note):
+        assert assertions == []
+        return Card(node=node_name, goal="g")
+    monkeypatch.setattr(tasks, "assemble", mock_assemble)
+    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0", "note": ""})
+    assert r.status_code == 200
+
+
 async def test_project_name_traversal_rejected(client):
     # proj=".."（URL 编码 %2e%2e）slugify 后为空 → root 解析为文件系统根，必须 422 拒绝
     r = await client.get("/api/projects/%2e%2e/evidence")
@@ -301,6 +336,66 @@ async def test_project_name_traversal_rejected(client):
     # 混入可清洗字符的变体同样拒绝
     r = await client.get("/api/projects/%2e%2e%2e%2e/evidence")
     assert r.status_code == 422
+
+
+async def test_gaps_scan_scoped_to_node(client, monkeypatch):
+    from app.storage import cards as card_store
+    from app.storage.cards import Card, Rule
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
+    card_store.save_card(root, "支付/放款重试", Card(node="支付/放款重试", goal="不重复放款"))
+    card_store.save_card(root, "风控", Card(node="风控", goal="额度不超限"))
+
+    seen = {}
+    async def mock_gaps(summary, dims):
+        seen["summary"] = summary
+        return []
+    monkeypatch.setattr(tasks, "gaps", mock_gaps)
+
+    r = await client.post(f"{BASE}/gaps/rescan", params={"node_path": "0,0"})
+    assert r.status_code == 200
+    assert "不重复放款" in seen["summary"] and "额度不超限" not in seen["summary"]
+
+    r = await client.post(f"{BASE}/gaps/rescan", params={"node_path": "0"})
+    assert r.status_code == 422 and "无卡片" in r.json()["detail"]
+
+    await client.post(f"{BASE}/gaps/rescan")  # 不带参：旧行为全部卡片
+    assert "额度不超限" in seen["summary"]
+
+
+async def test_extract_binds_node_and_sanitizes(client, monkeypatch):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/evidence", json={"raw": "重试材料"})
+
+    async def mock_extract(content, evidence_type, tree_text):
+        assert "支付/放款重试" in tree_text
+        return [Assertion(id="E1", text="当超时重试3次", src="retry.py:15", conf="实证",
+                          node="支付/放款重试"),
+                Assertion(id="E2", text="当失败告警", src="log.py:3", conf="实证",
+                          node="支付/编造的节点")]  # AI 编造路径
+    monkeypatch.setattr(tasks, "extract", mock_extract)
+
+    ev_id = (await client.get(f"{BASE}/evidence")).json()[0]["id"]
+    r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
+    assert r.status_code == 200
+    rows = {a["id"]: a for a in (await client.get(f"{BASE}/assertions")).json()}
+    assert rows["A1"]["node"] == "支付/放款重试"
+    assert rows["A2"]["node"] == ""  # 编造路径被白名单置空
+
+
+async def test_legacy_assertions_without_node_load(client):
+    # 存量 assertions.json 无 node 字段 → 默认 ""，不炸
+    import json
+    from app.storage import assertions as assert_store
+    root = ensure_root("演示项目")
+    (root / "assertions.json").write_text(
+        json.dumps([{"id": "A1", "text": "t", "src": "s", "conf": "实证"}], ensure_ascii=False), "utf-8")
+    rows = (await client.get(f"{BASE}/assertions")).json()
+    assert rows[0]["node"] == ""
 
 
 async def test_baseline_tag_after_deletion(client):
@@ -313,3 +408,45 @@ async def test_baseline_tag_after_deletion(client):
     subprocess.run(["git", "tag", "-d", "v1"], cwd=root, check=True, capture_output=True)
     b3 = (await client.post(f"{BASE}/baseline", json={"note": "三"})).json()
     assert b3["tag"] == "v3" and b3["v"] == 3  # max+1，不与残留 v2 撞号
+
+
+async def test_set_assertion_node(client):
+    from app.storage import assertions as assert_store
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    assert_store.save(root, [Assertion(id="A1", text="t", src="s", conf="实证")])
+
+    r = await client.put(f"{BASE}/assertions/A1/node", json={"node": "支付"})
+    assert r.status_code == 204
+    assert (await client.get(f"{BASE}/assertions")).json()[0]["node"] == "支付"
+
+    assert (await client.put(f"{BASE}/assertions/A1/node", json={"node": "不存在"})).status_code == 422
+    assert (await client.put(f"{BASE}/assertions/A1/node", json={"node": ""})).status_code == 204  # 清空回未归类
+    assert (await client.put(f"{BASE}/assertions/NOPE/node", json={"node": "支付"})).status_code == 404
+
+
+async def test_tree_scaffold(client, monkeypatch):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "支付模块支持放款重试与回调处理。"})
+    await client.post(f"{BASE}/evidence", content=b"\x89PNG",
+                      headers={"content-type": "application/octet-stream", "x-filename": "s.png"})
+
+    async def mock_outline(material):
+        assert "放款重试" in material  # 拼接的是文本材料，截图只有文件名不入正文
+        return [tasks.OutlineNode(name="支付", children=[
+            tasks.OutlineNode(name="放款重试", children=[])])]
+    monkeypatch.setattr(tasks, "outline", mock_outline)
+
+    r = await client.post(f"{BASE}/tree/scaffold")
+    assert r.status_code == 200
+    assert r.json()[0]["name"] == "支付"
+    assert (ensure_root("演示项目") / "tree.md").exists()
+
+    r = await client.post(f"{BASE}/tree/scaffold")  # 树已非空：拒绝覆盖
+    assert r.status_code == 409
+
+
+async def test_tree_scaffold_empty_pool(client):
+    ensure_root("演示项目")
+    r = await client.post(f"{BASE}/tree/scaffold")
+    assert r.status_code == 422 and "可提取" in r.json()["detail"]

@@ -14,6 +14,8 @@ export interface TreeNode {
   name: string
   children: TreeNode[]
   open: boolean
+  /** 节点重要度：'' | 'P0' | 'P1' | 'P2'（Task 7 树标记） */
+  priority?: string
   /** M1 后端无徽章聚合端点，stats 仅预留 T12 使用 */
   stats?: { asrt?: number; warn?: number; ok?: boolean }
 }
@@ -41,6 +43,10 @@ export interface Assertion {
   st: string
   verified: boolean
   suspect: boolean
+  /** 归属功能点全路径；空串 = 未归类（Task 5 绑定） */
+  node?: string
+  nb?: string
+  clar?: number | null
 }
 
 export interface Conflict {
@@ -95,7 +101,7 @@ export interface Baseline {
   v?: number
 }
 
-export type TreeOpName = 'add' | 'rename' | 'del'
+export type TreeOpName = 'add' | 'rename' | 'del' | 'prio'
 
 // ---------- 错误：FastAPI 错误体统一包在 detail 里 ----------
 
@@ -148,6 +154,10 @@ export const extractEvidence = (id: string) =>
     method: 'POST',
   })
 
+/** 删除证据：连同其提取产出的断言一并移除 */
+export const deleteEvidence = (id: string) =>
+  req<void>(`/evidence/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
 // ---------- 断言 ----------
 
 export const getAssertions = () => req<Assertion[]>('/assertions')
@@ -157,6 +167,18 @@ export const verifyAll = () =>
 
 export const verifyOne = (id: string) =>
   req<{ applied: string[]; results: unknown[] }>('/assertions/verify', json('POST', { assert_id: id }))
+
+/** 人工核过：不经 AI 直接确认 */
+export const confirmAssertion = (id: string) =>
+  req<void>(`/assertions/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
+
+/** 转问人：进「问人」清单，答案确认后自动核过 */
+export const askAssertion = (id: string) =>
+  req<void>(`/assertions/${encodeURIComponent(id)}/ask`, { method: 'POST' })
+
+/** 人工挂载/改归属；node 为空串 = 回未归类 */
+export const setAssertionNode = (id: string, node: string) =>
+  req<void>(`/assertions/${encodeURIComponent(id)}/node`, json('PUT', { node }))
 
 // ---------- 矛盾 ----------
 
@@ -171,7 +193,8 @@ export const resolveConflict = (id: string, action: 'code' | 'clar', side?: 'a' 
 
 export const getGaps = () => req<Gap[]>('/gaps')
 
-export const rescanGaps = () => req<Gap[]>('/gaps/rescan', { method: 'POST' })
+export const rescanGaps = (nodePath?: string) =>
+  req<Gap[]>(`/gaps/rescan${nodePath ? `?node_path=${encodeURIComponent(nodePath)}` : ''}`, { method: 'POST' })
 
 export const disposeGap = (id: string, action: 'clar' | 'ok') => req<Gap>('/gaps', json('POST', { id, action }))
 
@@ -188,6 +211,9 @@ export const getTree = () => req<TreeNode[]>('/tree')
 /** op: add/rename/del；path 为空字符串表示根层级（add） */
 export const treeOp = (op: TreeOpName, path?: string, name?: string) =>
   req<TreeNode[]>('/tree', json('POST', { op, path: path || undefined, name }))
+
+/** AI 从证据池生成树骨架（仅树空时；后端 409/422 抛 ApiError） */
+export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'POST' })
 
 // ---------- 卡片 ----------
 

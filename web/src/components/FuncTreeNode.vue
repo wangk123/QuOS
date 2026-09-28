@@ -5,7 +5,7 @@ const props = defineProps<{ nodes: TreeNode[]; prefix: string; depth: number; cu
 const emit = defineEmits<{
   pick: [path: string]
   toggle: [path: string]
-  op: [op: 'add' | 'rename' | 'del', path: string]
+  op: [op: 'add' | 'rename' | 'del' | 'prio', path: string]
 }>()
 
 const pathOf = (i: number) => (props.prefix ? `${props.prefix},${i}` : `${i}`)
@@ -34,11 +34,14 @@ const hasKids = (n: TreeNode) => n.children.length > 0
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M9 6l6 6-6 6" /></svg>
       </button>
       <span class="nm">{{ n.name }}</span>
+      <span class="prio-badge" :class="n.priority ? `p-${n.priority}` : 'p-none'"
+        :title="`重要度 ${n.priority || '未标'}（点击切换）`" @click.stop="emit('op', 'prio', pathOf(i))"
+      >{{ n.priority || '☆' }}</span>
       <span v-if="n.stats?.ok && !n.stats?.warn" class="nbadge okc" title="卡片已实证">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5" /></svg>
       </span>
       <span v-if="n.stats?.warn" class="nbadge warn" :title="`待确认 ${n.stats.warn} 项（空白/矛盾/推测）`">{{ n.stats.warn }}</span>
-      <span v-if="n.stats?.asrt" class="nbadge cnt" :title="`${n.stats.asrt} 条断言`">{{ n.stats.asrt }}</span>
+      <span v-if="n.stats?.asrt" class="nbadge cnt" :title="`${n.stats.asrt} 条规则`">{{ n.stats.asrt }}</span>
       <span class="nops">
         <button type="button" data-op="add" title="加子节点" @click.stop="emit('op', 'add', pathOf(i))">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
@@ -119,6 +122,12 @@ const hasKids = (n: TreeNode) => n.children.length > 0
   padding: 0 3px;
 }
 .node.l0 > .nm { font-weight: 600; letter-spacing: 0.01em; }
+.prio-badge { font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px;
+  margin-left: 4px; cursor: pointer; }
+.p-P0 { background: var(--red-bg); color: var(--destructive); }
+.p-P1 { background: #fff4e0; color: #b8860b; }
+.p-P2 { background: var(--muted); color: var(--muted-fg); }
+.p-none { color: var(--border2); }
 .nbadge {
   height: 16px;
   min-width: 17px;

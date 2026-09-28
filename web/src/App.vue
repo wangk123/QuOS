@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, ref, watch } from 'vue'
-import { ApiError, curSlug, getTree, listBaselines, treeOp, type Baseline, type TreeNode } from './api'
+import { ApiError, curSlug, getClarifications, getTree, listBaselines, treeOp, type Baseline, type TreeNode } from './api'
+import AskDrawer from './components/AskDrawer.vue'
 import FuncTree from './components/FuncTree.vue'
 import Home from './views/Home.vue'
-import Ask from './views/Ask.vue'
 import Card from './views/Card.vue'
 import Conflict from './views/Conflict.vue'
 import Fact from './views/Fact.vue'
@@ -56,6 +56,8 @@ async function loadTree() {
   }
   if (curPath.value && !findNode(curPath.value)) curPath.value = '' // 删选中节点后悬挂重置
 }
+provide('reloadTree', loadTree) // Fact 骨架生成后刷新侧栏树
+provide('refreshClar', refreshClar) // 各视图投递澄清后刷新顶栏角标
 
 watch(
   () => [nodes.value, curPath.value],
@@ -77,12 +79,20 @@ watch(view, v => {
   if (v === 'v-base') void refreshBaselines().catch(() => {})
 })
 
+// 顶栏澄清池抽屉：未答角标数（wait 状态条数）
+const clarOpen = ref(false)
+const clarWait = ref(0)
+async function refreshClar() {
+  clarWait.value = (await getClarifications()).filter(c => c.st === 'wait').length
+}
+
 async function boot() {
   err.value = ''
   try {
     await loadTree()
     if (top.value !== 'proj') return // 项目级 404：loadTree 已 goHome+toast，跳过基线加载
     await refreshBaselines()
+    void refreshClar().catch(() => {})
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'
   }
@@ -118,7 +128,7 @@ function onToggle(path: string) {
   if (n) n.open = !n.open
 }
 
-async function onOp(op: 'add' | 'rename' | 'del', path: string) {
+async function onOp(op: 'add' | 'rename' | 'del' | 'prio', path: string) {
   try {
     if (op === 'add') {
       const parent = findNode(path)
@@ -131,6 +141,11 @@ async function onOp(op: 'add' | 'rename' | 'del', path: string) {
       const name = prompt('新名称', n.name)
       if (!name?.trim() || name.trim() === n.name) return
       await treeOp('rename', path, name.trim())
+    } else if (op === 'prio') {
+      const n = findNode(path)
+      if (!n) return
+      const NEXT: Record<string, string> = { '': 'P0', P0: 'P1', P1: 'P2', P2: '' }
+      await treeOp('prio', path, NEXT[n.priority ?? ''] ?? 'P0')
     } else {
       const n = findNode(path)
       if (!n || !confirm(`删除「${n.name}」及其全部子节点？`)) return
@@ -148,7 +163,6 @@ const VIEW_CMP = {
   'v-conf': Conflict,
   'v-gap': Gap,
   'v-card': Card,
-  'v-ask': Ask,
   'v-save': Save,
 } as const
 const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value])
@@ -167,7 +181,12 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
       <button class="ghost" @click="goHome">⟵ 项目</button>
       <div class="proj">项目 <b>{{ curSlug }}</b></div>
       <span class="baseline-tag">{{ baseTag }}</span>
+      <button class="ghost clar-btn" type="button" @click="clarOpen = true">
+        澄清池<span v-if="clarWait" class="clar-badge">{{ clarWait }}</span>
+      </button>
     </header>
+
+    <AskDrawer :open="clarOpen" @close="clarOpen = false" @changed="refreshClar" />
 
     <nav class="navbar">
       <div class="navgrp">
@@ -214,11 +233,11 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
                   <div class="meta">{{ b.commit }}</div>
                 </div>
               </div>
-              <div v-else style="color: var(--muted-fg)">还没有基线——某节点整理完成（⑥存档）后出现</div>
+              <div v-else style="color: var(--muted-fg)">还没有基线——某节点定稿存档后出现</div>
             </div>
           </div>
           <div class="warn-strip">
-            <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响卡片 → 只重跑该子树的 ①-⑤。当前 M1 先建立基线闭环。
+            <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响卡片 → 只重跑该子树的 ①-④ 再重新定稿。当前 M1 先建立基线闭环。
           </div>
         </div>
       </main>
@@ -253,6 +272,10 @@ header {
   padding: 4px 10px;
   border-radius: 999px;
 }
+.clar-btn { position: relative; }
+.clar-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px;
+  border-radius: 8px; background: var(--destructive); color: #fff; font-size: 10px;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px; }
 .navbar {
   display: flex;
   gap: 18px;

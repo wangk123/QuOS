@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import {
   ApiError,
+  assemble,
   createBaseline,
   getAssertions,
   getCard,
@@ -22,6 +23,8 @@ const baselines = ref<Baseline[]>([])
 const err = ref('')
 const showDoc = ref(false)
 const docText = ref('')
+const note = ref('')
+const regen = ref(false)
 
 async function load() {
   ;[baselines.value, asrtCnt.value] = await Promise.all([listBaselines(), getAssertions().then(r => r.length)])
@@ -62,6 +65,17 @@ async function newBaseline() {
   }
 }
 
+async function regenerate() {
+  if (!curPath.value) { toast('先在左侧选中功能点'); return }
+  regen.value = true
+  try {
+    await assemble(curPath.value, note.value)
+    toast('终稿已按补充意见重新生成', 'ok')
+  } catch (e) {
+    toast(e instanceof ApiError ? `重生成失败：${e.message}` : '重生成失败', 'warn')
+  } finally { regen.value = false }
+}
+
 async function openDoc() {
   try {
     docText.value = await getDoc()
@@ -85,11 +99,20 @@ function downloadDoc() {
 <template>
   <div>
     <div class="view-head">
-      <h2>⑥ 存档</h2>
-      <span class="sub">本节点整理完成 → 卡片并入项目基线（git commit+tag）。</span>
+      <h2>⑤ 定稿存档</h2>
+      <span class="sub">补充意见重生成终稿，存入项目基线（git commit+tag）。</span>
     </div>
 
     <p v-if="err" class="err">{{ err }}</p>
+
+    <div class="card-box">
+      <div class="hd">补充意见重生成终稿 · {{ curName }}</div>
+      <div class="bd">
+        <textarea v-model="note" rows="2" placeholder="AI 不知道的口头约定、历史坑、业务约束——并入画像「补充说明」并影响规则" />
+        <button class="btn" type="button" :disabled="regen" @click="regenerate">
+          {{ regen ? 'AI 重新生成中…' : '重新生成终稿' }}</button>
+      </div>
+    </div>
 
     <div v-if="hasCard" class="card-box">
       <div class="hd">存档预览</div>
@@ -97,10 +120,10 @@ function downloadDoc() {
         <div class="rule-row">
           <span class="badge b-green">规则 {{ ruleCnt }} 条</span>
           <span class="badge" :class="waitCnt ? 'b-amber' : 'b-green'">待确认 {{ waitCnt }} 项</span>
-          <span class="badge b-blue">断言 {{ asrtCnt }} 条</span>
+          <span class="badge b-blue">规则 {{ asrtCnt }} 条</span>
         </div>
         <div v-if="waitCnt" style="font-size: 12px; color: var(--warn); margin-top: 8px">
-          还有 {{ waitCnt }} 项待确认——建议先回 ⑤ 问人收口，否则带「?」进基线。
+          还有 {{ waitCnt }} 项待确认——建议先在顶栏澄清池收口，否则带「?」进基线。
         </div>
         <div style="margin-top: 10px; display: flex; gap: 8px">
           <button class="btn" type="button" :disabled="!canSave" @click="newBaseline">并入基线（commit + tag）</button>
@@ -108,7 +131,7 @@ function downloadDoc() {
         </div>
       </div>
     </div>
-    <div v-else class="empty">{{ curPath ? '卡片还没组装——先回 ④ 成卡片' : '先在左侧功能树选中整理目标节点' }}</div>
+    <div v-else class="empty">{{ curPath ? '画像还没生成——先回 ③ 生成画像' : '先在左侧功能树选中整理目标节点' }}</div>
 
     <div class="card-box">
       <div class="hd">版本时间线</div>
@@ -119,7 +142,7 @@ function downloadDoc() {
             <div class="meta">{{ b.commit }}</div>
           </div>
         </div>
-        <div v-else style="color: var(--muted-fg)">还没有基线——某节点整理完成（⑥存档）后出现</div>
+        <div v-else style="color: var(--muted-fg)">还没有基线——某节点定稿存档后出现</div>
       </div>
     </div>
 

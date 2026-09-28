@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { curSlug, openProject, setProject } from './api'
 
 export type ViewName =
-  | 'v-ev' | 'v-fact' | 'v-conf' | 'v-gap' | 'v-card' | 'v-ask' | 'v-save' | 'v-base'
+  | 'v-ev' | 'v-fact' | 'v-conf' | 'v-gap' | 'v-card' | 'v-save' | 'v-base'
 
 export const view = ref<ViewName>('v-ev')
 export function goto(v: ViewName) {
@@ -23,12 +23,11 @@ export const NAV_PROJ: [ViewName, string][] = [
   ['v-base', '基线'],
 ]
 export const NAV_FLOW: [ViewName, string][] = [
-  ['v-fact', '提事实'],
-  ['v-conf', '挑矛盾'],
-  ['v-gap', '找空白'],
-  ['v-card', '成卡片'],
-  ['v-ask', '问人'],
-  ['v-save', '存档'],
+  ['v-fact', '规则提取'],
+  ['v-conf', '冲突裁决'],
+  ['v-card', '生成画像'],
+  ['v-gap', '查漏补缺'],
+  ['v-save', '定稿存档'],
 ]
 
 // ---------- 两级顶层导航：home 项目首页 / proj 项目工作台 ----------

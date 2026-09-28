@@ -15,6 +15,7 @@ import { enterProject } from '../router'
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 const items = ref<ProjectInfo[]>([])
 const archived = ref<ProjectInfo[]>([])
+const loading = ref(true)
 const err = ref('')
 const showNew = ref(false)
 const newName = ref('')
@@ -23,11 +24,15 @@ const showArchived = ref(false)
 
 async function load() {
   err.value = ''
+  loading.value = true
   try {
     items.value = await getProjects()
+    loading.value = false  // 主列表先出，归档列表不阻塞
     archived.value = await getArchivedProjects()
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端'
+  } finally {
+    loading.value = false
   }
 }
 onMounted(load)
@@ -74,7 +79,8 @@ async function onPurge(p: ProjectInfo) {
   <main class="home">
     <h1>项目</h1>
     <p v-if="err" class="err">{{ err }}</p>
-    <div v-if="!items.length && !err" class="empty">
+    <div v-if="loading && !err" class="empty">加载中…</div>
+    <div v-else-if="!items.length && !err" class="empty">
       还没有项目——输入第一个项目名开始整理需求
       <form data-test="new" @submit.prevent="submitNew">
         <input data-test="new-name" v-model="newName" placeholder="项目名（如：风控云）" />

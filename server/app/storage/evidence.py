@@ -72,3 +72,16 @@ async def mark_extracted(root, id, count: int) -> None:
             r["state"] = "extracted"
             r["count"] = count
     _save(root, rows)
+
+
+async def remove(root, id) -> bool:
+    """删除证据：清 index 行并删物理文件；id 不存在返回 False（不抛错）"""
+    rows = _load(root)
+    keep = [r for r in rows if r.get("id") != id]
+    if len(keep) == len(rows):
+        return False
+    for r in rows:
+        if r.get("id") == id and r.get("path"):
+            (root / r["path"]).unlink(missing_ok=True)
+    _save(root, keep)
+    return True

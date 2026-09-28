@@ -36,14 +36,23 @@ class ImpactOut(BaseModel):
     nodes: list[str]
 
 
+class OutlineNode(BaseModel):
+    name: str
+    children: list["OutlineNode"] = []
+
+
+class OutlineOut(BaseModel):
+    nodes: list[OutlineNode]
+
+
 def _fmt_assertions(assertions: list[Assertion]) -> str:
     return "\n".join(f"- {a.id} | {a.text} | 出处: {a.src} | conf: {a.conf}" for a in assertions)
 
 
-async def extract(evidence_content: str, evidence_type: str) -> list[Assertion]:
+async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Assertion]:
     out = await complete(
         "extract",
-        {"material": evidence_content, "evidence_type": evidence_type},
+        {"material": evidence_content, "evidence_type": evidence_type, "tree_list": tree_text},
         ExtractOut,
     )
     return out.assertions
@@ -97,4 +106,9 @@ async def impact(diff_text: str, tree_dump: str, card_list: list[str]) -> list[s
         },
         ImpactOut,
     )
+    return out.nodes
+
+
+async def outline(material: str) -> list[OutlineNode]:
+    out = await complete("outline", {"material": material}, OutlineOut)
     return out.nodes
