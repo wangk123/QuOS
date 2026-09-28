@@ -332,6 +332,11 @@ aside {
   border-right: 1px solid var(--border2);
   padding: 10px 8px;
   flex-shrink: 0;
+  /* sticky + 自起高度：树恒定可见，不随主内容长页被拉伸（否则整页滚动时侧栏大片空白跟着走） */
+  position: sticky;
+  top: 100px; /* header 52 + navbar 48 */
+  align-self: flex-start;
+  max-height: calc(100vh - 116px);
   overflow-y: auto;
 }
 .err {

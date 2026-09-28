@@ -315,16 +315,15 @@ async def test_assemble_filters_by_node(client, monkeypatch):
     assert r.status_code == 200 and seen["ids"] == ["A1"]  # 只吃本节点规则
 
 
-async def test_assemble_empty_rules_ok(client, monkeypatch):
-    # 节点无任何归属规则 → 空规则集组装不 500（AI 仍产出画像框架）
+async def test_assemble_no_rules_blocked(client, monkeypatch):
+    # 节点无任何归属规则 → 409 阻断：空规则集只会生成空画像（上线验证证伪了「AI 产出框架」假设）
     ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
     async def mock_assemble(assertions, node_name, note):
-        assert assertions == []
-        return Card(node=node_name, goal="g")
+        raise AssertionError("空规则集不应进入 AI 组装")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
     r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0", "note": ""})
-    assert r.status_code == 200
+    assert r.status_code == 409 and "没有已挂载的规则" in r.json()["detail"]
 
 
 async def test_project_name_traversal_rejected(client):

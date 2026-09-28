@@ -30,7 +30,12 @@ const treeNodes = ref<TreeNode[]>([])
 const err = ref('')
 const aiLabel = ref('')
 const verifyRecord = ref('') // 全量核验记录条
-const collapsed = ref<Record<string, boolean>>({}) // 组折叠状态（key=父路径）
+const expanded = ref<Record<string, boolean>>({}) // 组展开状态（key=父路径）；默认收起——长列表不整页铺开
+function expandAll(v: boolean) {
+  const m: Record<string, boolean> = {}
+  for (const g of groups.value) m[g.key] = v
+  expanded.value = m
+}
 
 const confBadge: Record<string, [string, string]> = {
   实证: ['b-green', '代码实证'],
@@ -231,14 +236,20 @@ async function toAsk(a: Assertion) {
       <div class="hd">
         规则表 · {{ curName }}
         <span class="sub" style="font-weight: 400">「核」= AI 比对材料；一致核过、读错标黄修正、无依据转「人工过 / 转澄清」</span>
+        <div class="spacer" style="flex: 1" />
+        <button class="btn-ghost btn-sm" type="button" @click="expandAll(true)">全部展开</button>
+        <button class="btn-ghost btn-sm" type="button" @click="expandAll(false)">全部收起</button>
       </div>
       <template v-for="g in groups" :key="g.key">
-        <div class="grp-hd" @click="collapsed[g.key] = !collapsed[g.key]">
-          <span class="tri" :class="{ closed: collapsed[g.key] }">▾</span>
+        <div class="grp-hd" @click="expanded[g.key] = !expanded[g.key]">
+          <span class="tri" :class="{ closed: !expanded[g.key] }">▾</span>
           <b>{{ g.label }}</b>
-          <span class="src">{{ g.nodes.reduce((s, n) => s + n.rules.length, 0) }} 条</span>
+          <span class="src">
+            {{ g.nodes.reduce((s, n) => s + n.rules.length, 0) }} 条 · 核验
+            {{ g.nodes.reduce((s, n) => s + n.rules.filter(r => r.verified).length, 0) }}/{{ g.nodes.reduce((s, n) => s + n.rules.length, 0) }}
+          </span>
         </div>
-        <template v-if="!collapsed[g.key]">
+        <template v-if="expanded[g.key]">
           <div v-for="n in g.nodes" :key="n.path" class="pt-sec">
             <div class="pt-hd">
               <span class="src">{{ n.path }}</span>
@@ -297,7 +308,7 @@ async function toAsk(a: Assertion) {
 
     <div class="card-box unclass-box">
       <div class="hd">未归类 · {{ unclassified.length }} 条
-        <span class="sub" style="font-weight: 400">树缺枝的探伤器——左侧补节点后行内选归属</span></div>
+        <span class="sub" style="font-weight: 400">树缺枝的探伤器——左侧补节点后行内选归属；旧数据无归属时，到证据池「重新提取」可自动挂载</span></div>
       <table v-if="unclassified.length">
         <thead>
           <tr>

@@ -160,13 +160,15 @@ describe('Fact.vue', () => {
     expect(w.findAll('button').some(b => b.text() === '核')).toBe(true)
   })
 
-  it('按模块›功能点分组：组头序列、P0 先行、功能点头带核验 x/y', async () => {
+  it('按模块›功能点分组：组头序列、P0 先行、功能点头带核验 x/y（默认收起，全部展开后可见）', async () => {
     vi.mocked(getTree).mockResolvedValue(FACT_TREE)
     vi.mocked(getAssertions).mockResolvedValue(GROUPED)
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
     await flushPromises()
     expect(w.findAll('.grp-hd').map(h => h.find('b').text())).toEqual(['支付', '风控']) // 组按树序
+    expect(w.findAll('.pt-hd')).toHaveLength(0) // 默认收起：长列表不整页铺开
+    await w.findAll('button').find(b => b.text() === '全部展开')!.trigger('click')
     const pts = w.findAll('.pt-hd').map(h => h.text())
     expect(pts).toHaveLength(3)
     expect(pts[0]).toContain('支付/放款重试')
@@ -183,6 +185,7 @@ describe('Fact.vue', () => {
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
     await flushPromises()
+    await w.findAll('button').find(b => b.text() === '全部展开')!.trigger('click')
     await w.findAll('.grp-hd')[1].trigger('click') // 折叠「风控」
     expect(w.text()).not.toContain('重试上限为 3 次')
     expect(w.findAll('.pt-hd')).toHaveLength(1) // 只剩「支付」组的功能点

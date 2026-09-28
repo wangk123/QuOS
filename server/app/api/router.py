@@ -463,6 +463,11 @@ async def assemble_card(proj: str, body: AssembleIn):
         raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
     void = _void_ids(root)
     usable = [a for a in assert_store.load(root) if a.id not in void and a.node == full]
+    if not usable:
+        raise HTTPException(
+            status_code=409,
+            detail=f"「{full}」没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
+        )
     card = await _ai(tasks.assemble, usable, node.name, body.note)
     card.node = full  # 存储按树全路径寻址（load/export 匹配用）
     f = cards.save_card(root, full, card)
