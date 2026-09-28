@@ -133,6 +133,11 @@ def load_card(root, node_path: str) -> Card | None:
     return _latest_cards(root).get(node_path)
 
 
+def load_latest(root) -> list[Card]:
+    """各节点最新卡片列表（同节点多版本取最新；子树聚合等按节点视图用）"""
+    return list(_latest_cards(root).values())
+
+
 def load_all(root) -> list[Card]:
     d = _dir(root)
     if not d.exists():

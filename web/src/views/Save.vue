@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import {
   ApiError,
   assemble,
@@ -50,6 +50,13 @@ onMounted(async () => {
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : String(e)
   }
+})
+
+// 树上切目标节点：跟随 curPath 刷新该节点定稿状态（画像有无/规则数）
+watch(curPath, () => {
+  load().catch(e => {
+    err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : String(e)
+  })
 })
 
 const canSave = computed(() => hasCard.value)

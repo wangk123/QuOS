@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { ApiError, assemble, getCard, getDoc, type Card } from '../api'
 import { curName, curPath } from '../router'
 
@@ -33,6 +33,17 @@ async function load() {
 }
 
 onMounted(async () => {
+  try {
+    await load()
+  } catch (e) {
+    err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : String(e)
+  }
+})
+
+// 树上切目标节点：同视图不重挂载，须跟随 curPath 重新拉取该节点画像
+watch(curPath, async () => {
+  card.value = null
+  err.value = ''
   try {
     await load()
   } catch (e) {

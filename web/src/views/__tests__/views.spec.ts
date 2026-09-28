@@ -118,6 +118,7 @@ const CARD: Card = {
 beforeEach(() => {
   vi.clearAllMocks()
   curPath.value = '' // 共享视图状态复位
+  curName.value = '（未选中节点）'
   view.value = 'v-ev'
   baseTag.value = '未建基线'
   top.value = 'proj' // App 挂载处于工作台态（默认 home 会渲染项目首页）
@@ -191,6 +192,21 @@ describe('Fact.vue', () => {
     expect(w.findAll('.pt-hd')).toHaveLength(1) // 只剩「支付」组的功能点
     await w.findAll('.grp-hd')[1].trigger('click') // 再点展开
     expect(w.text()).toContain('重试上限为 3 次')
+  })
+
+  it('选中节点时规则表聚焦其子树（父节点含子节点，统计联动）', async () => {
+    vi.mocked(getTree).mockResolvedValue(FACT_TREE)
+    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    curPath.value = '1' // 风控（父节点）
+    curName.value = '风控' // curName 由 App 的 watch 计算，单挂 Fact 需手动同步
+    const Fact = (await import('../Fact.vue')).default
+    const w = mount(Fact)
+    await flushPromises()
+    expect(w.text()).toContain('风控（含子树）')
+    expect(w.find('.stat b').text()).toBe('3') // A2/A3/A4 都在 风控 子树内
+    await w.findAll('button').find(b => b.text() === '全部展开')!.trigger('click')
+    expect(w.findAll('.grp-hd').map(h => h.find('b').text())).toEqual(['风控']) // 只剩风控组
+    expect(w.text()).not.toContain('回调超时 30s 触发重试') // 支付组规则不进视野
   })
 
   it('未归类行选路径挂载调 setAssertionNode（选项 2 空格缩进/层）', async () => {
@@ -277,6 +293,19 @@ describe('Card.vue', () => {
     expect(w.text()).toContain('重试上限为 3 次')
     expect(w.find('.rule-row').exists()).toBe(true)
     expect(w.findAll('button').some(b => b.text().includes('预览结果文档'))).toBe(true)
+    w.unmount() // 卸载 curPath watcher，避免残留组件抢先消耗后续用例的一次性 mock
+  })
+
+  it('切换树节点时重新拉取该节点画像（同视图不重挂载）', async () => {
+    curPath.value = '0,0'
+    const Card = (await import('../Card.vue')).default
+    const w = mount(Card)
+    await flushPromises()
+    expect(getCard).toHaveBeenCalledWith('0,0')
+    curPath.value = '0,1'
+    await flushPromises()
+    expect(getCard).toHaveBeenCalledWith('0,1')
+    w.unmount() // 卸载 curPath watcher，避免残留组件抢先消耗后续用例的一次性 mock
   })
 })
 
@@ -311,6 +340,7 @@ describe('Save.vue', () => {
     expect(w.text()).toContain('存档预览')
     expect(w.findAll('button').some(b => b.text().includes('并入基线'))).toBe(true)
     expect(w.find('.tl-item').text()).toContain('v1')
+    w.unmount() // 卸载 curPath watcher，避免残留组件抢先消耗后续用例的一次性 mock
   })
 
   it('点击并入基线调 createBaseline 并刷新时间线', async () => {
@@ -323,6 +353,7 @@ describe('Save.vue', () => {
     await flushPromises()
     expect(createBaseline).toHaveBeenCalled()
     expect(listBaselines).toHaveBeenCalled()
+    w.unmount() // 同上
   })
 })
 

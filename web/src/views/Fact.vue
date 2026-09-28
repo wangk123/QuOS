@@ -19,7 +19,7 @@ import {
   type TreeNode,
 } from '../api'
 import { buildGroups } from '../grouping'
-import { curName } from '../router'
+import { curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -78,22 +78,32 @@ async function genScaffold() {
   } finally { scaffolding.value = false }
 }
 
-// 分组数据流：树 + 规则 → 模块›功能点两级分组 + 未归类（grouping.ts 纯函数）
-const grouped = computed(() => buildGroups(items.value, treeNodes.value))
+// 分组数据流：树 + 规则 → 模块›功能点两级分组 + 未归类（grouping.ts 纯函数）。
+// 选中节点时聚焦其子树（选父节点 = 包含子节点内容）；未选中显示全部。
+const curFullPath = computed(
+  () => allPaths.value.find(p => p.digits === curPath.value)?.path ?? '',
+)
+const scopedRules = computed(() => {
+  const full = curFullPath.value
+  if (!full) return items.value
+  return items.value.filter(a => a.node === full || (a.node ?? '').startsWith(full + '/'))
+})
+const grouped = computed(() => buildGroups(scopedRules.value, treeNodes.value))
 const groups = computed(() => grouped.value.groups)
 const unclassified = computed(() => grouped.value.unclassified)
 
-/** 挂载候选全路径：walk 树收集；label 按层级 2 空格缩进，value 保持原始路径 */
+/** 挂载候选全路径：walk 树收集；label 按层级 2 空格缩进，value 保持原始路径；digits = 树数字路径 */
 const allPaths = computed(() => {
-  const out: { path: string; label: string }[] = []
-  const walk = (nodes: TreeNode[], prefix: string, depth: number) => {
-    for (const n of nodes) {
+  const out: { path: string; label: string; digits: string }[] = []
+  const walk = (nodes: TreeNode[], prefix: string, digits: string, depth: number) => {
+    nodes.forEach((n, i) => {
       const path = prefix ? `${prefix}/${n.name}` : n.name
-      out.push({ path, label: `${'  '.repeat(depth)}${path}` })
-      walk(n.children, path, depth + 1)
-    }
+      const d = digits ? `${digits},${i}` : String(i)
+      out.push({ path, label: `${'  '.repeat(depth)}${path}`, digits: d })
+      walk(n.children, path, d, depth + 1)
+    })
   }
-  walk(treeNodes.value, '', 0)
+  walk(treeNodes.value, '', '', 0)
   return out
 })
 
@@ -109,10 +119,10 @@ async function assign(a: Assertion, node: string) {
 }
 
 const stat = {
-  total: () => items.value.length,
-  verified: () => items.value.filter(a => a.verified).length,
-  unverified: () => items.value.filter(a => !a.verified).length,
-  suspectCnt: () => items.value.filter(a => a.conf === '推测' || a.conf === '待实证').length,
+  total: () => scopedRules.value.length,
+  verified: () => scopedRules.value.filter(a => a.verified).length,
+  unverified: () => scopedRules.value.filter(a => !a.verified).length,
+  suspectCnt: () => scopedRules.value.filter(a => a.conf === '推测' || a.conf === '待实证').length,
 }
 const corrected = computed(() => items.value.filter(a => a.suspect))
 
@@ -234,7 +244,7 @@ async function toAsk(a: Assertion) {
 
     <div v-if="groups.length" class="card-box">
       <div class="hd">
-        规则表 · {{ curName }}
+        规则表 · {{ curPath ? `${curName}（含子树）` : '全部节点' }}
         <span class="sub" style="font-weight: 400">「核」= AI 比对材料；一致核过、读错标黄修正、无依据转「人工过 / 转澄清」</span>
         <div class="spacer" style="flex: 1" />
         <button class="btn-ghost btn-sm" type="button" @click="expandAll(true)">全部展开</button>

@@ -314,6 +314,9 @@ async def test_assemble_filters_by_node(client, monkeypatch):
     r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0,0", "note": ""})
     assert r.status_code == 200 and seen["ids"] == ["A1"]  # 只吃本节点规则
 
+    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0", "note": ""})
+    assert r.status_code == 200 and seen["ids"] == ["A1"]  # 选父节点「支付」= 包含子节点规则
+
 
 async def test_assemble_no_rules_blocked(client, monkeypatch):
     # 节点无任何归属规则 → 409 阻断：空规则集只会生成空画像（上线验证证伪了「AI 产出框架」假设）
@@ -358,7 +361,12 @@ async def test_gaps_scan_scoped_to_node(client, monkeypatch):
     assert "不重复放款" in seen["summary"] and "额度不超限" not in seen["summary"]
 
     r = await client.post(f"{BASE}/gaps/rescan", params={"node_path": "0"})
-    assert r.status_code == 422 and "无卡片" in r.json()["detail"]
+    assert r.status_code == 200  # 选父节点「支付」：聚合子树卡片（支付自身无卡但子节点有）
+    assert "不重复放款" in seen["summary"] and "额度不超限" not in seen["summary"]
+
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "空模块"})
+    r = await client.post(f"{BASE}/gaps/rescan", params={"node_path": "2"})
+    assert r.status_code == 422 and "子树" in r.json()["detail"]
 
     await client.post(f"{BASE}/gaps/rescan")  # 不带参：旧行为全部卡片
     assert "额度不超限" in seen["summary"]

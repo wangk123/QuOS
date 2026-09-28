@@ -323,6 +323,11 @@ async def list_gaps(proj: str):
     return [g.model_dump() for g in findings.load_gaps(_root(proj))]
 
 
+def _in_subtree(node: str, root_path: str) -> bool:
+    """node 是否落在 root_path 节点或其子树内——选父节点 = 包含子节点内容"""
+    return node == root_path or node.startswith(root_path + "/")
+
+
 @api_router.post("/gaps/rescan")
 async def rescan_gaps(proj: str, node_path: str = ""):
     root = _root(proj)
@@ -332,10 +337,10 @@ async def rescan_gaps(proj: str, node_path: str = ""):
         node, full = _resolve(nodes, node_path)
         if node is None:
             raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
-        card = cards.load_card(root, full)
-        if card is None:
-            raise HTTPException(status_code=422, detail=f"节点无卡片，请先生成画像: {node_path}")
-        summary = _card_summary(card)
+        subtree = [c for c in cards.load_latest(root) if _in_subtree(c.node, full)]
+        if not subtree:
+            raise HTTPException(status_code=422, detail=f"该节点及其子树都没有画像，请先生成画像: {node_path}")
+        summary = "\n".join(_card_summary(c) for c in subtree)
     else:
         summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无卡片）"
     detected = await _ai(tasks.gaps, summary, dim_list)
@@ -462,11 +467,11 @@ async def assemble_card(proj: str, body: AssembleIn):
     if node is None:
         raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
     void = _void_ids(root)
-    usable = [a for a in assert_store.load(root) if a.id not in void and a.node == full]
+    usable = [a for a in assert_store.load(root) if a.id not in void and _in_subtree(a.node, full)]
     if not usable:
         raise HTTPException(
             status_code=409,
-            detail=f"「{full}」没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
+            detail=f"「{full}」及其子树没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
         )
     card = await _ai(tasks.assemble, usable, node.name, body.note)
     card.node = full  # 存储按树全路径寻址（load/export 匹配用）
