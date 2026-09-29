@@ -108,7 +108,7 @@ tr.ev-danger td { background: #fff7f7; }
 .spec-meta { display: flex; gap: 14px; color: var(--muted-fg); font-size: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .spec-grid { display: grid; grid-template-columns: 140px 1fr; border: 1px solid var(--border2); border-radius: var(--radius); background: #fff; overflow: hidden; }
 .spec-grid .k { background: var(--muted); padding: 9px 14px; font-weight: 600; font-size: 12px; color: var(--muted-fg); border-bottom: 1px solid var(--border); }
-.spec-grid .v { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.spec-grid .v { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rule-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
 .rule-id { font-family: var(--mono); font-weight: 600; color: var(--primary); font-size: 12px; width: 26px; flex-shrink: 0; }
 
