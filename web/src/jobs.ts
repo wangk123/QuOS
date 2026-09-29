@@ -21,6 +21,12 @@ function applyJob(j: Job) {
 }
 
 function summary(j: Job): string {
+  if (j.kind === 'extract-verify') {
+    const parts = [`提取 ${j.extracted ?? 0} 条`]
+    if (j.corrected !== undefined) parts.push(`一致 ${j.ok}`, `修正 ${j.corrected}`, `无依据 ${j.nobasis}`)
+    if (j.failed) parts.push(`失败 ${j.failed}`)
+    return `提取并核验完成：${parts.join(' · ')}（无依据项请人工过或转澄清）`
+  }
   if (j.kind === 'verify-batch') {
     const parts = [`一致 ${j.ok} 条`, `修正 ${j.corrected} 条`, `无依据 ${j.nobasis} 条`]
     if (j.failed) parts.push(`失败 ${j.failed}`)

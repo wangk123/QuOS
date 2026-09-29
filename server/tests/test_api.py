@@ -67,8 +67,9 @@ async def test_end_to_end(client, monkeypatch):
                                          "reason": "与材料一致"} for a in assertions])
 
     monkeypatch.setattr(tasks, "verify", mock_verify)
-    r = await client.post(f"{BASE}/assertions/verify", json={})
+    r = await client.post(f"{BASE}/assertions/verify-job")
     assert r.status_code == 200
+    await _wait_job_done(client, r.json()["job_id"])
     r = await client.get(f"{BASE}/assertions")
     assert all(a["verified"] and not a["suspect"] for a in r.json())
 
@@ -194,7 +195,8 @@ async def test_verify_correction_written_back(client, monkeypatch):
         ])
 
     monkeypatch.setattr(tasks, "verify", mock_verify)
-    await client.post(f"{BASE}/assertions/verify", json={})
+    r = await client.post(f"{BASE}/assertions/verify-job")
+    await _wait_job_done(client, r.json()["job_id"])
     rows = {a["id"]: a for a in (await client.get(f"{BASE}/assertions")).json()}
     assert rows["A1"]["text"] == "指数退避重试（base 30s）"
     assert rows["A1"]["suspect"] and rows["A1"]["verified"]
@@ -550,3 +552,37 @@ async def test_verify_job_lifecycle(client, monkeypatch):
 
     # 全部核验后再发起 → 422（无未核验项）
     assert (await client.post(f"{BASE}/assertions/verify-job")).status_code == 422
+
+
+async def test_verify_sync_requires_assert_id(client):
+    ensure_root("演示项目")
+    r = await client.post(f"{BASE}/assertions/verify", json={})
+    assert r.status_code == 422 and "verify-job" in r.json()["detail"]
+
+
+async def test_extract_job_two_phases(client, monkeypatch):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "当超时重试3次；当余额不足拒绝放款。"})
+
+    async def mock_extract(content, evidence_type, tree_text):
+        return [Assertion(id="E1", text="当超时重试3次", src="retry.py:15", conf="实证"),
+                Assertion(id="E2", text="当余额不足拒绝放款", src="loan.py:3", conf="实证")]
+    monkeypatch.setattr(tasks, "extract", mock_extract)
+
+    async def mock_verify(assertions, material):
+        return tasks.VerifyOut(results=[
+            {"id": "A1", "ok": True, "corrected_text": None, "reason": None},
+            {"id": "A2", "ok": False, "corrected_text": None, "reason": "材料中无对应依据"},
+        ])
+    monkeypatch.setattr(tasks, "verify", mock_verify)
+
+    r = await client.post(f"{BASE}/evidence/extract-job")
+    assert r.status_code == 200 and r.json()["total"] == 1
+    j = await _wait_job_done(client, r.json()["job_id"])
+    assert j["kind"] == "extract-verify"
+    assert j["extracted"] == 2 and j["ok"] == 1 and j["nobasis"] == 1  # 提取 2 条 → A1 一致、A2 无依据
+    rows = {a["id"]: a for a in (await client.get(f"{BASE}/assertions")).json()}
+    assert rows["A1"]["verified"] and not rows["A2"]["verified"]
+
+    # 池中无 pending 再发起 → 422
+    assert (await client.post(f"{BASE}/evidence/extract-job")).status_code == 422

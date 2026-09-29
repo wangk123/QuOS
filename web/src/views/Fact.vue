@@ -4,7 +4,7 @@ import {
   ApiError,
   askAssertion,
   confirmAssertion,
-  extractEvidence,
+  extractJob,
   getAssertions,
   getConflicts,
   getEvidence,
@@ -133,26 +133,17 @@ function voided(a: Assertion) {
   return conflicts.value.some(c => c.st === 'code' && a.id !== c.resolution && (c.a === a.id || c.b === a.id))
 }
 
-/** 提取池中全部未提取材料（顺序执行，AI 一次读一份） */
+/** 提取池中材料：两阶段后台任务（逐份提取→自动核验），进度/汇总由轮询驱动，刷新不丢 */
 async function extractAll() {
-  const pend = evidence.value.filter(e => e.state === 'pending')
-  if (!pend.length) {
-    toast('池中没有可提取的新材料')
-    return
-  }
   try {
-    for (const [i, ev] of pend.entries()) {
-      aiBusy.value = { label: `AI 正在读《${ev.name}》提炼行为规则…`, cur: i + 1, total: pend.length }
-      const r = await extractEvidence(ev.id)
-      toast(`《${ev.name}》+${r.added} 条规则 · 出处已标注`, 'ok')
-    }
-    await load()
-    aiBusy.value = null
-    toast('提取完成，自动核验中…')
-    await checkAll() // 提取→核验自动链：省一次手动点击（核验为后台 job，进度轮询可见）
+    const r = await extractJob()
+    startJobPolling(r.job_id, async (msg, cls) => {
+      toast(msg, cls)
+      await load()
+    })
+    toast(`提取任务已创建：共 ${r.total} 份材料，提取完自动核验`, 'ok')
   } catch (e) {
-    aiBusy.value = null
-    toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
+    toast(e instanceof ApiError ? `创建提取任务失败：${e.message}` : '创建提取任务失败', 'warn')
   }
 }
 

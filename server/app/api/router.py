@@ -168,6 +168,24 @@ async def add_evidence(proj: str, request: Request):
     return ev.model_dump()
 
 
+async def _extract_one(root, ev) -> int:
+    """提取单份证据并落盘（重提替换、白名单归属）；返回新增条数"""
+    nodes = _load_tree(root)
+    paths_list = tree.paths(nodes)
+    valid = set(paths_list)
+    got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(paths_list) or "（空树：全部留空）")
+    items = [a for a in assert_store.load(root) if a.src_id != ev.id]  # 重提：替换上次产出
+    n = max((int(a.id[1:]) for a in items if a.id.startswith("A") and a.id[1:].isdigit()), default=0)
+    for a in got:
+        n += 1
+        if a.node not in valid:  # AI 编造路径 → 白名单外置空（未归类）
+            a.node = ""
+        items.append(a.model_copy(update={"id": f"A{n}", "src_id": ev.id}))
+    assert_store.save(root, items)
+    await evidence.mark_extracted(root, ev.id, len(got))
+    return len(got)
+
+
 @api_router.post("/evidence/{ev_id}/extract")
 async def extract_evidence(proj: str, ev_id: str):
     root = _root(proj)
@@ -176,21 +194,70 @@ async def extract_evidence(proj: str, ev_id: str):
         raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
     if ev.type in ("截图", "压缩包"):
         raise HTTPException(status_code=422, detail="该类型不支持 AI 提取（M1.x 支持解析）")
-    nodes = _load_tree(root)
-    paths_list = tree.paths(nodes)
-    valid = set(paths_list)
-    got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(paths_list) or "（空树：全部留空）")
-    items = [a for a in assert_store.load(root) if a.src_id != ev_id]  # 重提：替换上次产出
-    n = max((int(a.id[1:]) for a in items if a.id.startswith("A") and a.id[1:].isdigit()), default=0)
-    for a in got:
-        n += 1
-        if a.node not in valid:  # AI 编造路径 → 白名单外置空（未归类）
-            a.node = ""
-        items.append(a.model_copy(update={"id": f"A{n}", "src_id": ev_id}))
-    assert_store.save(root, items)
-    await evidence.mark_extracted(root, ev_id, len(got))
-    return {"added": len(got),
-            "assertions": [a.model_dump() for a in items[len(items) - len(got):]] if got else []}
+    added = await _extract_one(root, ev)
+    return {"added": added}
+
+
+@api_router.post("/evidence/extract-job")
+async def extract_job(proj: str):
+    """提取+核验后台任务（两阶段）：逐份提取 pending 证据 → 自动分批核验全部未核验规则。
+    长流程（多份材料分钟级）不走单请求；进度由 GET /jobs 轮询，刷新可恢复。"""
+    root = _root(proj)
+    if jobs.running():
+        r = jobs.running()
+        raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
+    pend = [e for e in await evidence.list_all(root) if e.state == "pending" and e.type not in ("截图", "压缩包")]
+    if not pend:
+        raise HTTPException(status_code=422, detail="池中没有可提取的新材料")
+    jid = jobs.create("extract-verify", "提取池中材料", len(pend))
+    asyncio.create_task(_run_extract_verify(proj, jid, [e.id for e in pend]))
+    return {"job_id": jid, "total": len(pend)}
+
+
+async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
+    """阶段一：逐份提取（cur/total=份数）；阶段二：复用核验分批逻辑（cur/total 重置为批数）"""
+    extracted = 0
+    for i, ev_id in enumerate(ev_ids, 1):
+        try:
+            root = _root(proj)
+            ev = await evidence.get(root, ev_id)
+            if ev is None:
+                continue
+            jobs.update(jid, cur=i, label=f"AI 正在读《{ev.name}》提炼行为规则")
+            extracted += await _extract_one(root, ev)
+        except Exception:
+            jobs.update(jid, failed=jobs.get(jid).get("failed", 0) + 1)
+    root = _root(proj)
+    ids = [a.id for a in assert_store.load(root) if not a.verified]
+    if not ids:
+        jobs.update(jid, extracted=extracted)
+        jobs.finish(jid)
+        return
+    total = (len(ids) + VERIFY_BATCH - 1) // VERIFY_BATCH
+    jobs.update(jid, total=total, cur=0, extracted=extracted, ok=0, corrected=0, nobasis=0, failed=jobs.get(jid).get("failed", 0))
+    await _run_verify_phase(proj, jid, ids)
+
+
+async def _run_verify_phase(proj: str, jid: str, ids: list[str]) -> None:
+    """分批核验落盘并累计三路计数（verify-job 与 extract-verify 阶段二共用）"""
+    root = _root(proj)
+    material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
+    for i in range(0, len(ids), VERIFY_BATCH):
+        batch = ids[i:i + VERIFY_BATCH]
+        jobs.update(jid, cur=i // VERIFY_BATCH + 1, label=f"AI 全量核验 · 第 {i + 1}-{min(i + VERIFY_BATCH, len(ids))}/{len(ids)} 条")
+        try:
+            root = _root(proj)
+            items = assert_store.load(root)
+            targets = [a for a in items if a.id in set(batch)]
+            out = await _ai(tasks.verify, targets, material)
+            stat = _apply_verify_results(items, out.results)
+            assert_store.save(root, items)
+            jobs.update(jid, ok=jobs.get(jid)["ok"] + stat["ok"],
+                        corrected=jobs.get(jid)["corrected"] + stat["corrected"],
+                        nobasis=jobs.get(jid)["nobasis"] + stat["nobasis"])
+        except Exception:
+            jobs.update(jid, failed=jobs.get(jid)["failed"] + len(batch))
+    jobs.finish(jid)
 
 
 @api_router.delete("/evidence/{ev_id}", status_code=204)
@@ -232,14 +299,14 @@ def _apply_verify_results(items, results) -> dict:
 
 @api_router.post("/assertions/verify")
 async def verify_assertions(proj: str, body: VerifyIn):
+    """单点核验专用（行内「核」按钮）：全量核验一律走 POST /assertions/verify-job 后台任务"""
     root = _root(proj)
     items = assert_store.load(root)
-    if body.assert_id:
-        targets = [a for a in items if a.id == body.assert_id]
-        if not targets:
-            raise HTTPException(status_code=404, detail=f"断言不存在: {body.assert_id}")
-    else:
-        targets = items
+    if not body.assert_id:
+        raise HTTPException(status_code=422, detail="本端点仅单点核验；全量核验请用 /assertions/verify-job")
+    targets = [a for a in items if a.id == body.assert_id]
+    if not targets:
+        raise HTTPException(status_code=404, detail=f"断言不存在: {body.assert_id}")
     material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
     out = await _ai(tasks.verify, targets, material)
     stat = _apply_verify_results(items, out.results)
@@ -267,26 +334,9 @@ async def verify_job(proj: str):
 
 
 async def _run_verify(proj: str, jid: str, ids: list[str]) -> None:
-    """逐批核验并落盘：批失败计入 failed 继续；三路计数进 job 供前端汇总"""
-    root = _root(proj)
-    material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
+    """verify-job 入口：初始化计数后复用分批公共体"""
     jobs.update(jid, ok=0, corrected=0, nobasis=0, failed=0)
-    for i in range(0, len(ids), VERIFY_BATCH):
-        batch = ids[i:i + VERIFY_BATCH]
-        jobs.update(jid, cur=i // VERIFY_BATCH + 1, label=f"AI 全量核验 · 第 {i + 1}-{min(i + VERIFY_BATCH, len(ids))}/{len(ids)} 条")
-        try:
-            root = _root(proj)
-            items = assert_store.load(root)
-            targets = [a for a in items if a.id in set(batch)]
-            out = await _ai(tasks.verify, targets, material)
-            stat = _apply_verify_results(items, out.results)
-            assert_store.save(root, items)
-            jobs.update(jid, ok=jobs.get(jid)["ok"] + stat["ok"],
-                        corrected=jobs.get(jid)["corrected"] + stat["corrected"],
-                        nobasis=jobs.get(jid)["nobasis"] + stat["nobasis"])
-        except Exception:
-            jobs.update(jid, failed=jobs.get(jid)["failed"] + len(batch))
-    jobs.finish(jid)
+    await _run_verify_phase(proj, jid, ids)
 
 
 @api_router.post("/assertions/{aid}/confirm", status_code=204)

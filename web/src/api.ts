@@ -225,6 +225,10 @@ export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'P
 export const assemble = (nodePath: string, note = '') =>
   req<{ card: Card; file: string }>('/cards/assemble', json('POST', { node_path: nodePath, note }))
 
+/** 提取+核验两阶段后台任务：立即返回 job_id（阶段一逐份提取→阶段二自动分批核验） */
+export const extractJob = () =>
+  req<{ job_id: string; total: number }>('/evidence/extract-job', { method: 'POST' })
+
 /** 后台任务（批量画像）：进度源——前端轮询、刷新后可恢复 */
 export interface Job {
   id: string
@@ -234,6 +238,7 @@ export interface Job {
   total: number
   status: 'running' | 'done'
   ok: number
+  extracted?: number  // extract-verify：阶段一提取条数
   corrected?: number  // verify-batch：读错已修正条数
   nobasis?: number    // verify-batch：材料无依据条数
   skipped: string[]
