@@ -5,7 +5,6 @@ import { ref } from 'vue'
 import {
   ApiError,
   answerClar,
-  assemble,
   assembleBatch,
   createBaseline,
   listJobs,
