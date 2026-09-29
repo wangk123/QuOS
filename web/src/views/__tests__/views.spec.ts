@@ -22,6 +22,7 @@ import {
   verifyClar,
   listBaselines,
   getTree,
+  listProfiles,
   scaffoldTree,
   setRuleNode,
   type Rule,
@@ -72,6 +73,7 @@ vi.mock('../../api', () => ({
   assembleBatch: vi.fn(),
   listJobs: vi.fn(),
   getProfile: vi.fn(),
+  listProfiles: vi.fn(),
   getDoc: vi.fn(),
   getClarifications: vi.fn(),
   answerClar: vi.fn(),
@@ -143,6 +145,7 @@ beforeEach(() => {
   vi.mocked(getGaps).mockResolvedValue(GAPS)
   vi.mocked(getDims).mockResolvedValue(['状态', '异常'])
   vi.mocked(getProfile).mockResolvedValue(CARD)
+  vi.mocked(listProfiles).mockResolvedValue([CARD.node])
   vi.mocked(getClarifications).mockResolvedValue(CLARS)
   vi.mocked(listBaselines).mockResolvedValue([{ commit: 'abc1234', tag: 'v1', v: 1 }])
   vi.mocked(getTree).mockResolvedValue([])
@@ -400,28 +403,39 @@ describe('AskDrawerV2（顶栏澄清池抽屉）', () => {
 })
 
 describe('Save.vue', () => {
-  it('渲染存档预览、并入基线按钮与基线时间线', async () => {
-    curPath.value = '0,1'
+  it('项目级定稿：统计条、并入基线按钮与基线时间线', async () => {
+    vi.mocked(getTree).mockResolvedValue(FACT_TREE)
     const Save = (await import('../Save.vue')).default
     const w = mount(Save)
     await flushPromises()
-    expect(w.text()).toContain('存档预览')
-    expect(w.findAll('button').some(b => b.text().includes('并入基线'))).toBe(true)
+    expect(w.text()).toContain('并入基线')
+    expect(w.text()).toContain('规则总数')
+    expect(w.text()).toContain(`1/${FACT_TREE[0].children.length + FACT_TREE[1].children.length}`) // 画像 1/功能点 3
     expect(w.find('.tl-item').text()).toContain('v1')
-    w.unmount() // 卸载 curPath watcher，避免残留组件抢先消耗后续用例的一次性 mock
+    w.unmount()
   })
 
-  it('点击并入基线调 createBaseline 并刷新时间线', async () => {
+  it('点击并入基线调 createBaseline（项目级统计 note）并刷新时间线', async () => {
     vi.mocked(createBaseline).mockResolvedValue({ commit: 'def5678', tag: 'v2', v: 2 })
-    curPath.value = '0,1'
     const Save = (await import('../Save.vue')).default
     const w = mount(Save)
     await flushPromises()
     await w.findAll('button').find(b => b.text().includes('并入基线'))!.trigger('click')
     await flushPromises()
-    expect(createBaseline).toHaveBeenCalled()
+    expect(createBaseline).toHaveBeenCalledWith('定稿存档 · 1 份画像 · 3 条规则') // 画像 1 份（CARD）· 规则 3 条（ASSERTIONS）
     expect(listBaselines).toHaveBeenCalled()
-    w.unmount() // 同上
+    w.unmount()
+  })
+
+  it('无画像时并入基线禁用（空文档没有存档意义）', async () => {
+    vi.mocked(listProfiles).mockResolvedValue([])
+    const Save = (await import('../Save.vue')).default
+    const w = mount(Save)
+    await flushPromises()
+    expect(w.text()).toContain('还没有任何画像')
+    const btn = w.findAll('button').find(b => b.text().includes('并入基线'))!
+    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
+    w.unmount()
   })
 })
 
@@ -516,7 +530,6 @@ describe('基线「当前」标记（gitops 升序返回，取最新）', () => 
 
   it('Save 时间线最后一项带 cur（当前=v2）', async () => {
     vi.mocked(listBaselines).mockResolvedValue(TWO)
-    curPath.value = '0,1'
     const Save = (await import('../Save.vue')).default
     const w = mount(Save)
     await flushPromises()
@@ -527,7 +540,7 @@ describe('基线「当前」标记（gitops 升序返回，取最新）', () => 
     expect(items[1].text()).toContain('v2')
   })
 
-  it('Save 并入基线 note 用节点名而非数字路径', async () => {
+  it('Save 并入基线 note 不含节点名（项目级，与选中节点无关）', async () => {
     vi.mocked(createBaseline).mockResolvedValue({ commit: 'def5678', tag: 'v2', v: 2 })
     curPath.value = '0,1'
     curName.value = '放款重试'
@@ -536,7 +549,7 @@ describe('基线「当前」标记（gitops 升序返回，取最新）', () => 
     await flushPromises()
     await w.findAll('button').find(b => b.text().includes('并入基线'))!.trigger('click')
     await flushPromises()
-    expect(createBaseline).toHaveBeenCalledWith('放款重试 并入基线')
+    expect(createBaseline).toHaveBeenCalledWith('定稿存档 · 1 份画像 · 3 条规则')
   })
 })
 

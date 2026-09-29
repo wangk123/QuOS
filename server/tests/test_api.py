@@ -87,6 +87,9 @@ async def test_end_to_end(client, monkeypatch):
     assert list((root / "profiles").glob("*.md"))
     r = await client.get(f"{BASE}/profiles/0,0")
     assert r.status_code == 200 and r.json()["rules"][0]["id"] == "R1"
+    # 项目级画像清单（⑤ 定稿存档页统计用）
+    r = await client.get(f"{BASE}/profiles")
+    assert r.status_code == 200 and r.json() == ["放款/放款重试"]
 
     # ⑥ 导出文档含 R1
     r = await client.get(f"{BASE}/doc")

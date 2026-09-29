@@ -248,6 +248,9 @@ export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'P
 export const assemble = (nodePath: string, note = '') =>
   req<{ profile: Profile; file: string }>('/profiles/assemble', json('POST', { node_path: nodePath, note }))
 
+/** 项目级画像清单（node 全路径）——⑤ 定稿存档页统计「画像 x/功能点」 */
+export const listProfiles = () => req<string[]>('/profiles')
+
 /** 提取+核验两阶段后台任务：立即返回 job_id（阶段一逐份提取→阶段二自动分批核验） */
 export const extractJob = () =>
   req<{ job_id: string; total: number }>('/evidence/extract-job', { method: 'POST' })

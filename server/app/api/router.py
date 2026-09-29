@@ -607,6 +607,12 @@ async def assemble_profile(proj: str, body: AssembleIn):
     return {"profile": profile.model_dump(), "file": f.name}
 
 
+@api_router.get("/profiles")
+async def list_profiles(proj: str):
+    """项目级画像清单（node 全路径）——⑤ 定稿存档页统计「画像 x/功能点」用"""
+    return [p.node for p in profiles.load_latest(_root(proj))]
+
+
 @api_router.get("/profiles/{node_path}")
 async def get_profile(proj: str, node_path: str):
     root = _root(proj)
