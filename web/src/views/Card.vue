@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { ApiError, assemble, getCard, getDoc, type Card } from '../api'
-import { curName, curPath } from '../router'
+import { ApiError, assemble, getCard, getDoc, getTree, type Card as CardT, type TreeNode } from '../api'
+import { aiBusy, curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
-const card = ref<Card | null>(null)
+const card = ref<CardT | null>(null)
+const tree = ref<TreeNode[]>([])
 const err = ref('')
-const aiLabel = ref('')
 const showAssemble = ref(false)
 const note = ref('')
 const showDoc = ref(false)
 const docText = ref('')
+const batching = ref(false)
 
 const confBadge: Record<string, [string, string]> = {
   实证: ['b-green', '代码实证'],
@@ -34,6 +35,7 @@ async function load() {
 
 onMounted(async () => {
   try {
+    tree.value = await getTree()
     await load()
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : String(e)
@@ -60,7 +62,7 @@ function openAssemble() {
 
 async function doAssemble() {
   showAssemble.value = false
-  aiLabel.value = 'AI 生成画像：规则挂树 · 标置信度 · 并入补充意见…'
+  aiBusy.value = { label: 'AI 生成画像：规则挂树 · 标置信度 · 并入补充意见…' }
   try {
     await assemble(curPath.value, note.value.trim())
     await load()
@@ -72,7 +74,7 @@ async function doAssemble() {
       toast(e instanceof ApiError ? `生成失败：${e.message}` : '生成失败', 'warn')
     }
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
@@ -83,6 +85,54 @@ async function openDoc() {
   } catch (e) {
     toast(e instanceof ApiError ? `导出失败：${e.message}` : '导出失败', 'warn')
   }
+}
+
+/** 树上全部叶子（数字路径 + 全路径名）——批量生成逐叶产出画像 */
+function leafNodes(nodes: TreeNode[], digits = '', prefix = ''): { path: string; name: string }[] {
+  const out: { path: string; name: string }[] = []
+  nodes.forEach((n, i) => {
+    const d = digits ? `${digits},${i}` : String(i)
+    const full = prefix ? `${prefix}/${n.name}` : n.name
+    if (n.children.length) out.push(...leafNodes(n.children, d, full))
+    else out.push({ path: d, name: full })
+  })
+  return out
+}
+
+/** 批量生成全部叶子画像：逐叶调组装（含子树规则语义）；409 区分「无规则→跳过」与「未核验→阻断」，单叶失败不中断 */
+async function assembleAll() {
+  const leaves = leafNodes(tree.value)
+  if (!leaves.length) {
+    toast('功能树为空——先在左侧搭建或 AI 生成骨架')
+    return
+  }
+  batching.value = true
+  let ok = 0, noRule: string[] = [], blocked: string[] = [], failed = 0
+  try {
+    for (const [i, leaf] of leaves.entries()) {
+      aiBusy.value = { label: `AI 生成画像 · ${leaf.name}`, cur: i + 1, total: leaves.length }
+      try {
+        await assemble(leaf.path, '')
+        ok++
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+          if (e.unqualified) blocked.push(leaf.name)
+          else noRule.push(leaf.name)
+        } else {
+          failed++
+        }
+      }
+    }
+  } finally {
+    batching.value = false
+    aiBusy.value = null
+  }
+  await load()
+  const parts = [`成功 ${ok} 张`]
+  if (noRule.length) parts.push(`跳过 ${noRule.length}（无规则：${noRule.slice(0, 3).join('、')}${noRule.length > 3 ? '…' : ''}）`)
+  if (blocked.length) parts.push(`阻断 ${blocked.length}（未核验：${blocked.slice(0, 3).join('、')}${blocked.length > 3 ? '…' : ''}）`)
+  if (failed) parts.push(`失败 ${failed}`)
+  toast(`批量生成完成：${parts.join(' · ')}`, ok ? 'ok' : 'warn')
 }
 
 function copyDoc() {
@@ -110,18 +160,17 @@ function downloadDoc() {
       <span class="sub">核验通过的规则聚合成需求画像草稿——挂不上的 = 树缺枝，补。</span>
       <div class="spacer" style="flex: 1" />
       <button class="btn-ghost" type="button" :disabled="!card" @click="openDoc">预览结果文档</button>
-      <button v-if="!card" class="btn" type="button" :disabled="!curPath" @click="openAssemble">AI 生成画像草稿</button>
+      <button class="btn-accent" type="button" :disabled="batching" @click="assembleAll">
+        {{ batching ? '批量生成中…' : '生成全部叶子' }}</button>
+      <button v-if="!card" class="btn" type="button" :disabled="!curPath" @click="openAssemble">生成选中（含子树）</button>
       <button v-else class="btn" type="button" @click="openAssemble">补充意见并重新生成</button>
     </div>
 
     <p v-if="err" class="err">{{ err }}</p>
-    <div v-if="aiLabel" class="ai-run">
-      <span class="spin" /><span>{{ aiLabel }}</span><div class="bar"><i /></div>
-    </div>
 
     <div v-if="!card" class="empty">
       <template v-if="!curPath">先在左侧功能树选中整理目标（树叶节点）</template>
-      <template v-else>规则就绪，点击「AI 生成画像草稿」· {{ curName }}<br /><span style="font-size: 11.5px">（要求全部规则已核验且非「待实证」）</span></template>
+      <template v-else>规则就绪，点击「生成选中（含子树）」· {{ curName }}<br /><span style="font-size: 11.5px">（要求全部规则已核验且非「待实证」）</span></template>
     </div>
 
     <template v-else>

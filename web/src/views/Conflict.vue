@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue'
 import { ApiError, getAssertions, getConflicts, resolveConflict, rescanConflicts, type Assertion, type Conflict } from '../api'
-import { curName } from '../router'
+import { aiBusy, curName } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
@@ -9,7 +9,6 @@ const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
 const conflicts = ref<Conflict[]>([])
 const assertions = ref<Assertion[]>([])
 const err = ref('')
-const aiLabel = ref('')
 
 const confColor: Record<string, string> = {
   实证: 'var(--primary)',
@@ -63,7 +62,7 @@ async function toClar(c: Conflict) {
 
 /** AI 重扫：对当前规则全集跑冲突检测 */
 async function rescan() {
-  aiLabel.value = `AI 重扫冲突：${assertions.value.length} 条规则两两比对…`
+  aiBusy.value = { label: `AI 重扫冲突：${assertions.value.length} 条规则两两比对…` }
   try {
     const items = await rescanConflicts()
     await load()
@@ -71,7 +70,7 @@ async function rescan() {
   } catch (e) {
     toast(e instanceof ApiError ? `重扫失败：${e.message}` : '重扫失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 </script>
@@ -87,9 +86,6 @@ async function rescan() {
     </div>
 
     <p v-if="err" class="err">{{ err }}</p>
-    <div v-if="aiLabel" class="ai-run">
-      <span class="spin" /><span>{{ aiLabel }}</span><div class="bar"><i /></div>
-    </div>
     <div v-for="c in conflicts" :key="c.id" class="conflict" :class="{ resolved: c.st !== 'open' }">
       <div class="sides">
         <div class="side">

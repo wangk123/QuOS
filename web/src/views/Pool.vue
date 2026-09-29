@@ -9,14 +9,13 @@ import {
   getEvidence,
   type EvidenceItem,
 } from '../api'
-import { goto } from '../router'
+import { aiBusy, goto } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
 const items = ref<EvidenceItem[]>([])
 const err = ref('')
 const raw = ref('')
-const aiLabel = ref('') // AI 请求中的假进度条文案
 const over = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -94,7 +93,7 @@ async function extract(id: string) {
   if (!ev) return
   const again = ev.state === 'extracted'
   if (again && !confirm(`重新提取《${ev.name}》？上次提取的 ${ev.count} 条规则将被替换`)) return
-  aiLabel.value = `AI 正在读《${ev.name}》提炼行为规则…`
+  aiBusy.value = { label: `AI 正在读《${ev.name}》提炼行为规则…` }
   try {
     const r = await extractEvidence(id)
     toast(again ? `已替换为 ${r.added} 条规则 · 出处已标注` : `+${r.added} 条规则 · 出处已标注`, 'ok')
@@ -103,7 +102,7 @@ async function extract(id: string) {
   } catch (e) {
     toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
@@ -164,9 +163,6 @@ const stat = {
       <div class="stat okc"><b>{{ stat.extracted() }}</b><span>已提取</span></div>
     </div>
 
-    <div v-if="aiLabel" class="ai-run">
-      <span class="spin" /><span>{{ aiLabel }}</span><div class="bar"><i /></div>
-    </div>
 
     <div class="card-box">
       <div class="hd">材料清单（项目级）</div>

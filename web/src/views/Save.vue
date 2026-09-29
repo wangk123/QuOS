@@ -11,7 +11,7 @@ import {
   listBaselines,
   type Baseline,
 } from '../api'
-import { baseTag, curName, curPath } from '../router'
+import { aiBusy, baseTag, curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -75,12 +75,16 @@ async function newBaseline() {
 async function regenerate() {
   if (!curPath.value) { toast('先在左侧选中功能点'); return }
   regen.value = true
+  aiBusy.value = { label: `AI 重新生成终稿 · ${curName.value}…` }
   try {
     await assemble(curPath.value, note.value)
     toast('终稿已按补充意见重新生成', 'ok')
   } catch (e) {
     toast(e instanceof ApiError ? `重生成失败：${e.message}` : '重生成失败', 'warn')
-  } finally { regen.value = false }
+  } finally {
+    regen.value = false
+    aiBusy.value = null
+  }
 }
 
 async function openDoc() {

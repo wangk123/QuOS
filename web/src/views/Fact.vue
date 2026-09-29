@@ -19,7 +19,7 @@ import {
   type TreeNode,
 } from '../api'
 import { buildGroups } from '../grouping'
-import { curName, curPath } from '../router'
+import { aiBusy, curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -28,7 +28,6 @@ const conflicts = ref<Conflict[]>([])
 const evidence = ref<EvidenceItem[]>([])
 const treeNodes = ref<TreeNode[]>([])
 const err = ref('')
-const aiLabel = ref('')
 const verifyRecord = ref('') // 全量核验记录条
 const expanded = ref<Record<string, boolean>>({}) // 组展开状态（key=父路径）；默认收起——长列表不整页铺开
 function expandAll(v: boolean) {
@@ -141,8 +140,8 @@ async function extractAll() {
     return
   }
   try {
-    for (const ev of pend) {
-      aiLabel.value = `AI 正在读《${ev.name}》提炼行为规则…`
+    for (const [i, ev] of pend.entries()) {
+      aiBusy.value = { label: `AI 正在读《${ev.name}》提炼行为规则…`, cur: i + 1, total: pend.length }
       const r = await extractEvidence(ev.id)
       toast(`《${ev.name}》+${r.added} 条规则 · 出处已标注`, 'ok')
     }
@@ -150,12 +149,12 @@ async function extractAll() {
   } catch (e) {
     toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
 async function checkAll() {
-  aiLabel.value = `AI 全量核验：${items.value.length} 条规则逐条比对材料…`
+  aiBusy.value = { label: `AI 全量核验：${items.value.length} 条规则逐条比对材料…` }
   try {
     const r = await verifyAll()
     await load()
@@ -165,12 +164,12 @@ async function checkAll() {
   } catch (e) {
     toast(e instanceof ApiError ? `核验失败：${e.message}` : '核验失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
 async function checkOne(id: string) {
-  aiLabel.value = `AI 单点核验 ${id}：比对材料…`
+  aiBusy.value = { label: `AI 单点核验 ${id}：比对材料…` }
   try {
     const r = await verifyOne(id)
     await load()
@@ -181,7 +180,7 @@ async function checkOne(id: string) {
   } catch (e) {
     toast(e instanceof ApiError ? `核验失败：${e.message}` : '核验失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
@@ -238,9 +237,6 @@ async function toAsk(a: Assertion) {
       <div class="stat"><b>{{ stat.suspectCnt() }}</b><span>推测/待实证 ⚠</span></div>
     </div>
 
-    <div v-if="aiLabel" class="ai-run">
-      <span class="spin" /><span>{{ aiLabel }}</span><div class="bar"><i /></div>
-    </div>
 
     <div v-if="groups.length" class="card-box">
       <div class="hd">

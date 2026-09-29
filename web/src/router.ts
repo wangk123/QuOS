@@ -18,6 +18,10 @@ export const curName = ref('（未选中节点）')
 /** 顶栏基线标签（Save 并入基线后刷新） */
 export const baseTag = ref('未建基线')
 
+/** 全局 AI 任务进行中状态：挂在 App 级进度条上，切视图不丢失。
+ *  cur/total 给出时进度条显示真实百分比，否则为不定态跑马灯 */
+export const aiBusy = ref<{ label: string; cur?: number; total?: number } | null>(null)
+
 export const NAV_PROJ: [ViewName, string][] = [
   ['v-ev', '证据池'],
   ['v-base', '基线'],

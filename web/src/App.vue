@@ -10,7 +10,7 @@ import Fact from './views/Fact.vue'
 import Gap from './views/Gap.vue'
 import Pool from './views/Pool.vue'
 import Save from './views/Save.vue'
-import { NAV_FLOW, NAV_PROJ, baseTag, curName, curPath, goto, view, top, goHome, syncFromHash } from './router'
+import { NAV_FLOW, NAV_PROJ, aiBusy, baseTag, curName, curPath, goto, view, top, goHome, syncFromHash } from './router'
 
 const nodes = ref<TreeNode[]>([])
 const err = ref('')
@@ -212,6 +212,12 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
       </div>
     </nav>
 
+    <!-- 全局 AI 进度条：状态在 router.ts 的 aiBusy，切视图不丢失；有 cur/total 时为真实百分比 -->
+    <div v-if="aiBusy" class="ai-run global-ai">
+      <span class="spin" /><span>{{ aiBusy.label }}{{ aiBusy.total ? `（${aiBusy.cur ?? 0}/${aiBusy.total}）` : '' }}</span>
+      <div class="bar"><i :style="aiBusy.total ? { width: `${Math.round(((aiBusy.cur ?? 0) / aiBusy.total) * 100)}%`, animation: 'none' } : undefined" /></div>
+    </div>
+
     <div class="main">
       <aside aria-label="功能树">
         <p v-if="err" class="err">{{ err }}</p>
@@ -325,6 +331,12 @@ header {
 .step.active { background: var(--primary); color: #fff; font-weight: 600; }
 .step.active .n { background: rgba(255, 255, 255, 0.25); color: #fff; }
 .step-arrow { color: var(--border2); flex-shrink: 0; align-self: center; }
+.global-ai {
+  position: sticky;
+  top: 100px; /* header 52 + navbar 48 */
+  z-index: 48;
+  margin: 10px 20px 0;
+}
 .main { display: flex; min-height: calc(100vh - 100px); }
 aside {
   width: 264px;

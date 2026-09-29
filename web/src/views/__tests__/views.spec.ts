@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import {
   ApiError,
   answerClar,
+  assemble,
   createBaseline,
   getAssertions,
   getCard,
@@ -28,7 +29,7 @@ import {
   type Gap,
   type TreeNode,
 } from '../../api'
-import { baseTag, curName, curPath, view, top } from '../../router'
+import { aiBusy, baseTag, curName, curPath, view, top } from '../../router'
 
 vi.mock('../../api', () => ({
   curSlug: ref('演示项目'),
@@ -36,10 +37,13 @@ vi.mock('../../api', () => ({
   openProject: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number
-    unqualified: string[] | null = null
+    unqualified: string[] | null
+    // 与真实实现一致：detail 可能是 FastAPI 包裹体 {detail: {unqualified: [...]}}
     constructor(status: number, detail: unknown) {
-      super(typeof detail === 'string' ? detail : `HTTP ${status}`)
+      const d = detail instanceof Object && 'detail' in detail ? (detail as any).detail : detail
+      super(typeof d === 'string' ? d : `HTTP ${status}`)
       this.status = status
+      this.unqualified = d && typeof d === 'object' && Array.isArray((d as any).unqualified) ? (d as any).unqualified : null
     }
   },
   getEvidence: vi.fn(),
@@ -118,6 +122,7 @@ const CARD: Card = {
 beforeEach(() => {
   vi.clearAllMocks()
   curPath.value = '' // 共享视图状态复位
+  aiBusy.value = null
   curName.value = '（未选中节点）'
   view.value = 'v-ev'
   baseTag.value = '未建基线'
@@ -412,7 +417,7 @@ describe('Card 空态', () => {
     const Card = (await import('../Card.vue')).default
     const w = mount(Card)
     await flushPromises()
-    expect(w.text()).toContain('AI 生成画像草稿')
+    expect(w.text()).toContain('生成选中（含子树）')
   })
 })
 
@@ -464,5 +469,59 @@ describe('基线「当前」标记（gitops 升序返回，取最新）', () => 
     await w.findAll('button').find(b => b.text().includes('并入基线'))!.trigger('click')
     await flushPromises()
     expect(createBaseline).toHaveBeenCalledWith('放款重试 并入基线')
+  })
+})
+
+describe('全局 AI 进度条（aiBusy 挂 App，切视图不丢）', () => {
+  it('aiBusy 非空时 App 渲染进度条，含 x/y 真实进度', async () => {
+    aiBusy.value = { label: 'AI 生成画像 · 支付/放款重试', cur: 2, total: 5 }
+    const App = (await import('../../App.vue')).default
+    const w = mount(App)
+    await flushPromises()
+    expect(w.find('.global-ai').exists()).toBe(true)
+    expect(w.find('.global-ai').text()).toContain('AI 生成画像 · 支付/放款重试')
+    expect(w.find('.global-ai').text()).toContain('（2/5）')
+    expect((w.find('.global-ai .bar i').element as HTMLElement).style.width).toBe('40%')
+    w.unmount()
+  })
+
+  it('aiBusy 为 null 时进度条不渲染', async () => {
+    const App = (await import('../../App.vue')).default
+    const w = mount(App)
+    await flushPromises()
+    expect(w.find('.global-ai').exists()).toBe(false)
+    w.unmount()
+  })
+})
+
+describe('Card.vue 批量生成全部叶子', () => {
+  it('逐叶调 assemble，409 区分无规则跳过与未核验阻断，进度 x/y', async () => {
+    vi.mocked(getTree).mockResolvedValue([
+      { name: '支付', children: [{ name: '放款重试', children: [], open: true, priority: '' }], open: true, priority: '' },
+      { name: '风控', children: [], open: true, priority: '' },
+    ])
+    vi.mocked(assemble)
+      .mockRejectedValueOnce(new ApiError(409, '没有已挂载的规则'))  // 支付/放款重试：无规则 → 跳过
+      .mockRejectedValueOnce(new ApiError(409, { unqualified: ['A3'] }))  // 风控：未核验 → 阻断
+    curPath.value = '' // 批量不依赖选中
+    const Card = (await import('../Card.vue')).default
+    const w = mount(Card)
+    await flushPromises()
+    const toasts: string[] = []
+    const w2 = mount(Card, { global: { provide: { toast: (m: string) => { toasts.push(m) } } } })
+    await flushPromises()
+    const genBtn = w2.findAll('button').find(b => b.text().includes('生成全部叶子'))
+    if (!genBtn) throw new Error('按钮缺失')
+    await genBtn.trigger('click')
+    await flushPromises()
+    expect(assemble).toHaveBeenCalledTimes(2)
+    expect(assemble).toHaveBeenCalledWith('0,0', '')
+    expect(assemble).toHaveBeenCalledWith('1', '')
+    expect(toasts.join()).toContain('成功 0 张')
+    expect(toasts.join()).toContain('跳过 1')
+    expect(toasts.join()).toContain('阻断 1')
+    expect(aiBusy.value).toBeNull() // 完成后清除
+    w.unmount()
+    w2.unmount()
   })
 })

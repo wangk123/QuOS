@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue'
 import { ApiError, disposeGap, getDims, getGaps, rescanGaps, setDims, type Gap } from '../api'
-import { curName, curPath } from '../router'
+import { aiBusy, curName, curPath } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
@@ -9,7 +9,6 @@ const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
 const gaps = ref<Gap[]>([])
 const dims = ref<string[]>([])
 const err = ref('')
-const aiLabel = ref('')
 const showDimModal = ref(false)
 const newDim = ref('')
 
@@ -48,7 +47,7 @@ async function rescan() {
     toast('先在左侧选中要审查的功能点')
     return
   }
-  aiLabel.value = `AI 按 ${dims.value.length} 个维度扫描：${dims.value.join('/')}…`
+  aiBusy.value = { label: `AI 按 ${dims.value.length} 个维度扫描：${dims.value.join('/')}…` }
   try {
     const items = await rescanGaps(curPath.value)
     await load()
@@ -56,7 +55,7 @@ async function rescan() {
   } catch (e) {
     toast(e instanceof ApiError ? `重扫失败：${e.message}` : '重扫失败', 'warn')
   } finally {
-    aiLabel.value = ''
+    aiBusy.value = null
   }
 }
 
@@ -101,9 +100,6 @@ async function delDim(i: number) {
     </div>
 
     <p v-if="err" class="err">{{ err }}</p>
-    <div v-if="aiLabel" class="ai-run">
-      <span class="spin" /><span>{{ aiLabel }}</span><div class="bar"><i /></div>
-    </div>
 
     <div v-for="[dim, items] in groups" :key="dim" class="gap-group">
       <div class="g-hd">
