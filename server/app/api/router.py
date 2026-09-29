@@ -210,6 +210,26 @@ async def list_assertions(proj: str):
     return [a.model_dump() for a in assert_store.load(_root(proj))]
 
 
+def _apply_verify_results(items, results) -> dict:
+    """核验结果落字段：ok→核过 / corrected_text→标黄修正 / 其余→无依据留人工；返回三路计数"""
+    stat = {"ok": 0, "corrected": 0, "nobasis": 0}
+    by_id = {a.id: a for a in items}
+    for r in results:
+        a = by_id.get(r.get("id"))
+        if a is None:
+            continue
+        if r.get("ok") is True:
+            a.verified, a.nb = True, ""
+            stat["ok"] += 1
+        elif r.get("corrected_text"):
+            a.text, a.suspect, a.verified, a.nb = r["corrected_text"], True, True, ""
+            stat["corrected"] += 1
+        else:
+            a.nb = r.get("reason") or "材料中无对应依据"  # 推测类断言：留给人工核过/转问人
+            stat["nobasis"] += 1
+    return stat
+
+
 @api_router.post("/assertions/verify")
 async def verify_assertions(proj: str, body: VerifyIn):
     root = _root(proj)
@@ -222,21 +242,51 @@ async def verify_assertions(proj: str, body: VerifyIn):
         targets = items
     material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
     out = await _ai(tasks.verify, targets, material)
-    by_id = {a.id: a for a in items}
-    applied = []
-    for r in out.results:
-        a = by_id.get(r.get("id"))
-        if a is None:
-            continue
-        if r.get("ok") is True:
-            a.verified, a.nb = True, ""
-        elif r.get("corrected_text"):
-            a.text, a.suspect, a.verified, a.nb = r["corrected_text"], True, True, ""
-        else:
-            a.nb = r.get("reason") or "材料中无对应依据"  # 推测类断言：留给人工核过/转问人
-        applied.append(a.id)
+    stat = _apply_verify_results(items, out.results)
     assert_store.save(root, items)
-    return {"applied": applied, "results": out.results}
+    return {"applied": [r.get("id") for r in out.results], "results": out.results, **stat}
+
+
+VERIFY_BATCH = 20  # 每批核验条数：一次 LLM 调用一批，job 进度按批推进
+
+
+@api_router.post("/assertions/verify-job")
+async def verify_job(proj: str):
+    """全量核验后台任务：分批逐批核验，进度由 GET /jobs 轮询（提取后前端自动链入，也可手动重核）"""
+    root = _root(proj)
+    if jobs.running():
+        r = jobs.running()
+        raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
+    ids = [a.id for a in assert_store.load(root) if not a.verified]
+    if not ids:
+        raise HTTPException(status_code=422, detail="没有未核验的规则")
+    total = (len(ids) + VERIFY_BATCH - 1) // VERIFY_BATCH
+    jid = jobs.create("verify-batch", "AI 全量核验", total)
+    asyncio.create_task(_run_verify(proj, jid, ids))
+    return {"job_id": jid, "total": total, "rules": len(ids)}
+
+
+async def _run_verify(proj: str, jid: str, ids: list[str]) -> None:
+    """逐批核验并落盘：批失败计入 failed 继续；三路计数进 job 供前端汇总"""
+    root = _root(proj)
+    material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
+    jobs.update(jid, ok=0, corrected=0, nobasis=0, failed=0)
+    for i in range(0, len(ids), VERIFY_BATCH):
+        batch = ids[i:i + VERIFY_BATCH]
+        jobs.update(jid, cur=i // VERIFY_BATCH + 1, label=f"AI 全量核验 · 第 {i + 1}-{min(i + VERIFY_BATCH, len(ids))}/{len(ids)} 条")
+        try:
+            root = _root(proj)
+            items = assert_store.load(root)
+            targets = [a for a in items if a.id in set(batch)]
+            out = await _ai(tasks.verify, targets, material)
+            stat = _apply_verify_results(items, out.results)
+            assert_store.save(root, items)
+            jobs.update(jid, ok=jobs.get(jid)["ok"] + stat["ok"],
+                        corrected=jobs.get(jid)["corrected"] + stat["corrected"],
+                        nobasis=jobs.get(jid)["nobasis"] + stat["nobasis"])
+        except Exception:
+            jobs.update(jid, failed=jobs.get(jid)["failed"] + len(batch))
+    jobs.finish(jid)
 
 
 @api_router.post("/assertions/{aid}/confirm", status_code=204)

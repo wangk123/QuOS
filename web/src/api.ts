@@ -165,6 +165,10 @@ export const getAssertions = () => req<Assertion[]>('/assertions')
 export const verifyAll = () =>
   req<{ applied: string[]; results: unknown[] }>('/assertions/verify', json('POST', {}))
 
+/** 全量核验后台任务：立即返回 job_id，进度/汇总由 GET /jobs 轮询 */
+export const verifyJob = () =>
+  req<{ job_id: string; total: number; rules: number }>('/assertions/verify-job', { method: 'POST' })
+
 export const verifyOne = (id: string) =>
   req<{ applied: string[]; results: unknown[] }>('/assertions/verify', json('POST', { assert_id: id }))
 
@@ -230,6 +234,8 @@ export interface Job {
   total: number
   status: 'running' | 'done'
   ok: number
+  corrected?: number  // verify-batch：读错已修正条数
+  nobasis?: number    // verify-batch：材料无依据条数
   skipped: string[]
   blocked: string[]
   failed: number

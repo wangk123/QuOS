@@ -522,3 +522,31 @@ async def test_jobs_requires_valid_project(client):
     r = await client.get(f"{BASE}/jobs")
     assert r.status_code == 200 and isinstance(r.json(), list)
     assert (await client.get("/api/projects/%2e%2e/jobs")).status_code == 422
+
+
+async def test_verify_job_lifecycle(client, monkeypatch):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "当超时重试3次"})
+
+    async def mock_extract(content, evidence_type, tree_text):
+        return [Assertion(id="E1", text="当超时重试3次", src="retry.py:15", conf="实证"),
+                Assertion(id="E2", text="固定60s重试", src="retry.py:16", conf="实证")]
+    monkeypatch.setattr(tasks, "extract", mock_extract)
+    ev_id = (await client.get(f"{BASE}/evidence")).json()[0]["id"]
+    await client.post(f"{BASE}/evidence/{ev_id}/extract")
+
+    async def mock_verify(assertions, material):
+        return tasks.VerifyOut(results=[
+            {"id": a.id, "ok": a.id == "A1", "corrected_text": "指数退避" if a.id == "A2" else None,
+             "reason": None} for a in assertions])
+    monkeypatch.setattr(tasks, "verify", mock_verify)
+
+    r = await client.post(f"{BASE}/assertions/verify-job")
+    assert r.status_code == 200 and r.json()["rules"] == 2
+    j = await _wait_job_done(client, r.json()["job_id"])
+    assert j["ok"] == 1 and j["corrected"] == 1 and j["nobasis"] == 0
+    rows = {a["id"]: a for a in (await client.get(f"{BASE}/assertions")).json()}
+    assert rows["A1"]["verified"] and rows["A2"]["text"] == "指数退避" and rows["A2"]["suspect"]
+
+    # 全部核验后再发起 → 422（无未核验项）
+    assert (await client.post(f"{BASE}/assertions/verify-job")).status_code == 422

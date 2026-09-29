@@ -11,7 +11,7 @@ import {
   getTree,
   scaffoldTree,
   setAssertionNode,
-  verifyAll,
+  verifyJob,
   verifyOne,
   type Assertion,
   type Conflict,
@@ -20,6 +20,7 @@ import {
 } from '../api'
 import { buildGroups } from '../grouping'
 import { aiBusy, curName, curPath } from '../router'
+import { startJobPolling } from '../jobs'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -146,25 +147,27 @@ async function extractAll() {
       toast(`《${ev.name}》+${r.added} 条规则 · 出处已标注`, 'ok')
     }
     await load()
-  } catch (e) {
-    toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
-  } finally {
     aiBusy.value = null
+    toast('提取完成，自动核验中…')
+    await checkAll() // 提取→核验自动链：省一次手动点击（核验为后台 job，进度轮询可见）
+  } catch (e) {
+    aiBusy.value = null
+    toast(e instanceof ApiError ? `提取失败：${e.message}` : '提取失败', 'warn')
   }
 }
 
+/** 全量核验：后台任务分批跑（进度/汇总由轮询驱动，刷新不丢）；核完由轮询 toast 汇总 */
 async function checkAll() {
-  aiBusy.value = { label: `AI 全量核验：${items.value.length} 条规则逐条比对材料…` }
   try {
-    const r = await verifyAll()
-    await load()
-    const bad = r.results.filter(x => x && (x as any).corrected_text).length
-    verifyRecord.value = `AI 逐条比对材料：${r.applied.length} 条全查${bad ? ` · ${bad} 条读错已修正（标黄待人工确认）` : ' · 全部一致 ✓'}`
-    toast(bad ? `核验完成：${bad} 条 AI 读错已修正` : '核验完成：全部一致 ✓', bad ? 'warn' : 'ok')
+    const r = await verifyJob()
+    startJobPolling(r.job_id, async (msg, cls) => {
+      toast(msg, cls)
+      await load()
+      const bad = items.value.filter(a => a.suspect).length
+      verifyRecord.value = `AI 逐条比对材料：${r.rules} 条全查${bad ? ` · ${bad} 条读错已修正（标黄待人工确认）` : ' · 全部一致 ✓'}`
+    })
   } catch (e) {
     toast(e instanceof ApiError ? `核验失败：${e.message}` : '核验失败', 'warn')
-  } finally {
-    aiBusy.value = null
   }
 }
 
