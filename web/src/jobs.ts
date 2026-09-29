@@ -32,6 +32,10 @@ function summary(j: Job): string {
     if (j.failed) parts.push(`失败 ${j.failed}`)
     return `核验完成：${parts.join(' · ')}（无依据项请人工过或转澄清）`
   }
+  if (j.kind === 'clar-review') {
+    // ok=AI 材料代答落库数（待人工采纳）
+    return `澄清重检完成：材料代答 ${j.ok ?? 0} 题待采纳`
+  }
   const parts = [`成功 ${j.ok} 张`]
   if (j.skipped.length) parts.push(`跳过 ${j.skipped.length}（无规则：${j.skipped.slice(0, 3).join('、')}${j.skipped.length > 3 ? '…' : ''}）`)
   if (j.blocked.length) parts.push(`阻断 ${j.blocked.length}（未核验：${j.blocked.slice(0, 3).join('、')}${j.blocked.length > 3 ? '…' : ''}）`)

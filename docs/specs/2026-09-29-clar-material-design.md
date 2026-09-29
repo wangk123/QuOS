@@ -1,6 +1,6 @@
 # 澄清池材料级回答（material-level clarification）· 设计 spec
 
-> 日期：2026-09-29 ｜ 状态：设计定稿，待实现 ｜ 前置：flow-redesign-design（docs/specs/2026-09-28-flow-redesign-design.md）澄清池章节 ｜ 基线：main 12effaf ｜ 关联在途：AskDrawerV2 用户画像流 mock（已确认采纳为正式 UI 骨架，本轮正式化）
+> 日期：2026-09-29 ｜ 状态：P1 已实现（2026-09-29） ｜ 前置：flow-redesign-design（docs/specs/2026-09-28-flow-redesign-design.md）澄清池章节 ｜ 基线：main 12effaf ｜ 关联在途：AskDrawerV2 用户画像流 mock（已确认采纳为正式 UI 骨架，本轮正式化）
 
 ## 1. 问题：澄清池回答单位错位
 

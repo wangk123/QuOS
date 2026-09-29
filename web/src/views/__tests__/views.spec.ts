@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import {
   ApiError,
+  addEvidence,
+  addEvidenceFile,
   answerClar,
   assembleBatch,
   createBaseline,
@@ -73,6 +75,10 @@ vi.mock('../../api', () => ({
   getDoc: vi.fn(),
   getClarifications: vi.fn(),
   answerClar: vi.fn(),
+  answerClarOpen: vi.fn(),
+  adoptClar: vi.fn(),
+  ignoreClar: vi.fn(),
+  reviewClars: vi.fn(),
   verifyClar: vi.fn(),
   createBaseline: vi.fn(),
   listBaselines: vi.fn(),
@@ -153,6 +159,60 @@ describe('Pool.vue', () => {
     expect(w.text()).toContain('仓库')
     const btn = w.findAll('button').find(b => b.text() === '提取')
     expect(btn).toBeTruthy()
+  })
+
+  function pasteEvent(f: File): Event {
+    const e = new Event('paste', { bubbles: true })
+    Object.defineProperty(e, 'clipboardData', {
+      value: { items: [{ type: 'image/png', getAsFile: () => f }] },
+      configurable: true,
+    })
+    return e
+  }
+
+  it('⌘V 截图：target 不在抽屉内时剪贴板图片入池', async () => {
+    vi.mocked(addEvidenceFile).mockResolvedValueOnce(ev({ id: 'IMG1', name: '截图.png', type: '截图' }))
+    const Pool = (await import('../Pool.vue')).default
+    const w = mount(Pool)
+    await flushPromises()
+    vi.mocked(addEvidenceFile).mockClear() // 隔离历史调用
+    const f = new File(['img'], '截图.png', { type: 'image/png' })
+    document.body.dispatchEvent(pasteEvent(f))
+    await flushPromises()
+    expect(addEvidenceFile).toHaveBeenCalledWith(f)
+    w.unmount()
+  })
+
+  it('粘贴 target 在澄清池抽屉内时证据池不抢（防双投递）', async () => {
+    const Pool = (await import('../Pool.vue')).default
+    const w = mount(Pool)
+    await flushPromises()
+    vi.mocked(addEvidenceFile).mockClear()
+    const drawer = document.createElement('div')
+    drawer.className = 'drawer'
+    document.body.appendChild(drawer)
+    const f = new File(['img'], '截图.png', { type: 'image/png' })
+    drawer.dispatchEvent(pasteEvent(f))
+    await flushPromises()
+    expect(addEvidenceFile).not.toHaveBeenCalled()
+    expect(addEvidence).not.toHaveBeenCalled()
+    drawer.remove()
+    w.unmount()
+  })
+
+  it('source=clar 的材料行显示「澄清补料」徽章，其余行不显示', async () => {
+    vi.mocked(getEvidence).mockResolvedValueOnce([
+      ev({ id: 'CL1', name: '阈值截图.png', type: '截图', source: 'clar' }),
+      ev({ id: 'TXT1', name: '普通材料' }),
+    ])
+    const Pool = (await import('../Pool.vue')).default
+    const w = mount(Pool)
+    await flushPromises()
+    expect(w.text()).toContain('澄清补料')
+    const row = w.findAll('tr').find(r => r.text().includes('阈值截图.png'))!
+    expect(row.findAll('.badge').some(b => b.text() === '澄清补料')).toBe(true)
+    expect(w.findAll('.badge').filter(b => b.text() === '澄清补料')).toHaveLength(1) // 普通行不显示
+    w.unmount()
   })
 })
 
@@ -317,10 +377,10 @@ describe('Profile.vue', () => {
   })
 })
 
-describe('AskDrawer（顶栏澄清池抽屉）', () => {
+describe('AskDrawerV2（顶栏澄清池抽屉）', () => {
   it('open 时拉取并渲染待问行：问题、选项与状态徽章', async () => {
-    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
-    const w = mount(AskDrawer, { props: { open: false } })
+    const AskDrawerV2 = (await import('../../components/AskDrawerV2.vue')).default
+    const w = mount(AskDrawerV2, { props: { open: false } })
     await w.setProps({ open: true })
     await flushPromises()
     expect(w.find('[role="dialog"][aria-modal="true"]').exists()).toBe(true)
@@ -331,11 +391,11 @@ describe('AskDrawer（顶栏澄清池抽屉）', () => {
 
   it('空态文案指向冲突/缺口/无依据规则来源', async () => {
     vi.mocked(getClarifications).mockResolvedValueOnce([])
-    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
-    const w = mount(AskDrawer, { props: { open: false } })
+    const AskDrawerV2 = (await import('../../components/AskDrawerV2.vue')).default
+    const w = mount(AskDrawerV2, { props: { open: false } })
     await w.setProps({ open: true })
     await flushPromises()
-    expect(w.text()).toContain('空——②冲突、④缺口、①无依据规则可转到这里')
+    expect(w.text()).toContain('没有待问项——②冲突、④缺口、①无依据规则可转到这里')
   })
 })
 
@@ -368,11 +428,12 @@ describe('Save.vue', () => {
 describe('Ask 交互', () => {
   it('记录答案调 answerClar 并 emit changed（App 重算角标）', async () => {
     vi.mocked(answerClar).mockResolvedValue({ ...CLARS[0], st: 'answered', answer: '放款流水号' })
-    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
-    const w = mount(AskDrawer, { props: { open: false } })
+    const AskDrawerV2 = (await import('../../components/AskDrawerV2.vue')).default
+    const w = mount(AskDrawerV2, { props: { open: false } })
     await w.setProps({ open: true })
     await flushPromises()
-    await w.findAll('button').find(b => b.text() === '记录')!.trigger('click')
+    await w.findAll('.opt')[0].trigger('click') // 选 A（放款流水号）
+    await w.findAll('button').find(b => b.text() === '记录答案')!.trigger('click')
     await flushPromises()
     expect(answerClar).toHaveBeenCalledWith(1, 0)
     expect(w.emitted('changed')).toBeTruthy()
@@ -382,10 +443,12 @@ describe('Ask 交互', () => {
     vi.mocked(getClarifications).mockResolvedValue([
       { ...CLARS[0], st: 'answered', answer: '放款流水号' },
     ])
-    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
-    const w = mount(AskDrawer, { props: { open: false } })
+    const AskDrawerV2 = (await import('../../components/AskDrawerV2.vue')).default
+    const w = mount(AskDrawerV2, { props: { open: false } })
     await w.setProps({ open: true })
     await flushPromises()
+    await w.findAll('.tab').find(t => t.text().includes('已答'))!.trigger('click')
+    await w.find('.qc-row').trigger('click') // 展开已答行
     const texts = w.findAll('button').map(b => b.text())
     expect(texts).toContain('标记已确认')
     expect(texts).not.toContain('落码验证')
@@ -397,13 +460,15 @@ describe('Ask 交互', () => {
     vi.mocked(getClarifications).mockResolvedValue([
       { ...CLARS[0], st: 'answered', answer: '放款流水号' },
     ])
-    const AskDrawer = (await import('../../components/AskDrawer.vue')).default
-    const w = mount(AskDrawer, {
+    const AskDrawerV2 = (await import('../../components/AskDrawerV2.vue')).default
+    const w = mount(AskDrawerV2, {
       props: { open: false },
       global: { provide: { toast: (msg: string) => { toasts.push(msg) } } },
     })
     await w.setProps({ open: true })
     await flushPromises()
+    await w.findAll('.tab').find(t => t.text().includes('已答'))!.trigger('click')
+    await w.find('.qc-row').trigger('click') // 展开已答行
     await w.findAll('button').find(b => b.text() === '标记已确认')!.trigger('click')
     await flushPromises()
     expect(verifyClar).toHaveBeenCalledWith(1)

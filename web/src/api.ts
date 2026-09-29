@@ -31,6 +31,8 @@ export interface EvidenceItem {
   count: number
   path: string
   missing: boolean
+  /** 入池入口：'clar' = 澄清池补料；空 = 证据池直入 */
+  source?: string
 }
 
 export type RuleConf = '实证' | '文档' | '推测' | '待实证' | '旧文档'
@@ -65,13 +67,33 @@ export interface Gap {
   st: string
 }
 
+/** 澄清重检 AI 代答结果（待人工采纳） */
+export interface AiReview {
+  answer: string
+  quote: string
+  ev_ids: string[]
+  conf: string
+  quote_ok: boolean
+}
+
+/** open 题人工作答内容 */
+export interface ClarAnswer {
+  kind: 'opt' | 'text' | 'material'
+  text: string
+  ev_ids: string[]
+}
+
 export interface Clarification {
   no: number
   q: string
+  /** choice=选择题 open=开放题；旧数据无此字段按 choice 兼容 */
+  kind?: 'choice' | 'open'
   opts: string[]
   st: string
   answer: string | null
   ref: string | null
+  ai?: AiReview | null
+  ans?: ClarAnswer | null
 }
 
 export interface ProfileRule {
@@ -138,12 +160,13 @@ const json = (method: string, body: unknown): RequestInit => ({
 
 export const getEvidence = () => req<EvidenceItem[]>('/evidence')
 
-/** 文本入池 */
-export const addEvidence = (raw: string) => req<EvidenceItem>('/evidence', json('POST', { raw }))
+/** 文本入池：source='clar' 标记澄清池补料入口 */
+export const addEvidence = (raw: string, source?: string) =>
+  req<EvidenceItem>(`/evidence${source ? `?source=${source}` : ''}`, json('POST', { raw }))
 
-/** 文件入池：后端无 python-multipart，用原始 body + X-Filename 头传文件名 */
-export const addEvidenceFile = (file: File) =>
-  req<EvidenceItem>('/evidence', {
+/** 文件入池：后端无 python-multipart，用原始 body + X-Filename 头传文件名；source 标记补料入口 */
+export const addEvidenceFile = (file: File, source?: string) =>
+  req<EvidenceItem>(`/evidence${source ? `?source=${source}` : ''}`, {
     method: 'POST',
     headers: { 'X-Filename': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' },
     body: file,
@@ -267,6 +290,22 @@ export const answerClar = (no: number, idx: number) =>
 
 export const verifyClar = (no: number) =>
   req<Clarification>('/clarifications', json('POST', { no, action: 'verify' }))
+
+/** 澄清重检：选定材料 × 全部待问 → AI 代答（待采纳），进度走 GET /jobs */
+export const reviewClars = (evIds: string[]) =>
+  req<{ job_id: string; total: number; questions: number }>('/clarifications/review', json('POST', { ev_ids: evIds }))
+
+/** 采纳 AI 代答（触发规则核过联动） */
+export const adoptClar = (no: number) =>
+  req<Clarification>('/clarifications', json('POST', { no, action: 'adopt' }))
+
+/** 忽略 AI 代答 */
+export const ignoreClar = (no: number) =>
+  req<Clarification>('/clarifications', json('POST', { no, action: 'ignore' }))
+
+/** open 题文本作答，可关联材料（人工看图作答场景） */
+export const answerClarOpen = (no: number, text: string, evIds: string[] = []) =>
+  req<Clarification>('/clarifications', json('POST', { no, action: 'answer', text, ev_ids: evIds }))
 
 // ---------- 基线 ----------
 

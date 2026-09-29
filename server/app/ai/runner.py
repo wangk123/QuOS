@@ -1,4 +1,5 @@
 # server/app/ai/runner.py
+import base64
 import os
 from pathlib import Path
 
@@ -25,7 +26,14 @@ def _transport() -> httpx.AsyncClient | None:
     return None  # 测试用 monkeypatch 替换
 
 
-async def _call(prompt: str) -> str:
+async def _call(prompt: str, images: list[bytes] | None = None) -> str:
+    content: list | str = [{"type": "text", "text": prompt}]
+    if images:
+        for b in images:
+            url = f"data:image/jpeg;base64,{base64.b64encode(b).decode()}"
+            content.append({"type": "image_url", "image_url": {"url": url}})
+    else:
+        content = prompt  # 纯文本任务保持原样（现状不变）
     t = _transport()
     owned = True
     if t is None:
@@ -41,7 +49,7 @@ async def _call(prompt: str) -> str:
             "/chat/completions",
             json={
                 "model": os.environ.get("QUOS_LLM_MODEL", _MODEL),
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [{"role": "user", "content": content}],
                 "response_format": {"type": "json_object"},
             },
         )
@@ -63,11 +71,12 @@ def _strip_fence(content: str) -> str:
     return t.strip()
 
 
-async def complete(task: str, variables: dict, schema: type[BaseModel]) -> BaseModel:
+async def complete(task: str, variables: dict, schema: type[BaseModel],
+                   images: list[bytes] | None = None) -> BaseModel:
     prompt = (PROMPTS / f"{task}.md").read_text("utf-8").format(**variables)
     for attempt in (1, 2):
         try:
-            return schema.model_validate_json(_strip_fence(await _call(prompt)))
+            return schema.model_validate_json(_strip_fence(await _call(prompt, images)))
         except Exception as e:
             if attempt == 2:
                 raise AITaskError(task, f"输出校验失败: {str(e)[:200]}")

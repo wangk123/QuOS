@@ -13,6 +13,8 @@ from app.ai import tasks
 from app.ai.runner import AITaskError
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
+from app.core.models import AiReview
+from app.core.parse import pdf_text, shrink_image
 
 from app.storage import clarifications, dims, evidence, findings, gitops, jobs, profiles, project, rules as rule_store, tree
 from app.storage.project import is_valid_name, project_root
@@ -55,8 +57,10 @@ class AssembleIn(BaseModel):
 
 class ClarIn(BaseModel):
     no: int
-    action: str
+    action: str  # answer | adopt | ignore | verify
     idx: Optional[int] = None
+    text: Optional[str] = None
+    ev_ids: Optional[list[str]] = None
 
 
 class BaselineIn(BaseModel):
@@ -86,9 +90,9 @@ def _load_tree(root):
         raise HTTPException(status_code=422, detail=str(e))
 
 
-async def _ai(fn, *args):
+async def _ai(fn, *args, **kwargs):
     try:
-        return await fn(*args)
+        return await fn(*args, **kwargs)
     except AssembleBlocked as e:
         raise HTTPException(status_code=409, detail={"unqualified": [a.id for a in e.unqualified]})
     except AITaskError as e:
@@ -121,14 +125,28 @@ def _docx_text(f: Path) -> str:
     return re.sub(r"<[^>]+>", "", xml)
 
 
-def _evidence_text(root, ev) -> str:
+_IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _evidence_parts(root, ev) -> tuple[str, list[tuple[str, bytes]]]:
+    """(文本, [(mime, 图片字节)])；文本类只出文本，图片只出图，仓库/压缩包退回名称"""
     if ev.path:
         f = Path(root) / ev.path
         if f.exists():
-            if f.suffix.lower() == ".docx":
-                return _docx_text(f)
-            return f.read_text("utf-8", errors="replace")
-    return ev.name
+            suf = f.suffix.lower()
+            if suf == ".docx":
+                return _docx_text(f), []
+            if suf == ".pdf":
+                return pdf_text(f), []
+            if suf in _IMG_EXT:
+                return "", [("image/jpeg", shrink_image(f))]
+            return f.read_text("utf-8", errors="replace"), []
+    return ev.name, []
+
+
+async def _evidence_texts(root, evs=None) -> list[tuple[str, list[tuple[str, bytes]]]]:
+    evs = evs if evs is not None else await evidence.list_all(root)
+    return [_evidence_parts(root, e) for e in evs]
 
 
 def _rule_map(root) -> dict:
@@ -145,6 +163,7 @@ async def list_evidence(proj: str):
 @api_router.post("/evidence")
 async def add_evidence(proj: str, request: Request):
     root = _root(proj)
+    source = request.query_params.get("source")
     ctype = request.headers.get("content-type", "")
     if ctype.startswith("application/json"):
         try:
@@ -155,6 +174,8 @@ async def add_evidence(proj: str, request: Request):
         if not isinstance(raw, str) or not raw.strip():
             raise HTTPException(status_code=422, detail="body.raw 必须为非空文本")
         payload = classify_text(raw)
+        if source == "clar":
+            payload["source"] = "clar"
         ev = await evidence.add(root, payload, content=raw.encode("utf-8"))
     else:
         data = await request.body()
@@ -164,6 +185,8 @@ async def add_evidence(proj: str, request: Request):
         name = unquote(request.headers.get("x-filename") or request.query_params.get("filename") or "upload.bin")
         payload = {"type": classify_file(name), "name": Path(name).name,
                    "ext": Path(name).suffix.lstrip("."), "stars": 2}
+        if source == "clar":
+            payload["source"] = "clar"
         ev = await evidence.add(root, payload, content=data)
     return ev.model_dump()
 
@@ -173,7 +196,11 @@ async def _extract_one(root, ev) -> int:
     nodes = _load_tree(root)
     paths_list = tree.paths(nodes)
     valid = set(paths_list)
-    got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(paths_list) or "（空树：全部留空）")
+    text, images = _evidence_parts(root, ev)
+    if not text and not images:
+        raise HTTPException(status_code=422, detail="该材料没有可提取文本（扫描件请转图片入池）")
+    img_kwargs = {"images": [b for _, b in images]} if images else {}
+    got = await _ai(tasks.extract, text, ev.type, "\n".join(paths_list) or "（空树：全部留空）", **img_kwargs)
     items = [a for a in rule_store.load(root) if a.src_id != ev.id]  # 重提：替换上次产出
     n = max((int(a.id[1:]) for a in items if a.id.startswith("R") and a.id[1:].isdigit()), default=0)
     for a in got:
@@ -192,7 +219,7 @@ async def extract_evidence(proj: str, ev_id: str):
     ev = await evidence.get(root, ev_id)
     if ev is None:
         raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
-    if ev.type in ("截图", "压缩包"):
+    if ev.type == "压缩包":
         raise HTTPException(status_code=422, detail="该类型不支持 AI 提取（M1.x 支持解析）")
     added = await _extract_one(root, ev)
     return {"added": added}
@@ -206,7 +233,7 @@ async def extract_job(proj: str):
     if jobs.running():
         r = jobs.running()
         raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
-    pend = [e for e in await evidence.list_all(root) if e.state == "pending" and e.type not in ("截图", "压缩包")]
+    pend = [e for e in await evidence.list_all(root) if e.state == "pending" and e.type != "压缩包"]
     if not pend:
         raise HTTPException(status_code=422, detail="池中没有可提取的新材料")
     jid = jobs.create("extract-verify", "提取池中材料", len(pend))
@@ -241,7 +268,7 @@ async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
 async def _run_verify_phase(proj: str, jid: str, ids: list[str]) -> None:
     """分批核验落盘并累计三路计数（verify-job 与 extract-verify 阶段二共用）"""
     root = _root(proj)
-    material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
+    material = "\n\n".join(t for t, _ in await _evidence_texts(root))
     for i in range(0, len(ids), VERIFY_BATCH):
         batch = ids[i:i + VERIFY_BATCH]
         jobs.update(jid, cur=i // VERIFY_BATCH + 1, label=f"AI 全量核验 · 第 {i + 1}-{min(i + VERIFY_BATCH, len(ids))}/{len(ids)} 条")
@@ -307,7 +334,7 @@ async def verify_rules(proj: str, body: VerifyIn):
     targets = [a for a in items if a.id == body.assert_id]
     if not targets:
         raise HTTPException(status_code=404, detail=f"规则不存在: {body.assert_id}")
-    material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
+    material = "\n\n".join(t for t, _ in await _evidence_texts(root))
     out = await _ai(tasks.verify, targets, material)
     stat = _apply_verify_results(items, out.results)
     rule_store.save(root, items)
@@ -540,8 +567,8 @@ async def scaffold_tree(proj: str):
     root = _root(proj)
     if _load_tree(root):
         raise HTTPException(status_code=409, detail="功能树非空，不覆盖——如需调整请在左侧手工编辑")
-    texts = [_evidence_text(root, e) for e in await evidence.list_all(root)
-             if e.type not in ("截图", "压缩包")]
+    texts = [t for e in await evidence.list_all(root) if e.type != "压缩包"
+             for (t, imgs) in [_evidence_parts(root, e)] if t]
     if not texts:
         raise HTTPException(status_code=422, detail="证据池没有可提取材料，请先入池")
     material = "\n\n".join(t[:8000] for t in texts)  # 每份截断防超长
@@ -670,13 +697,17 @@ async def resolve_clarification(proj: str, body: ClarIn):
         raise HTTPException(status_code=404, detail=f"问题不存在: {body.no}")
     try:
         if body.action == "answer":
-            if body.idx is None:
-                raise HTTPException(status_code=422, detail="answer 需要 idx")
-            cl = await clarifications.answer(root, body.no, body.idx)
+            cl = await clarifications.answer(root, body.no, idx=body.idx, text=body.text,
+                                             ev_ids=body.ev_ids or [])
+        elif body.action == "adopt":
+            cl = await clarifications.clar_adopt(root, body.no)
+        elif body.action == "ignore":
+            cl = await clarifications.clar_ignore(root, body.no)
+            return cl.model_dump()  # 忽略≠人工确认：跳过 ref→规则核过联动
         elif body.action == "verify":
             cl = await clarifications.verify(root, body.no)
         else:
-            raise HTTPException(status_code=422, detail="action 必须为 answer 或 verify")
+            raise HTTPException(status_code=422, detail="action 必须为 answer/adopt/ignore/verify")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     # 闭环联动：ref 指向规则（① 转来的推测）时，人工确认答案 = 规则核过
@@ -685,6 +716,88 @@ async def resolve_clarification(proj: str, body: ClarIn):
         rmap[cl.ref].verified, rmap[cl.ref].nb, rmap[cl.ref].clar = True, "", None
         rule_store.save(root, list(rmap.values()))
     return cl.model_dump()
+
+
+# ---------- 澄清重检（材料级 AI 代答，后台 job） ----------
+
+CLAR_BATCH = 20  # 每批重检题数：一次 LLM 调用一批，job 进度按批推进
+REVIEW_TEXT_CAP = 30000  # 重检材料文本上限，超长截断防超上下文
+REVIEW_IMG_CAP = 5  # 单次重检图片上限
+
+
+class ReviewIn(BaseModel):
+    ev_ids: list[str]
+
+
+def _apply_review(results, waits, materials_text: str, ev_ids: list[str], has_image: bool = False) -> int:
+    """防幻觉校验并落库：choice 未命中→丢弃；quote 非 substring→quote_ok=False+conf=low；no 未知→丢弃。返回落库数"""
+    by_no = {w.no: w for w in waits}
+    n = 0
+    for r in results:
+        w = by_no.get(r.no)
+        if w is None or not r.answered:
+            continue
+        if w.kind == "choice" and r.answer not in w.opts:
+            continue  # 选择题答案必须逐字命中选项
+        quote_ok = bool(r.quote) and r.quote in materials_text if not has_image else False  # 带图无法做 substring 校验
+        conf = r.conf if quote_ok else "low"
+        w.ai = AiReview(answer=r.answer, quote=r.quote,
+                        ev_ids=list(ev_ids), conf=conf, quote_ok=quote_ok)
+        n += 1
+    return n
+
+
+@api_router.post("/clarifications/review")
+async def review_clarifications(proj: str, body: ReviewIn):
+    """澄清重检：选定材料 × 全部 wait 题 → AI 代答落 clar.ai（待人工采纳），进度走 GET /jobs"""
+    root = _root(proj)
+    if not body.ev_ids:
+        raise HTTPException(status_code=422, detail="未选择重检材料")
+    if jobs.running():
+        r = jobs.running()
+        raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
+    waits = [c for c in await clarifications.list_all(root) if c.st == "wait"]
+    if not waits:
+        raise HTTPException(status_code=422, detail="没有待问问题，无需重检")
+    evs = []
+    for eid in body.ev_ids:
+        ev = await evidence.get(root, eid)
+        if ev is None:
+            raise HTTPException(status_code=404, detail=f"证据不存在: {eid}")
+        evs.append(ev)
+    parts = [_evidence_parts(root, e) for e in evs]
+    images = [b for _, imgs in parts for (_, b) in imgs]
+    if len(images) > REVIEW_IMG_CAP:
+        raise HTTPException(status_code=422, detail=f"单次重检图片最多 {REVIEW_IMG_CAP} 张（收到 {len(images)}）")
+    text = "\n\n".join(t for t, _ in parts if t)
+    truncated = len(text) > REVIEW_TEXT_CAP
+    text = text[:REVIEW_TEXT_CAP]
+    total = (len(waits) + CLAR_BATCH - 1) // CLAR_BATCH
+    jid = jobs.create("clar-review", "澄清重检" + ("（材料超长已截断）" if truncated else ""), total)
+    asyncio.create_task(_run_review(proj, jid, root, waits, text, images, body.ev_ids, truncated))
+    return {"job_id": jid, "total": total, "questions": len(waits)}
+
+
+async def _run_review(proj, jid, root, waits, text, images, ev_ids, truncated: bool = False):
+    has_image = bool(images)
+    suffix = "（材料超长已截断）" if truncated else ""
+    answered = 0
+    for i in range(0, len(waits), CLAR_BATCH):
+        batch = waits[i:i + CLAR_BATCH]
+        jobs.update(jid, cur=i // CLAR_BATCH + 1,
+                    label=f"澄清重检 · 第 {i + 1}-{min(i + CLAR_BATCH, len(waits))}/{len(waits)} 题{suffix}")
+        try:
+            qs = "\n".join(
+                f"{w.no}. [{'选择题：' + ' / '.join(w.opts) if w.kind == 'choice' else '开放题：需补充材料'}] {w.q}"
+                for w in batch)
+            out = await _ai(tasks.clar_review, qs, text, images=images)
+            answered += _apply_review(out.results, batch, text, ev_ids, has_image)
+            for w in batch:  # 每批落盘一次
+                await clarifications.set_ai(root, w.no, w.ai.model_dump() if w.ai else None)
+        except Exception:
+            jobs.update(jid, failed=jobs.get(jid).get("failed", 0) + len(batch))
+    jobs.update(jid, ok=answered)
+    jobs.finish(jid)
 
 
 # ---------- 基线 ----------

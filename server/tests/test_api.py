@@ -257,16 +257,33 @@ async def test_ai_error_maps_to_502(client, monkeypatch):
     assert r.status_code == 502
 
 
-async def test_binary_evidence_extract_rejected(client):
+async def test_binary_evidence_extract_rejected(client, monkeypatch):
     ensure_root("演示项目")
-    # 截图/压缩包不做 AI 提取，M1.x 才支持解析
-    for fname in ("shot.png", "bundle.zip"):
-        r = await client.post(f"{BASE}/evidence", content=b"\x89PNG",
-                              headers={"content-type": "application/octet-stream", "x-filename": fname})
-        ev_id = r.json()["id"]
-        r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
-        assert r.status_code == 422
-        assert "不支持 AI 提取" in r.json()["detail"]
+    # 压缩包仍不做 AI 提取；截图解除限制，走图片部件进多模态提取
+    r = await client.post(f"{BASE}/evidence", content=b"\x89PNG",
+                          headers={"content-type": "application/octet-stream", "x-filename": "bundle.zip"})
+    ev_id = r.json()["id"]
+    r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
+    assert r.status_code == 422
+    assert "不支持 AI 提取" in r.json()["detail"]
+
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (10, 10), "blue").save(buf, "PNG")
+    seen = {}
+
+    async def mock_extract(content, evidence_type, tree_text, images=None):
+        seen.update(content=content, images=images)
+        return [Rule(id="", text="图中注明重试上限 3 次", src="材料实证", conf="实证", node="")]
+
+    monkeypatch.setattr(tasks, "extract", mock_extract)
+    r = await client.post(f"{BASE}/evidence", content=buf.getvalue(),
+                          headers={"content-type": "application/octet-stream", "x-filename": "shot.png"})
+    ev_id = r.json()["id"]
+    r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
+    assert r.status_code == 200 and r.json()["added"] == 1
+    assert seen["content"] == "" and len(seen["images"]) == 1  # 图片：文本侧为空，压缩后字节进多模态
 
 
 async def test_assemble_excludes_voided_rules(client, monkeypatch):
@@ -437,11 +454,15 @@ async def test_set_assertion_node(client):
 async def test_tree_scaffold(client, monkeypatch):
     ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "支付模块支持放款重试与回调处理。"})
-    await client.post(f"{BASE}/evidence", content=b"\x89PNG",
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (10, 10), "red").save(buf, "PNG")
+    await client.post(f"{BASE}/evidence", content=buf.getvalue(),
                       headers={"content-type": "application/octet-stream", "x-filename": "s.png"})
 
     async def mock_outline(material):
-        assert "放款重试" in material  # 拼接的是文本材料，截图只有文件名不入正文
+        assert "放款重试" in material  # 拼接的是文本材料，截图走图片部件、文本侧为空不入正文
         return [tasks.OutlineNode(name="支付", children=[
             tasks.OutlineNode(name="放款重试", children=[])])]
     monkeypatch.setattr(tasks, "outline", mock_outline)

@@ -45,15 +45,29 @@ class OutlineOut(BaseModel):
     nodes: list[OutlineNode]
 
 
+class ClarReviewItem(BaseModel):
+    no: int
+    answered: bool
+    answer: str = ""
+    quote: str = ""
+    conf: str = "med"
+
+
+class ClarReviewOut(BaseModel):
+    results: list[ClarReviewItem]
+
+
 def _fmt_rules(rules: list[Rule]) -> str:
     return "\n".join(f"- {r.id} | {r.text} | 出处: {r.src} | conf: {r.conf}" for r in rules)
 
 
-async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Rule]:
+async def extract(evidence_content: str, evidence_type: str, tree_text: str,
+                  images: list[bytes] | None = None) -> list[Rule]:
     out = await complete(
         "extract",
         {"material": evidence_content, "evidence_type": evidence_type, "tree_list": tree_text},
         ExtractOut,
+        images=images,
     )
     return out.rules
 
@@ -112,3 +126,13 @@ async def impact(diff_text: str, tree_dump: str, profile_list: list[str]) -> lis
 async def outline(material: str) -> list[OutlineNode]:
     out = await complete("outline", {"material": material}, OutlineOut)
     return out.nodes
+
+
+async def clar_review(questions_text: str, materials_text: str,
+                      images: list[bytes] | None = None) -> ClarReviewOut:
+    return await complete(
+        "clar-review",
+        {"questions": questions_text, "materials": materials_text},
+        ClarReviewOut,
+        images=images,
+    )

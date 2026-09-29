@@ -15,6 +15,7 @@ class Evidence(BaseModel):
     count: int = 0
     path: str
     missing: bool = False
+    source: str = ""  # 'clar' = 澄清池补料入口；空 = 证据池入口
 
 
 class Rule(BaseModel):
@@ -47,10 +48,32 @@ class Gap(BaseModel):
     st: str = "open"
 
 
+class AiReview(BaseModel):
+    answer: str
+    quote: str
+    ev_ids: list[str] = []
+    conf: str  # high | med | low
+    quote_ok: bool = True
+
+    def __eq__(self, other: object) -> bool:  # 支持与存储层原始 dict 等值比较
+        if isinstance(other, dict):
+            return self.model_dump() == other
+        return super().__eq__(other)
+
+
+class ClarAnswer(BaseModel):
+    kind: str  # 'opt' | 'text' | 'material'
+    text: str
+    ev_ids: list[str] = []
+
+
 class Clarification(BaseModel):
     no: int
     q: str
-    opts: list[str]
-    st: str = "open"
+    opts: list[str] = []
+    kind: str = "choice"  # choice | open（opts 为空即 open；旧数据默认 choice）
+    st: str = "wait"  # wait | answered | verified
     answer: Optional[str] = None
     ref: Optional[str] = None
+    ai: AiReview | None = None
+    ans: ClarAnswer | None = None

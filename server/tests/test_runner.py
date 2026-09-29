@@ -1,5 +1,7 @@
 # server/tests/test_runner.py
+import json
 import pytest, httpx
+from app.ai import runner
 from app.ai.runner import complete, AITaskError
 from pydantic import BaseModel
 
@@ -49,3 +51,30 @@ async def test_fenced_json_stripped(monkeypatch):
     monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
     out = await complete("extract", {"material": "x"}, Out)
     assert out.rules == [{"k": "v"}]
+
+async def test_call_with_images_builds_content_parts(monkeypatch):
+    """带图片时 content 为 parts 数组：text part 在前，图片 base64 data URL 在后"""
+    captured = {}
+
+    async def h(request):
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"rules": []}'}}]})
+
+    monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
+    img = b"\xff\xd8fakejpeg"
+    await runner._call("提示词", [img])
+    content = captured["payload"]["messages"][0]["content"]
+    assert isinstance(content, list) and content[0] == {"type": "text", "text": "提示词"}
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+async def test_call_without_images_keeps_plain_string(monkeypatch):
+    captured = {}
+
+    async def h(request):
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"rules": []}'}}]})
+
+    monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
+    await runner._call("纯文本")
+    assert captured["payload"]["messages"][0]["content"] == "纯文本"

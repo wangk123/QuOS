@@ -80,8 +80,9 @@ function onFileChange(e: Event) {
   if (files.length) void uploadFiles(files)
 }
 
-/** ⌘V 截图：剪贴板含 image 时转 Blob 上传 */
+/** ⌘V 截图：剪贴板含 image 时转 Blob 上传（焦点在澄清池抽屉内时让位，防双投递） */
 async function onPaste(e: ClipboardEvent) {
+  if (e.target instanceof Element && e.target.closest('.drawer')) return
   const img = [...(e.clipboardData?.items ?? [])].find(i => i.type.startsWith('image/'))
   if (!img) return
   const f = img.getAsFile()
@@ -174,7 +175,7 @@ const stat = {
         </thead>
         <tbody>
           <tr v-for="e in items" :key="e.id" :class="{ 'ev-danger': e.type === 'AI生成' }">
-            <td><span style="font-family: var(--mono)">{{ e.name }}</span> <span v-if="e.ext" class="src">{{ e.ext }}</span></td>
+            <td><span style="font-family: var(--mono)">{{ e.name }}</span> <span v-if="e.ext" class="src">{{ e.ext }}</span> <span v-if="e.source === 'clar'" class="badge b-amber">澄清补料</span></td>
             <td><span class="badge" :class="(evMeta[e.type] ?? evMeta['文档'])[0]">{{ e.type }}{{ e.type === 'AI生成' ? ' ⚠' : '' }}</span></td>
             <td>{{ '★'.repeat(e.stars) || '?' }}</td>
             <td><span class="src">{{ e.reg }}</span></td>

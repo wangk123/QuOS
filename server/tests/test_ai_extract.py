@@ -5,7 +5,7 @@ from app.core.models import Rule
 
 async def test_extract(monkeypatch):
     fake = tasks.ExtractOut(rules=[Rule(id="R1", text="当超时30s触发重试", src="retry.py:15", conf="实证")])
-    async def mock(task, variables, schema):
+    async def mock(task, variables, schema, images=None):
         assert variables["tree_list"] == "支付/放款重试"
         return fake
     monkeypatch.setattr(tasks, "complete", mock)

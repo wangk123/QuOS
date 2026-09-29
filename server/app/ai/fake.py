@@ -10,7 +10,8 @@ from app.storage.profiles import Profile, ProfileRule
 _PAIR = ("重试上限为 3 次", "重试上限为 5 次")
 
 
-async def fake_extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Rule]:
+async def fake_extract(evidence_content: str, evidence_type: str, tree_text: str,
+                       images: list[bytes] | None = None) -> list[Rule]:
     return [
         Rule(id="", text="回调超时 30s 触发自动重试", src="材料实证", conf="实证", node=""),
         Rule(id="", text=_PAIR[0], src="材料实证", conf="实证", node=""),
@@ -68,6 +69,13 @@ async def fake_outline(material: str) -> list[tasks.OutlineNode]:
     ])]
 
 
+async def fake_clar_review(questions_text: str, materials_text: str,
+                           images: list[bytes] | None = None) -> tasks.ClarReviewOut:
+    return tasks.ClarReviewOut(results=[{
+        "no": 1, "answered": True, "answer": "假答案", "quote": "材料原文", "conf": "high",
+    }])
+
+
 def install() -> None:
     """把假实现挂到 tasks 模块上（router 以 tasks.fn 形式调用，运行时生效）"""
     tasks.extract = fake_extract
@@ -77,3 +85,4 @@ def install() -> None:
     tasks.assemble = fake_assemble
     tasks.impact = fake_impact
     tasks.outline = fake_outline
+    tasks.clar_review = fake_clar_review

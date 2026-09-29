@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { ApiError, curSlug, getClarifications, getTree, listBaselines, treeOp, type Baseline, type TreeNode } from './api'
-import AskDrawer from './components/AskDrawer.vue'
+import AskDrawerV2 from './components/AskDrawerV2.vue'
 import FuncTree from './components/FuncTree.vue'
 import Home from './views/Home.vue'
 import Profile from './views/Profile.vue'
@@ -188,7 +188,7 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
       </button>
     </header>
 
-    <AskDrawer :open="clarOpen" @close="clarOpen = false" @changed="refreshClar" />
+    <AskDrawerV2 :open="clarOpen" @close="clarOpen = false" @changed="refreshClar" />
 
     <nav class="navbar">
       <div class="navgrp">
