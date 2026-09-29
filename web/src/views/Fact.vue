@@ -2,18 +2,18 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import {
   ApiError,
-  askAssertion,
-  confirmAssertion,
+  askRule,
+  confirmRule,
   extractJob,
-  getAssertions,
+  getRules,
   getConflicts,
   getEvidence,
   getTree,
   scaffoldTree,
-  setAssertionNode,
+  setRuleNode,
   verifyJob,
   verifyOne,
-  type Assertion,
+  type Rule,
   type Conflict,
   type EvidenceItem,
   type TreeNode,
@@ -24,7 +24,7 @@ import { startJobPolling } from '../jobs'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
-const items = ref<Assertion[]>([])
+const items = ref<Rule[]>([])
 const conflicts = ref<Conflict[]>([])
 const evidence = ref<EvidenceItem[]>([])
 const treeNodes = ref<TreeNode[]>([])
@@ -48,7 +48,7 @@ const prioBadge: Record<string, string> = { P0: 'b-red', P1: 'b-amber', P2: 'b-b
 
 async function load() {
   ;[items.value, conflicts.value, evidence.value, treeNodes.value] = await Promise.all([
-    getAssertions(),
+    getRules(),
     getConflicts(),
     getEvidence(),
     getTree(),
@@ -108,9 +108,9 @@ const allPaths = computed(() => {
 })
 
 /** 行内挂载/改归属：node 为空串 = 移回未归类 */
-async function assign(a: Assertion, node: string) {
+async function assign(a: Rule, node: string) {
   try {
-    await setAssertionNode(a.id, node)
+    await setRuleNode(a.id, node)
     await load()
     toast(node ? `${a.id} → 已挂 ${node}` : `${a.id} → 已移回未归类`, 'ok')
   } catch (e) {
@@ -126,10 +126,10 @@ const stat = {
 }
 const corrected = computed(() => items.value.filter(a => a.suspect))
 
-function inConflict(a: Assertion) {
+function inConflict(a: Rule) {
   return conflicts.value.some(c => c.st === 'open' && (c.a === a.id || c.b === a.id))
 }
-function voided(a: Assertion) {
+function voided(a: Rule) {
   return conflicts.value.some(c => c.st === 'code' && a.id !== c.resolution && (c.a === a.id || c.b === a.id))
 }
 
@@ -178,9 +178,9 @@ async function checkOne(id: string) {
   }
 }
 
-async function confirmOne(a: Assertion) {
+async function confirmOne(a: Rule) {
   try {
-    await confirmAssertion(a.id)
+    await confirmRule(a.id)
     await load()
     toast(`${a.id} 已人工核过 ✓`, 'ok')
   } catch (e) {
@@ -188,9 +188,9 @@ async function confirmOne(a: Assertion) {
   }
 }
 
-async function toAsk(a: Assertion) {
+async function toAsk(a: Rule) {
   try {
-    await askAssertion(a.id)
+    await askRule(a.id)
     await load()
     void refreshClar()
     toast(`${a.id} → 已进澄清池（答案确认后自动核过）`, 'ok')

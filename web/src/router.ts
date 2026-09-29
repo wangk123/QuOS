@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { curSlug, openProject, setProject } from './api'
 
 export type ViewName =
-  | 'v-ev' | 'v-fact' | 'v-conf' | 'v-gap' | 'v-card' | 'v-save' | 'v-base'
+  | 'v-ev' | 'v-fact' | 'v-conf' | 'v-gap' | 'v-prof' | 'v-save' | 'v-base'
 
 export const view = ref<ViewName>('v-ev')
 export function goto(v: ViewName) {
@@ -29,7 +29,7 @@ export const NAV_PROJ: [ViewName, string][] = [
 export const NAV_FLOW: [ViewName, string][] = [
   ['v-fact', '规则提取'],
   ['v-conf', '冲突裁决'],
-  ['v-card', '生成画像'],
+  ['v-prof', '生成画像'],
   ['v-gap', '查漏补缺'],
   ['v-save', '定稿存档'],
 ]

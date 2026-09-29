@@ -1,6 +1,6 @@
 # server/tests/test_ai_conflict.py
 from app.ai import tasks
-from app.core.models import Assertion, Conflict, Gap
+from app.core.models import Rule, Conflict, Gap
 from app.storage import dims
 
 
@@ -9,8 +9,8 @@ async def test_conflict(monkeypatch):
     async def mock(task, variables, schema): return fake
     monkeypatch.setattr(tasks, "complete", mock)
     out = await tasks.conflict([
-        Assertion(id="A1", text="当超时应重试3次", src="retry.py:15", conf="实证"),
-        Assertion(id="A2", text="当超时应重试5次", src="spec.md#3", conf="文档"),
+        Rule(id="R1", text="当超时应重试3次", src="retry.py:15", conf="实证"),
+        Rule(id="R2", text="当超时应重试5次", src="spec.md#3", conf="文档"),
     ])
     assert out[0].id == "C1"
     assert out[0].a == "A1" and out[0].b == "A2"
@@ -21,7 +21,7 @@ async def test_gap(monkeypatch):
     fake = tasks.GapOut(gaps=[Gap(id="G1", dim="幂等", text="未说明重复提交时的幂等行为")])
     async def mock(task, variables, schema): return fake
     monkeypatch.setattr(tasks, "complete", mock)
-    out = await tasks.gaps("卡片摘要", ["状态", "幂等"])
+    out = await tasks.gaps("用户画像摘要", ["状态", "幂等"])
     assert out[0].id == "G1"
     assert out[0].dim == "幂等"
     assert "幂等" in out[0].text

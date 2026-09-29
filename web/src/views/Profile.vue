@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { ApiError, assemble, assembleBatch, getCard, getDoc, type Card as CardT } from '../api'
+import { ApiError, assemble, assembleBatch, getProfile, getDoc, type Profile } from '../api'
 import { aiBusy, curName, curPath } from '../router'
 import { jobRunning, startJobPolling } from '../jobs'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
-const card = ref<CardT | null>(null)
+const card = ref<Profile | null>(null)
 const err = ref('')
 const showAssemble = ref(false)
 const note = ref('')
@@ -25,7 +25,7 @@ const confBadge: Record<string, [string, string]> = {
 async function load() {
   if (!curPath.value) return
   try {
-    card.value = await getCard(curPath.value)
+    card.value = await getProfile(curPath.value)
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) card.value = null
     else throw e
@@ -169,7 +169,7 @@ function downloadDoc() {
         <b>未确认项（转澄清池）</b>{{ card.unconfirmed.join(' · ') }}
       </div>
       <div v-else class="warn-strip ok-strip">
-        <b>✓ 全部规则已实证</b>卡片可存档进基线
+        <b>✓ 全部规则已实证</b>用户画像可存档进基线
       </div>
     </template>
 
@@ -177,7 +177,7 @@ function downloadDoc() {
       <div class="modal" role="dialog" aria-modal="true">
         <h3>AI 生成 / 重新生成画像</h3>
         <p style="font-size: 12px; color: var(--muted-fg); margin-bottom: 8px">
-          补充你的意见（AI 不知道的：口头约定、历史坑、业务约束）——它会并入卡片「补充说明」并影响规则。
+          补充你的意见（AI 不知道的：口头约定、历史坑、业务约束）——它会并入用户画像「补充说明」并影响规则。
         </p>
         <textarea v-model="note" placeholder="如：张开发说重试时余额要校验；上次生产事故就是金额改了没同步" />
         <div class="foot">

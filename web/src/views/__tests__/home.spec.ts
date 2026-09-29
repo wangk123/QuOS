@@ -32,7 +32,7 @@ describe('Home 项目首页', () => {
     top.value = 'home'
   })
 
-  it('渲染项目卡片与新建入口', async () => {
+  it('渲染项目用户画像与新建入口', async () => {
     const w = mount(Home)
     await flushPromises()
     expect(w.text()).toContain('风控云')
@@ -57,7 +57,7 @@ describe('Home 项目首页', () => {
     expect(getProjects).toHaveBeenCalledTimes(2)
   })
 
-  it('点击卡片进入项目', async () => {
+  it('点击用户画像进入项目', async () => {
     const w = mount(Home)
     await flushPromises()
     await w.find('[data-test="proj-card"]').trigger('click')

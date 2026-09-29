@@ -4,7 +4,7 @@ from app.ai.runner import complete, AITaskError
 from pydantic import BaseModel
 
 class Out(BaseModel):
-    assertions: list[dict]
+    rules: list[dict]
 
 @pytest.fixture(autouse=True)
 def _prompts(tmp_path, monkeypatch):
@@ -18,10 +18,10 @@ def _mock(handler):
 
 async def test_ok(monkeypatch):
     def h(request):
-        return httpx.Response(200, json={"choices": [{"message": {"content": '{"assertions": []}'}}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"rules": []}'}}]})
     monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
     out = await complete("extract", {"material": "x"}, Out)
-    assert out.assertions == []
+    assert out.rules == []
 
 async def test_retry_then_fail(monkeypatch):
     def h(request):
@@ -34,18 +34,18 @@ async def test_retry_recovers(monkeypatch):
     calls = []
     def h(request):
         calls.append(request)
-        content = "不是json" if len(calls) == 1 else '{"assertions": [{"k": "v"}]}'
+        content = "不是json" if len(calls) == 1 else '{"rules": [{"k": "v"}]}'
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
     monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
     out = await complete("extract", {"material": "x"}, Out)
-    assert out.assertions == [{"k": "v"}]
+    assert out.rules == [{"k": "v"}]
     assert len(calls) == 2
 
 async def test_fenced_json_stripped(monkeypatch):
     # LLM 常把 JSON 包在 ```json 围栏里，应剥离后校验通过
     def h(request):
-        content = '```json\n{"assertions": [{"k": "v"}]}\n```'
+        content = '```json\n{"rules": [{"k": "v"}]}\n```'
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
     monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
     out = await complete("extract", {"material": "x"}, Out)
-    assert out.assertions == [{"k": "v"}]
+    assert out.rules == [{"k": "v"}]

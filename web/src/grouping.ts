@@ -1,13 +1,13 @@
 // 规则表分组：按 模块（父路径）› 功能点 两级聚合；组内功能点按 P0→P1→P2→空、再按树序。
 // 失配归属（节点改名残留）与空 node 均进 unclassified，由人工重新挂载。
-import type { Assertion, TreeNode } from './api'
+import type { Rule, TreeNode } from './api'
 
 export interface GroupedPoint {
   path: string
   name: string
   priority: string
   order: number
-  rules: Assertion[]
+  rules: Rule[]
 }
 export interface RuleGroup {
   key: string
@@ -17,7 +17,7 @@ export interface RuleGroup {
 }
 export interface GroupResult {
   groups: RuleGroup[]
-  unclassified: Assertion[]
+  unclassified: Rule[]
 }
 
 const PRIO_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, '': 3 }
@@ -40,11 +40,11 @@ function indexTree(nodes: TreeNode[], prefix = '', counter = { n: 0 }): Index[] 
   return out
 }
 
-export function buildGroups(rules: Assertion[], treeNodes: TreeNode[]): GroupResult {
+export function buildGroups(rules: Rule[], treeNodes: TreeNode[]): GroupResult {
   const idx = indexTree(treeNodes)
   const byPath = new Map(idx.map(i => [i.path, i]))
-  const rulesOf = new Map<string, Assertion[]>()
-  const unclassified: Assertion[] = []
+  const rulesOf = new Map<string, Rule[]>()
+  const unclassified: Rule[] = []
   for (const r of rules) {
     if (r.node && byPath.has(r.node)) {
       const arr = rulesOf.get(r.node) ?? []

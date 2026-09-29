@@ -28,7 +28,7 @@
 | 2 | 创建/恢复与**归档**侧同名的项目 | 409（判重含归档） | Task 2 `test_create_rejects_archived_duplicate`、`test_restore_conflict` |
 | 3 | 直达不存在项目的子资源（旧 URL/拼错） | 404，且**不创建目录** | Task 3 `test_unknown_project_404_no_mkdir` |
 | 4 | DB 有行但目录已手动删除（幽灵行） | 列表对账后不出现，DB 行被清 | Task 1 `test_reconcile_removes_ghost_rows` |
-| 5 | 中文 slug 的 URL 编解码往返（前端 encode ↔ 后端 path param） | 加密传输后 slug 原样，项目可打开 | Task 3 `test_chinese_slug_roundtrip`、Task 6 vitest 断言请求 URL |
+| 5 | 中文 slug 的 URL 编解码往返（前端 encode ↔ 后端 path param） | 加密传输后 slug 原样，项目可打开 | Task 3 `test_chinese_slug_roundtrip`、Task 6 vitest 规则请求 URL |
 
 ---
 
@@ -925,7 +925,7 @@ describe('Home 项目首页', () => {
     vi.mocked(archiveProject).mockReset().mockResolvedValue(undefined as never)
   })
 
-  it('渲染项目卡片与新建入口', async () => {
+  it('渲染项目用户画像与新建入口', async () => {
     const w = mount(Home)
     await flushPromises()
     expect(w.text()).toContain('风控云')
@@ -950,7 +950,7 @@ describe('Home 项目首页', () => {
     expect(getProjects).toHaveBeenCalledTimes(2)
   })
 
-  it('点击卡片进入项目', async () => {
+  it('点击用户画像进入项目', async () => {
     const w = mount(Home)
     await flushPromises()
     await w.find('[data-test="proj-card"]').trigger('click')
@@ -960,7 +960,7 @@ describe('Home 项目首页', () => {
 })
 ```
 
-（`enterProject` 内部 `openProject` 也须进 mock 工厂；点击卡片断言 `enterProject` 效果通过 `top.value === 'proj'` 验证：`import { top } from '../../router'` 后 `expect(top.value).toBe('proj')`。）
+（`enterProject` 内部 `openProject` 也须进 mock 工厂；点击用户画像规则 `enterProject` 效果通过 `top.value === 'proj'` 验证：`import { top } from '../../router'` 后 `expect(top.value).toBe('proj')`。）
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -1006,7 +1006,7 @@ export function initRouteFromHash() {
 
 （合并进现有 `router.ts`，import 归并为一行 `import { openProject, setProject } from './api'`；`goHome` 内两步合并为 `setProject('')` 即可，去掉多余的 `curSlugReset` 中转。）
 
-- [ ] **Step 4: 实现 `Home.vue`**（结构骨架——样式类沿用 `style.css` 既有 badge/卡片风格）
+- [ ] **Step 4: 实现 `Home.vue`**（结构骨架——样式类沿用 `style.css` 既有 badge/用户画像风格）
 
 ```vue
 <script setup lang="ts">
@@ -1107,7 +1107,7 @@ async function onPurge(p: ProjectInfo) {
 </template>
 ```
 
-（`.home/.cards/.card/.ghost/.danger/.muted/.empty/.err` 样式追加进 `style.css`，遵循既有变量与密度；行数控制在组件 200 行内。）
+（`.home/.profiles/.card/.ghost/.danger/.muted/.empty/.err` 样式追加进 `style.css`，遵循既有变量与密度；行数控制在组件 200 行内。）
 
 - [ ] **Step 5: 跑测试确认通过并 commit**
 
@@ -1237,7 +1237,7 @@ Expected: PASS
 - [ ] **Step 3: 端到端验收清单（spec §10 逐条）**
 
 1. `./start.sh` → 首页出现「风控云」（目录自动发现），进入后现有功能正常
-2. 新建「测试二期」→ 加证据/建树/提断言，与风控云互不可见
+2. 新建「测试二期」→ 加证据/建树/提规则，与风控云互不可见
 3. 归档「测试二期」→ 直达其 /tree 得 404 引导；恢复后数据完整
 4. 彻底删除（输入名确认）→ 目录与 DB 行均消失
 5. `mysql` 停连模拟：改 QUOS_DB_HOST 为不可达 IP 起服务 → 列表仍可用

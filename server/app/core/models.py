@@ -17,7 +17,7 @@ class Evidence(BaseModel):
     missing: bool = False
 
 
-class Assertion(BaseModel):
+class Rule(BaseModel):
     id: str
     text: str
     src: str

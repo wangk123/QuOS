@@ -13,8 +13,8 @@ from app.ai import tasks
 from app.ai.runner import AITaskError
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
-from app.storage import assertions as assert_store
-from app.storage import cards, clarifications, dims, evidence, findings, gitops, jobs, project, tree
+
+from app.storage import clarifications, dims, evidence, findings, gitops, jobs, profiles, project, rules as rule_store, tree
 from app.storage.project import is_valid_name, project_root
 
 api_router = APIRouter()
@@ -131,8 +131,8 @@ def _evidence_text(root, ev) -> str:
     return ev.name
 
 
-def _assert_map(root) -> dict:
-    return {a.id: a for a in assert_store.load(root)}
+def _rule_map(root) -> dict:
+    return {a.id: a for a in rule_store.load(root)}
 
 
 # ---------- 证据 ----------
@@ -174,14 +174,14 @@ async def _extract_one(root, ev) -> int:
     paths_list = tree.paths(nodes)
     valid = set(paths_list)
     got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(paths_list) or "（空树：全部留空）")
-    items = [a for a in assert_store.load(root) if a.src_id != ev.id]  # 重提：替换上次产出
-    n = max((int(a.id[1:]) for a in items if a.id.startswith("A") and a.id[1:].isdigit()), default=0)
+    items = [a for a in rule_store.load(root) if a.src_id != ev.id]  # 重提：替换上次产出
+    n = max((int(a.id[1:]) for a in items if a.id.startswith("R") and a.id[1:].isdigit()), default=0)
     for a in got:
         n += 1
         if a.node not in valid:  # AI 编造路径 → 白名单外置空（未归类）
             a.node = ""
-        items.append(a.model_copy(update={"id": f"A{n}", "src_id": ev.id}))
-    assert_store.save(root, items)
+        items.append(a.model_copy(update={"id": f"R{n}", "src_id": ev.id}))
+    rule_store.save(root, items)
     await evidence.mark_extracted(root, ev.id, len(got))
     return len(got)
 
@@ -228,7 +228,7 @@ async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
         except Exception:
             jobs.update(jid, failed=jobs.get(jid).get("failed", 0) + 1)
     root = _root(proj)
-    ids = [a.id for a in assert_store.load(root) if not a.verified]
+    ids = [a.id for a in rule_store.load(root) if not a.verified]
     if not ids:
         jobs.update(jid, extracted=extracted)
         jobs.finish(jid)
@@ -247,11 +247,11 @@ async def _run_verify_phase(proj: str, jid: str, ids: list[str]) -> None:
         jobs.update(jid, cur=i // VERIFY_BATCH + 1, label=f"AI 全量核验 · 第 {i + 1}-{min(i + VERIFY_BATCH, len(ids))}/{len(ids)} 条")
         try:
             root = _root(proj)
-            items = assert_store.load(root)
+            items = rule_store.load(root)
             targets = [a for a in items if a.id in set(batch)]
             out = await _ai(tasks.verify, targets, material)
             stat = _apply_verify_results(items, out.results)
-            assert_store.save(root, items)
+            rule_store.save(root, items)
             jobs.update(jid, ok=jobs.get(jid)["ok"] + stat["ok"],
                         corrected=jobs.get(jid)["corrected"] + stat["corrected"],
                         nobasis=jobs.get(jid)["nobasis"] + stat["nobasis"])
@@ -266,15 +266,15 @@ async def delete_evidence(proj: str, ev_id: str):
     if await evidence.get(root, ev_id) is None:
         raise HTTPException(status_code=404, detail=f"证据不存在: {ev_id}")
     await evidence.remove(root, ev_id)
-    kept = [a for a in assert_store.load(root) if a.src_id != ev_id]  # 其产出的断言一并移除
-    assert_store.save(root, kept)
+    kept = [a for a in rule_store.load(root) if a.src_id != ev_id]  # 其产出的规则一并移除
+    rule_store.save(root, kept)
 
 
-# ---------- 断言 ----------
+# ---------- 规则 ----------
 
-@api_router.get("/assertions")
-async def list_assertions(proj: str):
-    return [a.model_dump() for a in assert_store.load(_root(proj))]
+@api_router.get("/rules")
+async def list_rules(proj: str):
+    return [a.model_dump() for a in rule_store.load(_root(proj))]
 
 
 def _apply_verify_results(items, results) -> dict:
@@ -292,39 +292,39 @@ def _apply_verify_results(items, results) -> dict:
             a.text, a.suspect, a.verified, a.nb = r["corrected_text"], True, True, ""
             stat["corrected"] += 1
         else:
-            a.nb = r.get("reason") or "材料中无对应依据"  # 推测类断言：留给人工核过/转问人
+            a.nb = r.get("reason") or "材料中无对应依据"  # 推测类规则：留给人工核过/转问人
             stat["nobasis"] += 1
     return stat
 
 
-@api_router.post("/assertions/verify")
-async def verify_assertions(proj: str, body: VerifyIn):
-    """单点核验专用（行内「核」按钮）：全量核验一律走 POST /assertions/verify-job 后台任务"""
+@api_router.post("/rules/verify")
+async def verify_rules(proj: str, body: VerifyIn):
+    """单点核验专用（行内「核」按钮）：全量核验一律走 POST /rules/verify-job 后台任务"""
     root = _root(proj)
-    items = assert_store.load(root)
+    items = rule_store.load(root)
     if not body.assert_id:
-        raise HTTPException(status_code=422, detail="本端点仅单点核验；全量核验请用 /assertions/verify-job")
+        raise HTTPException(status_code=422, detail="本端点仅单点核验；全量核验请用 /rules/verify-job")
     targets = [a for a in items if a.id == body.assert_id]
     if not targets:
-        raise HTTPException(status_code=404, detail=f"断言不存在: {body.assert_id}")
+        raise HTTPException(status_code=404, detail=f"规则不存在: {body.assert_id}")
     material = "\n\n".join(_evidence_text(root, e) for e in await evidence.list_all(root))
     out = await _ai(tasks.verify, targets, material)
     stat = _apply_verify_results(items, out.results)
-    assert_store.save(root, items)
+    rule_store.save(root, items)
     return {"applied": [r.get("id") for r in out.results], "results": out.results, **stat}
 
 
 VERIFY_BATCH = 20  # 每批核验条数：一次 LLM 调用一批，job 进度按批推进
 
 
-@api_router.post("/assertions/verify-job")
+@api_router.post("/rules/verify-job")
 async def verify_job(proj: str):
     """全量核验后台任务：分批逐批核验，进度由 GET /jobs 轮询（提取后前端自动链入，也可手动重核）"""
     root = _root(proj)
     if jobs.running():
         r = jobs.running()
         raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
-    ids = [a.id for a in assert_store.load(root) if not a.verified]
+    ids = [a.id for a in rule_store.load(root) if not a.verified]
     if not ids:
         raise HTTPException(status_code=422, detail="没有未核验的规则")
     total = (len(ids) + VERIFY_BATCH - 1) // VERIFY_BATCH
@@ -339,45 +339,45 @@ async def _run_verify(proj: str, jid: str, ids: list[str]) -> None:
     await _run_verify_phase(proj, jid, ids)
 
 
-@api_router.post("/assertions/{aid}/confirm", status_code=204)
-async def confirm_assertion(proj: str, aid: str):
-    """人工核过：不经 AI，直接确认该断言与实际一致"""
+@api_router.post("/rules/{rid}/confirm", status_code=204)
+async def confirm_rule(proj: str, rid: str):
+    """人工核过：不经 AI，直接确认该规则与实际一致"""
     root = _root(proj)
-    amap = _assert_map(root)
-    if aid not in amap:
-        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
-    a = amap[aid]
+    rmap = _rule_map(root)
+    if rid not in rmap:
+        raise HTTPException(status_code=404, detail=f"规则不存在: {rid}")
+    a = rmap[rid]
     a.verified, a.nb, a.clar = True, "", None
-    assert_store.save(root, list(amap.values()))
+    rule_store.save(root, list(rmap.values()))
 
 
-@api_router.post("/assertions/{aid}/ask", status_code=204)
-async def ask_assertion(proj: str, aid: str):
-    """转问人：推测/无依据断言进「问人」清单，答案确认后自动核过"""
+@api_router.post("/rules/{rid}/ask", status_code=204)
+async def ask_rule(proj: str, rid: str):
+    """转问人：推测/无依据规则进「问人」清单，答案确认后自动核过"""
     root = _root(proj)
-    amap = _assert_map(root)
-    if aid not in amap:
-        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
-    a = amap[aid]
+    rmap = _rule_map(root)
+    if rid not in rmap:
+        raise HTTPException(status_code=404, detail=f"规则不存在: {rid}")
+    a = rmap[rid]
     if a.clar:
-        raise HTTPException(status_code=409, detail=f"{aid} 已转问人（问#{a.clar}）")
+        raise HTTPException(status_code=409, detail=f"{rid} 已转问人（问#{a.clar}）")
     c = await clarifications.add(root, a.text + "——该推测与实际系统一致吗？",
                                  ["确认一致", "与实际不符", "不清楚"], ref=a.id)
     a.clar = c.no
-    assert_store.save(root, list(amap.values()))
+    rule_store.save(root, list(rmap.values()))
 
 
-@api_router.put("/assertions/{aid}/node", status_code=204)
-async def set_assertion_node(proj: str, aid: str, body: NodeIn):
+@api_router.put("/rules/{rid}/node", status_code=204)
+async def set_rule_node(proj: str, rid: str, body: NodeIn):
     """人工挂载/改归属：node 必须为空（回未归类）或树中全路径"""
     root = _root(proj)
-    amap = _assert_map(root)
-    if aid not in amap:
-        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
+    rmap = _rule_map(root)
+    if rid not in rmap:
+        raise HTTPException(status_code=404, detail=f"规则不存在: {rid}")
     if body.node and body.node not in tree.paths(_load_tree(root)):
         raise HTTPException(status_code=422, detail=f"节点不存在: {body.node}")
-    amap[aid].node = body.node
-    assert_store.save(root, list(amap.values()))
+    rmap[rid].node = body.node
+    rule_store.save(root, list(rmap.values()))
 
 
 # ---------- 矛盾 ----------
@@ -390,7 +390,7 @@ async def list_conflicts(proj: str):
 @api_router.post("/conflicts/rescan")
 async def rescan_conflicts(proj: str):
     root = _root(proj)
-    detected = await _ai(tasks.conflict, assert_store.load(root))
+    detected = await _ai(tasks.conflict, rule_store.load(root))
     items = findings.merge_conflicts(root, detected)
     return [c.model_dump() for c in items]
 
@@ -408,8 +408,8 @@ async def adjudicate_conflict(proj: str, body: ConflictIn):
         c.st, c.resolution = "code", c.a if body.side == "a" else c.b
     elif body.action == "clar":
         c.st = "clar"
-        amap = _assert_map(root)
-        opts = [amap[c.a].text if c.a in amap else "", amap[c.b].text if c.b in amap else ""]
+        rmap = _rule_map(root)
+        opts = [rmap[c.a].text if c.a in rmap else "", rmap[c.b].text if c.b in rmap else ""]
         await clarifications.add(root, c.q, opts, ref=c.id)
     else:
         raise HTTPException(status_code=422, detail="action 必须为 code 或 clar")
@@ -438,19 +438,19 @@ async def rescan_gaps(proj: str, node_path: str = ""):
         node, full = _resolve(nodes, node_path)
         if node is None:
             raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
-        subtree = [c for c in cards.load_latest(root) if _in_subtree(c.node, full)]
+        subtree = [c for c in profiles.load_latest(root) if _in_subtree(c.node, full)]
         if not subtree:
             raise HTTPException(status_code=422, detail=f"该节点及其子树都没有画像，请先生成画像: {node_path}")
-        summary = "\n".join(_card_summary(c) for c in subtree)
+        summary = "\n".join(_profile_summary(c) for c in subtree)
     else:
-        summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无卡片）"
+        summary = "\n".join(_profile_summary(c) for c in profiles.load_all(root)) or "（暂无用户画像）"
     detected = await _ai(tasks.gaps, summary, dim_list)
     detected = [g for g in detected if g.dim in dim_list]  # 防 AI 自造维度
     items = findings.merge_gaps(root, detected)
     return [g.model_dump() for g in items]
 
 
-def _card_summary(c) -> str:
+def _profile_summary(c) -> str:
     rules = "；".join(r.text for r in c.rules)
     return f"{c.node}：{c.goal}；主流程：{c.flow}；规则：{rules}"
 
@@ -551,52 +551,52 @@ async def scaffold_tree(proj: str):
     return [n.model_dump() for n in nodes]
 
 
-# ---------- 卡片 ----------
+# ---------- 用户画像 ----------
 
 def _void_ids(root) -> set[str]:
-    """矛盾裁决信代码侧后，被否定一侧断言视为作废，不得进入组装"""
+    """矛盾裁决信代码侧后，被否定一侧规则视为作废，不得进入组装"""
     return {x for c in findings.load_conflicts(root)
             if c.st == "code" and c.resolution
             for x in (c.a, c.b) if x != c.resolution}
 
 
-@api_router.post("/cards/assemble")
-async def assemble_card(proj: str, body: AssembleIn):
+@api_router.post("/profiles/assemble")
+async def assemble_profile(proj: str, body: AssembleIn):
     root = _root(proj)
     nodes = _load_tree(root)
     node, full = _resolve(nodes, body.node_path)
     if node is None:
         raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
     void = _void_ids(root)
-    usable = [a for a in assert_store.load(root) if a.id not in void and _in_subtree(a.node, full)]
+    usable = [a for a in rule_store.load(root) if a.id not in void and _in_subtree(a.node, full)]
     if not usable:
         raise HTTPException(
             status_code=409,
             detail=f"「{full}」及其子树没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
         )
-    card = await _ai(tasks.assemble, usable, node.name, body.note)
-    card.node = full  # 存储按树全路径寻址（load/export 匹配用）
-    f = cards.save_card(root, full, card)
-    return {"card": card.model_dump(), "file": f.name}
+    profile = await _ai(tasks.assemble, usable, node.name, body.note)
+    profile.node = full  # 存储按树全路径寻址（load/export 匹配用）
+    f = profiles.save_profile(root, full, profile)
+    return {"profile": profile.model_dump(), "file": f.name}
 
 
-@api_router.get("/cards/{node_path}")
-async def get_card(proj: str, node_path: str):
+@api_router.get("/profiles/{node_path}")
+async def get_profile(proj: str, node_path: str):
     root = _root(proj)
     nodes = _load_tree(root)
     node, full = _resolve(nodes, node_path)
     if node is None:
         raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
-    card = cards.load_card(root, full)
+    card = profiles.load_profile(root, full)
     if card is None:
-        raise HTTPException(status_code=404, detail=f"节点无卡片: {node_path}")
+        raise HTTPException(status_code=404, detail=f"节点无用户画像: {node_path}")
     return card.model_dump()
 
 
 @api_router.get("/doc")
 async def export_doc(proj: str):
     try:
-        text = cards.export_doc(_root(proj))
+        text = profiles.export_doc(_root(proj))
     except tree.TreeFormatError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return PlainTextResponse(text, media_type="text/markdown; charset=utf-8")
@@ -608,7 +608,7 @@ class BatchIn(BaseModel):
     node_path: str = ""  # 空 = 全部叶子；给定 = 该节点子树内的叶子
 
 
-@api_router.post("/cards/assemble-batch")
+@api_router.post("/profiles/assemble-batch")
 async def assemble_batch(proj: str, body: BatchIn):
     """创建批量画像后台任务，立即返回 job_id——长任务不走单请求（会超时），进度由 GET /jobs 轮询"""
     root = _root(proj)
@@ -634,7 +634,7 @@ async def _run_batch(proj: str, jid: str, lv: list[tuple[str, str]]) -> None:
     for i, (digits, name) in enumerate(lv, 1):
         jobs.update(jid, cur=i, label=f"AI 生成画像 · {name}")
         try:
-            await assemble_card(proj, AssembleIn(node_path=digits, note=""))
+            await assemble_profile(proj, AssembleIn(node_path=digits, note=""))
             jobs.bump(jid, "ok")
         except HTTPException as e:
             if e.status_code == 409:
@@ -679,11 +679,11 @@ async def resolve_clarification(proj: str, body: ClarIn):
             raise HTTPException(status_code=422, detail="action 必须为 answer 或 verify")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    # 闭环联动：ref 指向断言（① 转来的推测）时，人工确认答案 = 断言核过
-    amap = _assert_map(root)
-    if cl.ref in amap:
-        amap[cl.ref].verified, amap[cl.ref].nb, amap[cl.ref].clar = True, "", None
-        assert_store.save(root, list(amap.values()))
+    # 闭环联动：ref 指向规则（① 转来的推测）时，人工确认答案 = 规则核过
+    rmap = _rule_map(root)
+    if cl.ref in rmap:
+        rmap[cl.ref].verified, rmap[cl.ref].nb, rmap[cl.ref].clar = True, "", None
+        rule_store.save(root, list(rmap.values()))
     return cl.model_dump()
 
 

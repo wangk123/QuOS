@@ -37,11 +37,11 @@ const hasKids = (n: TreeNode) => n.children.length > 0
       <span class="prio-badge" :class="n.priority ? `p-${n.priority}` : 'p-none'"
         :title="`重要度 ${n.priority || '未标'}（点击切换）`" @click.stop="emit('op', 'prio', pathOf(i))"
       >{{ n.priority || '☆' }}</span>
-      <span v-if="n.stats?.ok && !n.stats?.warn" class="nbadge okc" title="卡片已实证">
+      <span v-if="n.stats?.ok && !n.stats?.warn" class="nbadge okc" title="用户画像已实证">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5" /></svg>
       </span>
       <span v-if="n.stats?.warn" class="nbadge warn" :title="`待确认 ${n.stats.warn} 项（空白/矛盾/推测）`">{{ n.stats.warn }}</span>
-      <span v-if="n.stats?.asrt" class="nbadge cnt" :title="`${n.stats.asrt} 条规则`">{{ n.stats.asrt }}</span>
+      <span v-if="n.stats?.rule" class="nbadge cnt" :title="`${n.stats.rule} 条规则`">{{ n.stats.rule }}</span>
       <span class="nops">
         <button type="button" data-op="add" title="加子节点" @click.stop="emit('op', 'add', pathOf(i))">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>

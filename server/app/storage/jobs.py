@@ -1,6 +1,6 @@
 # server/app/storage/jobs.py
 # 后台任务登记（内存态）：批量画像等长任务的进度源，前端轮询 GET /jobs。
-# 单人本地工具：同一时刻至多一个 running 任务；服务重启丢任务状态（已完成的卡片文件已落盘，不受影响）。
+# 单人本地工具：同一时刻至多一个 running 任务；服务重启丢任务状态（已完成的用户画像文件已落盘，不受影响）。
 import time
 
 _jobs: dict[str, dict] = {}

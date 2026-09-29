@@ -4,7 +4,7 @@
 
 **Goal:** 落地 spec `docs/specs/2026-09-28-flow-redesign-design.md`：五步四字流程 + 顶栏澄清池 + 规则挂节点/重要度排序 + AI 树骨架。
 
-**Architecture:** 前端重排导航与视图（Vue3 无 router 库，视图状态在 `web/src/router.ts`）；后端给 `Assertion` 加 `node`、树节点加 `priority`，extract prompt 带树上下文做归属标注，新增 outline/scaffold 链路；分组聚合逻辑抽成前端纯函数模块 `web/src/grouping.ts` 以便 vitest 覆盖。
+**Architecture:** 前端重排导航与视图（Vue3 无 router 库，视图状态在 `web/src/router.ts`）；后端给 `Rule` 加 `node`、树节点加 `priority`，extract prompt 带树上下文做归属标注，新增 outline/scaffold 链路；分组聚合逻辑抽成前端纯函数模块 `web/src/grouping.ts` 以便 vitest 覆盖。
 
 **Tech Stack:** FastAPI + pydantic（server，uv 管理）；Vue3 + Vite + vitest（web）；AI 任务 = `server/app/ai/prompts/*.md` 模板 + `tasks.py` 封装。
 
@@ -14,18 +14,18 @@
 
 - Commit 格式：`<type>：<描述>`（type ∈ feat|fix|refactor|test|docs…，技术名词保留英文）。
 - 不新增任何依赖（前端无 @vue/test-utils，Vue 组件不做单测，逻辑抽纯函数测）。
-- 术语：UI 文案「断言」→「规则」、「问人」→「澄清池」；数据层 `Assertion`/接口路径不改名。
+- 术语：UI 文案「规则」→「规则」、「问人」→「澄清池」；数据层 `Rule`/接口路径不改名。
 - 后端测试：`cd server && uv run pytest tests/<文件> -v`（asyncio_mode=auto）；前端：`cd web && npm run test` / `npm run build`。
 - 行数上限：前端组件 500 行（Fact.vue 重构必须把分组逻辑放 grouping.ts）；后端模块 500 行。
-- 存量数据兼容：旧 `assertions.json` 无 `node` 字段 → pydantic 默认 `""`，不写迁移；旧 `tree.md` 无 priority 后缀 → 默认 `""`。
-- 工作区已有未提交改动（断言 confirm/ask 闭环等）——本计划基于其上开发，commit 时只 add 本任务触及文件。
+- 存量数据兼容：旧 `rules.json` 无 `node` 字段 → pydantic 默认 `""`，不写迁移；旧 `tree.md` 无 priority 后缀 → 默认 `""`。
+- 工作区已有未提交改动（规则 confirm/ask 闭环等）——本计划基于其上开发，commit 时只 add 本任务触及文件。
 
 ## Review Focus
 
 1. **AI 编造 node 路径**（extract 返回树中不存在的路径）→ 服务端白名单校验置 `""` 进未归类。测试：Task 5 Step 1。
 2. **节点改名后规则 node 失配**（存量全路径不再在树中）→ 前端归「未归类」桶显示，不丢数据。测试：Task 9 Step 1 `失配归属进未归类`。
 3. **tree.md 名称本身含 `@P1` 文本** → parse 仅剥离行尾严格的 `@P0|@P1|@P2` 后缀。测试：Task 7 Step 1 `名称含@不误剥`。
-4. **assemble 节点过滤后规则集为空** → 空卡片正常返回不 500。测试：Task 8 Step 1 `无匹配规则时空卡组装`。
+4. **assemble 节点过滤后规则集为空** → 空用户画像正常返回不 500。测试：Task 8 Step 1 `无匹配规则时空卡组装`。
 5. **scaffold 对非空树调用**（重复点击/并发）→ 409 拒绝，不覆盖已有树。测试：Task 13 Step 1 `非空树拒绝`。
 
 ---
@@ -67,7 +67,7 @@ git commit -m "refactor：整理流程导航重排为五步四字命名"
 ### Task 2: 五视图 + App 文案统一
 
 **Files:**
-- Modify: `web/src/views/Fact.vue`、`Conflict.vue`、`Card.vue`、`Gap.vue`、`Save.vue`、`Pool.vue`、`App.vue`
+- Modify: `web/src/views/Fact.vue`、`Conflict.vue`、`Profile.vue`、`Gap.vue`、`Save.vue`、`Pool.vue`、`App.vue`
 
 **Interfaces:**
 - Consumes: Task 1 的步骤序号（①规则提取 ②冲突裁决 ③生成画像 ④查漏补缺 ⑤定稿存档）。
@@ -79,33 +79,33 @@ git commit -m "refactor：整理流程导航重排为五步四字命名"
 |---|---|---|
 | Fact.vue:143 | `① 提事实 · {{ curName }}` | `① 规则提取 · {{ curName }}` |
 | Fact.vue:144 | `AI 读材料，一句句写下…` | `AI 读材料提取行为规则，逐条核验；按模块›功能点分组，组内按重要度排序。` |
-| Fact.vue:164 | `断言表 · {{ curName }}` | `规则表 · {{ curName }}` |
-| Fact.vue:170 | `<th>断言（必须能判对错）</th>` | `<th>规则（必须能判对错）</th>` |
+| Fact.vue:164 | `规则表 · {{ curName }}` | `规则表 · {{ curName }}` |
+| Fact.vue:170 | `<th>规则（必须能判对错）</th>` | `<th>规则（必须能判对错）</th>` |
 | Fact.vue:133 | `已进「问人」清单（⑤ 确认答案后自动核过）` | `已进澄清池（答案确认后自动核过）` |
-| Fact.vue:201 | `还没有断言——点「提取池中相关材料」` | `还没有规则——点「提取池中相关材料」` |
+| Fact.vue:201 | `还没有规则——点「提取池中相关材料」` | `还没有规则——点「提取池中相关材料」` |
 | Conflict.vue:80 | `② 挑矛盾` | `② 冲突裁决` |
 | Conflict.vue:110 | `转问人` | `转澄清` |
 | Conflict.vue:56 | `已进「问人」清单` | `已进澄清池` |
 | Conflict.vue:112 | `已转问人` | `已转澄清` |
-| Conflict.vue:62-64 | `对当前断言全集跑矛盾检测` / `条断言两两比对` | `对当前规则全集跑冲突检测` / `条规则两两比对` |
-| Card.vue:98 | `④ 成卡片` | `③ 生成画像` |
-| Card.vue:99 | `断言挂到树叶上；挂不上的 = 树缺枝，补。` | `核验通过的规则聚合成需求画像草稿——挂不上的 = 树缺枝，补。` |
-| Card.vue:52 | `AI 组装卡片：断言挂树…` | `AI 生成画像：规则挂树 · 标置信度 · 并入补充意见…` |
-| Card.vue:113 | `断言就绪…（组装要求全部断言已核验…）` | `规则就绪，点击「AI 生成画像草稿」…（要求全部规则已核验且非「待实证」）` |
-| Card.vue:122 | `断言 {{ card.rules.length }} 条规则` | `画像 {{ card.rules.length }} 条规则` |
-| Card.vue:147 | `未确认项（转「问人」）` | `未确认项（转澄清池）` |
+| Conflict.vue:62-64 | `对当前规则全集跑矛盾检测` / `条规则两两比对` | `对当前规则全集跑冲突检测` / `条规则两两比对` |
+| Profile.vue:98 | `④ 成用户画像` | `③ 生成画像` |
+| Profile.vue:99 | `规则挂到树叶上；挂不上的 = 树缺枝，补。` | `核验通过的规则聚合成需求画像草稿——挂不上的 = 树缺枝，补。` |
+| Profile.vue:52 | `AI 组装用户画像：规则挂树…` | `AI 生成画像：规则挂树 · 标置信度 · 并入补充意见…` |
+| Profile.vue:113 | `规则就绪…（组装要求全部规则已核验…）` | `规则就绪，点击「AI 生成画像草稿」…（要求全部规则已核验且非「待实证」）` |
+| Profile.vue:122 | `规则 {{ card.rules.length }} 条规则` | `画像 {{ card.rules.length }} 条规则` |
+| Profile.vue:147 | `未确认项（转「问人」）` | `未确认项（转澄清池）` |
 | Gap.vue:89 | `③ 找空白` | `④ 查漏补缺` |
 | Gap.vue:38 | `空白 → 「问人」清单` | `缺口 → 澄清池` |
 | Gap.vue:111 | `转问人` | `转澄清` |
 | Gap.vue:114 | `已转问人` | `已转澄清` |
-| Gap.vue:119 | `没有空白记录——…（组装卡片后扫描更准）` | `没有缺口记录——点「AI 重扫」（先生成画像，扫描更准）` |
+| Gap.vue:119 | `没有空白记录——…（组装用户画像后扫描更准）` | `没有缺口记录——点「AI 重扫」（先生成画像，扫描更准）` |
 | Gap.vue:124 | `找空白 · 维度配置` | `查漏补缺 · 维度配置` |
 | Save.vue:88 | `⑥ 存档` | `⑤ 定稿存档` |
-| Save.vue:89 | `本节点整理完成 → 卡片并入项目基线…` | `补充意见重生成终稿，存入项目基线（git commit+tag）。` |
-| Save.vue:100 | `断言 {{ asrtCnt }} 条` | `规则 {{ asrtCnt }} 条` |
+| Save.vue:89 | `本节点整理完成 → 用户画像并入项目基线…` | `补充意见重生成终稿，存入项目基线（git commit+tag）。` |
+| Save.vue:100 | `规则 {{ asrtCnt }} 条` | `规则 {{ asrtCnt }} 条` |
 | Save.vue:103 | `建议先回 ⑤ 问人收口` | `建议先在顶栏澄清池收口` |
-| Pool.vue:102 | `// 跳到 ① 提事实查看新断言` | `// 跳到 ① 规则提取查看新规则` |
-| Pool.vue:97/100/113 | `提炼行为断言` / `条断言` | `提炼行为规则` / `条规则` |
+| Pool.vue:102 | `// 跳到 ① 提事实查看新规则` | `// 跳到 ① 规则提取查看新规则` |
+| Pool.vue:97/100/113 | `提炼行为规则` / `条规则` | `提炼行为规则` / `条规则` |
 | App.vue:217 | `某节点整理完成（⑥存档）后出现` | `某节点定稿存档后出现` |
 | App.vue:221 | `只重跑该子树的 ①-⑤` | `只重跑该子树的 ①-④ 再重新定稿` |
 
@@ -118,7 +118,7 @@ Expected: 均通过（纯文案改动，router.test.ts 不涉）
 
 ```bash
 git add web/src/views/ web/src/App.vue
-git commit -m "refactor：五视图文案统一（断言→规则、问人→澄清池、步骤序号对齐）"
+git commit -m "refactor：五视图文案统一（规则→规则、问人→澄清池、步骤序号对齐）"
 ```
 
 ---
@@ -218,20 +218,20 @@ git commit -m "feat：问人降为顶栏澄清池（抽屉+未答角标，全程
 - Modify: `server/app/api/router.py:301-309`（rescan_gaps）、`web/src/api.ts:188`、`web/src/views/Gap.vue:44-55`
 
 **Interfaces:**
-- Produces: `POST /gaps/rescan?node_path=<数字路径>`——带参时 summary 仅取该节点卡片；该节点无卡片 422；不带参保持旧行为（全部卡片）。`rescanGaps(nodePath?: string)`。
+- Produces: `POST /gaps/rescan?node_path=<数字路径>`——带参时 summary 仅取该节点用户画像；该节点无用户画像 422；不带参保持旧行为（全部用户画像）。`rescanGaps(nodePath?: string)`。
 
 - [ ] **Step 1: 写失败测试（server/tests/test_api.py 追加）**
 
 ```python
 async def test_gaps_scan_scoped_to_node(client, monkeypatch):
     from app.storage import cards as card_store
-    from app.storage.cards import Card, Rule
+    from app.storage.cards import Profile, Rule
     root = ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
-    card_store.save_card(root, "支付/放款重试", Card(node="支付/放款重试", goal="不重复放款"))
-    card_store.save_card(root, "风控", Card(node="风控", goal="额度不超限"))
+    card_store.save_profile(root, "支付/放款重试", Profile(node="支付/放款重试", goal="不重复放款"))
+    card_store.save_profile(root, "风控", Profile(node="风控", goal="额度不超限"))
 
     seen = {}
     async def mock_gaps(summary, dims):
@@ -244,16 +244,16 @@ async def test_gaps_scan_scoped_to_node(client, monkeypatch):
     assert "不重复放款" in seen["summary"] and "额度不超限" not in seen["summary"]
 
     r = await client.post(f"{BASE}/gaps/rescan", params={"node_path": "1"})
-    assert r.status_code == 422 and "无卡片" in r.json()["detail"]
+    assert r.status_code == 422 and "无用户画像" in r.json()["detail"]
 
-    await client.post(f"{BASE}/gaps/rescan")  # 不带参：旧行为全部卡片
+    await client.post(f"{BASE}/gaps/rescan")  # 不带参：旧行为全部用户画像
     assert "额度不超限" in seen["summary"]
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
 
 Run: `cd server && uv run pytest tests/test_api.py::test_gaps_scan_scoped_to_node -v`
-Expected: FAIL（summary 含全部卡片 / 422 未实现）
+Expected: FAIL（summary 含全部用户画像 / 422 未实现）
 
 - [ ] **Step 3: 实现 rescan_gaps 节点过滤**
 
@@ -267,12 +267,12 @@ async def rescan_gaps(proj: str, node_path: str = ""):
         node, full = _resolve(nodes, node_path)
         if node is None:
             raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
-        card = cards.load_card(root, full)
+        card = cards.load_profile(root, full)
         if card is None:
-            raise HTTPException(status_code=422, detail=f"节点无卡片，请先生成画像: {node_path}")
+            raise HTTPException(status_code=422, detail=f"节点无用户画像，请先生成画像: {node_path}")
         summary = _card_summary(card)
     else:
-        summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无卡片）"
+        summary = "\n".join(_card_summary(c) for c in cards.load_all(root)) or "（暂无用户画像）"
     detected = await _ai(tasks.gaps, summary, dim_list)
     detected = [g for g in detected if g.dim in dim_list]
     items = findings.merge_gaps(root, detected)
@@ -302,19 +302,19 @@ Expected: 通过
 
 ```bash
 git add server/app/api/router.py server/tests/test_api.py web/src/api.ts web/src/views/Gap.vue
-git commit -m "fix：查漏补缺扫描限定当前节点卡片（原误吃全局卡片）"
+git commit -m "fix：查漏补缺扫描限定当前节点用户画像（原误吃全局用户画像）"
 ```
 
 ---
 
-### Task 5: Assertion.node 字段与提取归属
+### Task 5: Rule.node 字段与提取归属
 
 **Files:**
 - Modify: `server/app/core/models.py:20-30`、`server/app/storage/tree.py`（加 paths）、`server/app/ai/prompts/extract.md`、`server/app/ai/tasks.py:43-49`、`server/app/ai/fake.py:13-18`、`server/app/api/router.py:163-180`（extract_evidence）
 - Test: `server/tests/test_api.py`、`server/tests/test_ai_extract.py`
 
 **Interfaces:**
-- Produces: `Assertion.node: str = ""`（功能点全路径，空=未归类）；`tree.paths(nodes) -> list[str]`（全部节点全路径，树序）；`tasks.extract(content, type, tree_text: str)`（第三参为换行分隔的路径清单文本）。
+- Produces: `Rule.node: str = ""`（功能点全路径，空=未归类）；`tree.paths(nodes) -> list[str]`（全部节点全路径，树序）；`tasks.extract(content, type, tree_text: str)`（第三参为换行分隔的路径清单文本）。
 
 - [ ] **Step 1: 写失败测试（test_api.py 追加）**
 
@@ -327,29 +327,29 @@ async def test_extract_binds_node_and_sanitizes(client, monkeypatch):
 
     async def mock_extract(content, evidence_type, tree_text):
         assert "支付/放款重试" in tree_text
-        return [Assertion(id="E1", text="当超时重试3次", src="retry.py:15", conf="实证",
+        return [Rule(id="E1", text="当超时重试3次", src="retry.py:15", conf="实证",
                           node="支付/放款重试"),
-                Assertion(id="E2", text="当失败告警", src="log.py:3", conf="实证",
+                Rule(id="E2", text="当失败告警", src="log.py:3", conf="实证",
                           node="支付/编造的节点")]  # AI 编造路径
     monkeypatch.setattr(tasks, "extract", mock_extract)
 
     ev_id = (await client.get(f"{BASE}/evidence")).json()[0]["id"]
     r = await client.post(f"{BASE}/evidence/{ev_id}/extract")
     assert r.status_code == 200
-    rows = {a["id"]: a for a in (await client.get(f"{BASE}/assertions")).json()}
+    rows = {a["id"]: a for a in (await client.get(f"{BASE}/rules")).json()}
     assert rows["A1"]["node"] == "支付/放款重试"
     assert rows["A2"]["node"] == ""  # 编造路径被白名单置空
 ```
 
 ```python
-async def test_legacy_assertions_without_node_load(client):
-    # 存量 assertions.json 无 node 字段 → 默认 ""，不炸
+async def test_legacy_rules_without_node_load(client):
+    # 存量 rules.json 无 node 字段 → 默认 ""，不炸
     import json
-    from app.storage import assertions as assert_store
+    from app.storage import rules as rule_store
     root = ensure_root("演示项目")
-    (root / "assertions.json").write_text(
+    (root / "rules.json").write_text(
         json.dumps([{"id": "A1", "text": "t", "src": "s", "conf": "实证"}], ensure_ascii=False), "utf-8")
-    rows = (await client.get(f"{BASE}/assertions")).json()
+    rows = (await client.get(f"{BASE}/rules")).json()
     assert rows[0]["node"] == ""
 ```
 
@@ -360,7 +360,7 @@ Expected: FAIL（mock_extract 收到 2 参报 TypeError）
 
 - [ ] **Step 3: 实现**
 
-`models.py` Assertion 加字段：
+`models.py` Rule 加字段：
 
 ```python
     node: str = ""  # 归属功能点全路径；空 = 未归类（树缺枝探伤器入口）
@@ -387,21 +387,21 @@ def paths(nodes: list[Node], prefix: str = "") -> list[str]:
 {tree_list}
 ```
 
-输出结构改为 `{{"assertions": [{{"id": "E1", "text": "…", "src": "retry.py:15", "conf": "实证", "node": "支付/放款重试"}}]}}`。
+输出结构改为 `{{"rules": [{{"id": "E1", "text": "…", "src": "retry.py:15", "conf": "实证", "node": "支付/放款重试"}}]}}`。
 
 `tasks.py`：
 
 ```python
-async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Assertion]:
+async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> list[Rule]:
     out = await complete(
         "extract",
         {"material": evidence_content, "evidence_type": evidence_type, "tree_list": tree_text},
         ExtractOut,
     )
-    return out.assertions
+    return out.rules
 ```
 
-`fake.py`：`async def fake_extract(evidence_content: str, evidence_type: str, tree_text: str)`，返回的断言加 `node=""`。
+`fake.py`：`async def fake_extract(evidence_content: str, evidence_type: str, tree_text: str)`，返回的规则加 `node=""`。
 
 `router.py` extract_evidence 改：
 
@@ -409,7 +409,7 @@ async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> 
     nodes = _load_tree(root)
     valid = set(tree.paths(nodes))
     got = await _ai(tasks.extract, _evidence_text(root, ev), ev.type, "\n".join(valid) or "（空树：全部留空）")
-    items = [a for a in assert_store.load(root) if a.src_id != ev_id]
+    items = [a for a in rule_store.load(root) if a.src_id != ev_id]
     n = max((int(a.id[1:]) for a in items if a.id.startswith("A") and a.id[1:].isdigit()), default=0)
     for a in got:
         n += 1
@@ -420,8 +420,8 @@ async def extract(evidence_content: str, evidence_type: str, tree_text: str) -> 
 
 - [ ] **Step 4: 更新受签名影响的既有测试**
 
-`test_api.py`：`test_end_to_end` 与 `test_verify_correction_written_back` 的 `mock_extract` 改三参 `(content, evidence_type, tree_text)`；`test_end_to_end` 的断言构造加 `node="放款/放款重试"`（树已建好，保证后续 assemble 语义不变）。
-`test_ai_extract.py`：`test_extract` 调用改 `await tasks.extract("代码内容", "代码", "支付/放款重试")`，mock 内断言 `variables["tree_list"] == "支付/放款重试"`。
+`test_api.py`：`test_end_to_end` 与 `test_verify_correction_written_back` 的 `mock_extract` 改三参 `(content, evidence_type, tree_text)`；`test_end_to_end` 的规则构造加 `node="放款/放款重试"`（树已建好，保证后续 assemble 语义不变）。
+`test_ai_extract.py`：`test_extract` 调用改 `await tasks.extract("代码内容", "代码", "支付/放款重试")`，mock 内规则 `variables["tree_list"] == "支付/放款重试"`。
 
 - [ ] **Step 5: 跑定向测试确认通过**
 
@@ -432,7 +432,7 @@ Expected: 全部 PASS
 
 ```bash
 git add server/app/core/models.py server/app/storage/tree.py server/app/ai/prompts/extract.md server/app/ai/tasks.py server/app/ai/fake.py server/app/api/router.py server/tests/test_api.py server/tests/test_ai_extract.py
-git commit -m "feat：规则提取绑定节点归属（Assertion.node + 提取白名单校验）"
+git commit -m "feat：规则提取绑定节点归属（Rule.node + 提取白名单校验）"
 ```
 
 ---
@@ -440,27 +440,27 @@ git commit -m "feat：规则提取绑定节点归属（Assertion.node + 提取�
 ### Task 6: 规则归属修改 API
 
 **Files:**
-- Modify: `server/app/api/router.py`（断言区追加）、`web/src/api.ts`
+- Modify: `server/app/api/router.py`（规则区追加）、`web/src/api.ts`
 
 **Interfaces:**
-- Produces: `PUT /assertions/{aid}/node`，body `{"node": "支付/放款重试"}`，node 须为空串或树中路径；204。`setAssertionNode(id, node)`（Task 9 消费）。
+- Produces: `PUT /rules/{aid}/node`，body `{"node": "支付/放款重试"}`，node 须为空串或树中路径；204。`setRuleNode(id, node)`（Task 9 消费）。
 
 - [ ] **Step 1: 写失败测试（test_api.py 追加）**
 
 ```python
 async def test_set_assertion_node(client):
-    from app.storage import assertions as assert_store
+    from app.storage import rules as rule_store
     root = ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
-    assert_store.save(root, [Assertion(id="A1", text="t", src="s", conf="实证")])
+    rule_store.save(root, [Rule(id="A1", text="t", src="s", conf="实证")])
 
-    r = await client.put(f"{BASE}/assertions/A1/node", json={"node": "支付"})
+    r = await client.put(f"{BASE}/rules/A1/node", json={"node": "支付"})
     assert r.status_code == 204
-    assert (await client.get(f"{BASE}/assertions")).json()[0]["node"] == "支付"
+    assert (await client.get(f"{BASE}/rules")).json()[0]["node"] == "支付"
 
-    assert (await client.put(f"{BASE}/assertions/A1/node", json={"node": "不存在"})).status_code == 422
-    assert (await client.put(f"{BASE}/assertions/A1/node", json={"node": ""})).status_code == 204  # 清空回未归类
-    assert (await client.put(f"{BASE}/assertions/NOPE/node", json={"node": "支付"})).status_code == 404
+    assert (await client.put(f"{BASE}/rules/A1/node", json={"node": "不存在"})).status_code == 422
+    assert (await client.put(f"{BASE}/rules/A1/node", json={"node": ""})).status_code == 204  # 清空回未归类
+    assert (await client.put(f"{BASE}/rules/NOPE/node", json={"node": "支付"})).status_code == 404
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -468,32 +468,32 @@ async def test_set_assertion_node(client):
 Run: `cd server && uv run pytest tests/test_api.py::test_set_assertion_node -v`
 Expected: FAIL（405/404，路由不存在）
 
-- [ ] **Step 3: 实现（router.py 断言区追加）**
+- [ ] **Step 3: 实现（router.py 规则区追加）**
 
 ```python
 class NodeIn(BaseModel):
     node: str
 
 
-@api_router.put("/assertions/{aid}/node", status_code=204)
+@api_router.put("/rules/{aid}/node", status_code=204)
 async def set_assertion_node(proj: str, aid: str, body: NodeIn):
     """人工挂载/改归属：node 必须为空（回未归类）或树中全路径"""
     root = _root(proj)
     amap = _assert_map(root)
     if aid not in amap:
-        raise HTTPException(status_code=404, detail=f"断言不存在: {aid}")
+        raise HTTPException(status_code=404, detail=f"规则不存在: {aid}")
     if body.node and body.node not in tree.paths(_load_tree(root)):
         raise HTTPException(status_code=422, detail=f"节点不存在: {body.node}")
     amap[aid].node = body.node
-    assert_store.save(root, list(amap.values()))
+    rule_store.save(root, list(amap.values()))
 ```
 
 `api.ts`：
 
 ```ts
 /** 人工挂载/改归属；node 为空串 = 回未归类 */
-export const setAssertionNode = (id: string, node: string) =>
-  req<void>(`/assertions/${encodeURIComponent(id)}/node`, json('PUT', { node }))
+export const setRuleNode = (id: string, node: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}/node`, json('PUT', { node }))
 ```
 
 - [ ] **Step 4: 跑测试确认通过 + Commit**
@@ -503,7 +503,7 @@ Expected: PASS / 构建通过
 
 ```bash
 git add server/app/api/router.py server/tests/test_api.py web/src/api.ts
-git commit -m "feat：规则归属人工修改端点 PUT /assertions/{aid}/node"
+git commit -m "feat：规则归属人工修改端点 PUT /rules/{aid}/node"
 ```
 
 ---
@@ -624,29 +624,29 @@ git commit -m "feat：树节点重要度 P0/P1/P2（tree.md 行尾标记 + prio 
 - Test: `server/tests/test_api.py`
 
 **Interfaces:**
-- Consumes: Task 5 的 `Assertion.node`。
+- Consumes: Task 5 的 `Rule.node`。
 
 - [ ] **Step 1: 写失败测试（test_api.py 追加）**
 
 ```python
 async def test_assemble_filters_by_node(client, monkeypatch):
-    from app.storage import assertions as assert_store
+    from app.storage import rules as rule_store
     root = ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
-    assert_store.save(root, [
-        Assertion(id="A1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
-        Assertion(id="A2", text="风控拦截", src="r.py:2", conf="实证", verified=True, node="风控"),
-        Assertion(id="A3", text="未归类规则", src="r.py:3", conf="实证", verified=True, node=""),
+    rule_store.save(root, [
+        Rule(id="A1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
+        Rule(id="A2", text="风控拦截", src="r.py:2", conf="实证", verified=True, node="风控"),
+        Rule(id="A3", text="未归类规则", src="r.py:3", conf="实证", verified=True, node=""),
     ])
     seen = {}
-    async def mock_assemble(assertions, node_name, note):
-        seen["ids"] = [a.id for a in assertions]
-        return Card(node=node_name, goal="g")
+    async def mock_assemble(rules, node_name, note):
+        seen["ids"] = [a.id for a in rules]
+        return Profile(node=node_name, goal="g")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
 
-    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0,0", "note": ""})
+    r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0,0", "note": ""})
     assert r.status_code == 200 and seen["ids"] == ["A1"]  # 只吃本节点规则
 
 
@@ -654,11 +654,11 @@ async def test_assemble_empty_rules_ok(client, monkeypatch):
     # 节点无任何归属规则 → 空规则集组装不 500（AI 仍产出画像框架）
     ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
-    async def mock_assemble(assertions, node_name, note):
-        assert assertions == []
-        return Card(node=node_name, goal="g")
+    async def mock_assemble(rules, node_name, note):
+        assert rules == []
+        return Profile(node=node_name, goal="g")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
-    r = await client.post(f"{BASE}/cards/assemble", json={"node_path": "0", "note": ""})
+    r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0", "note": ""})
     assert r.status_code == 200
 ```
 
@@ -671,10 +671,10 @@ Expected: FAIL（seen ids 含 A1/A2/A3）
 
 ```python
     void = _void_ids(root)
-    usable = [a for a in assert_store.load(root) if a.id not in void and a.node == full]
+    usable = [a for a in rule_store.load(root) if a.id not in void and a.node == full]
 ```
 
-同步更新既有 `test_assemble_excludes_voided_assertions`：三条 Assertion 构造加 `node="放款"`（node_path "0" 的 full 即「放款」）。
+同步更新既有 `test_assemble_excludes_voided_rules`：三条 Rule 构造加 `node="放款"`（node_path "0" 的 full 即「放款」）。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -694,20 +694,20 @@ git commit -m "fix：生成画像只组装当前节点规则（修多节点 R# �
 
 **Files:**
 - Create: `web/src/grouping.ts`、`web/src/grouping.test.ts`
-- Modify: `web/src/views/Fact.vue`、`web/src/api.ts:36-46`（Assertion 加 node）
+- Modify: `web/src/views/Fact.vue`、`web/src/api.ts:36-46`（Rule 加 node）
 
 **Interfaces:**
-- Consumes: Task 5 的 `a.node`、Task 7 的 `TreeNode.priority`、Task 6 的 `setAssertionNode`。
-- Produces: `buildGroups(rules, tree)` → `{ groups: RuleGroup[]; unclassified: Assertion[] }`（类型见 Step 1）。
+- Consumes: Task 5 的 `a.node`、Task 7 的 `TreeNode.priority`、Task 6 的 `setRuleNode`。
+- Produces: `buildGroups(rules, tree)` → `{ groups: RuleGroup[]; unclassified: Rule[] }`（类型见 Step 1）。
 
 - [ ] **Step 1: 写失败测试（grouping.test.ts）**
 
 ```ts
 import { describe, expect, it } from 'vitest'
 import { buildGroups } from './grouping'
-import type { Assertion, TreeNode } from './api'
+import type { Rule, TreeNode } from './api'
 
-const A = (id: string, node: string, verified = true): Assertion =>
+const A = (id: string, node: string, verified = true): Rule =>
   ({ id, text: id, src: 's', conf: '实证', st: 'open', verified, suspect: false, node })
 
 const TREE: TreeNode[] = [
@@ -756,14 +756,14 @@ Expected: FAIL（grouping.ts 不存在）
 ```ts
 // 规则表分组：按 模块（父路径）› 功能点 两级聚合；组内功能点按 P0→P1→P2→空、再按树序。
 // 失配归属（节点改名残留）与空 node 均进 unclassified，由人工重新挂载。
-import type { Assertion, TreeNode } from './api'
+import type { Rule, TreeNode } from './api'
 
 export interface GroupedPoint {
   path: string
   name: string
   priority: string
   order: number
-  rules: Assertion[]
+  rules: Rule[]
 }
 export interface RuleGroup {
   key: string
@@ -773,7 +773,7 @@ export interface RuleGroup {
 }
 export interface GroupResult {
   groups: RuleGroup[]
-  unclassified: Assertion[]
+  unclassified: Rule[]
 }
 
 const PRIO_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, '': 3 }
@@ -796,11 +796,11 @@ function indexTree(nodes: TreeNode[], prefix = '', counter = { n: 0 }): Index[] 
   return out
 }
 
-export function buildGroups(rules: Assertion[], treeNodes: TreeNode[]): GroupResult {
+export function buildGroups(rules: Rule[], treeNodes: TreeNode[]): GroupResult {
   const idx = indexTree(treeNodes)
   const byPath = new Map(idx.map(i => [i.path, i]))
-  const rulesOf = new Map<string, Assertion[]>()
-  const unclassified: Assertion[] = []
+  const rulesOf = new Map<string, Rule[]>()
+  const unclassified: Rule[] = []
   for (const r of rules) {
     if (r.node && byPath.has(r.node)) {
       const arr = rulesOf.get(r.node) ?? []
@@ -830,7 +830,7 @@ export function buildGroups(rules: Assertion[], treeNodes: TreeNode[]): GroupRes
 }
 ```
 
-注意：`api.ts` 的 `TreeNode` 与 `Assertion` 先加 `priority?: string`、`node?: string` 字段；Index 接口如上只含五个字段，不引入未用属性。
+注意：`api.ts` 的 `TreeNode` 与 `Rule` 先加 `priority?: string`、`node?: string` 字段；Index 接口如上只含五个字段，不引入未用属性。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -842,9 +842,9 @@ Expected: grouping.test.ts 全 PASS
 script 增加：`const treeNodes = ref<TreeNode[]>([])`（load 里并入 `getTree()`）、`const { groups, unclassified } = computed(() => buildGroups(items.value, treeNodes.value))`、折叠状态 `const collapsed = ref<Record<string, boolean>>({})`、挂载函数：
 
 ```ts
-async function assign(a: Assertion, node: string) {
+async function assign(a: Rule, node: string) {
   try {
-    await setAssertionNode(a.id, node)
+    await setRuleNode(a.id, node)
     await load()
     toast(node ? `${a.id} → 已挂 ${node}` : `${a.id} → 已移回未归类`, 'ok')
   } catch (e) {

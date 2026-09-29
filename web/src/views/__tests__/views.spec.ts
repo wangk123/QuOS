@@ -1,4 +1,4 @@
-// Task 12 视图冒烟测试：api 全 mock，断言各视图渲染核心数据行与交互按钮
+// Task 12 视图冒烟测试：api 全 mock，规则各视图渲染核心数据行与交互按钮
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -8,8 +8,8 @@ import {
   assembleBatch,
   createBaseline,
   listJobs,
-  getAssertions,
-  getCard,
+  getRules,
+  getProfile,
   getClarifications,
   getConflicts,
   getDims,
@@ -21,9 +21,9 @@ import {
   listBaselines,
   getTree,
   scaffoldTree,
-  setAssertionNode,
-  type Assertion,
-  type Card,
+  setRuleNode,
+  type Rule,
+  type Profile,
   type Clarification,
   type Conflict,
   type EvidenceItem,
@@ -51,7 +51,7 @@ vi.mock('../../api', () => ({
   addEvidence: vi.fn(),
   addEvidenceFile: vi.fn(),
   extractEvidence: vi.fn(),
-  getAssertions: vi.fn(),
+  getRules: vi.fn(),
   verifyAll: vi.fn(),
   verifyOne: vi.fn(),
   getConflicts: vi.fn(),
@@ -65,11 +65,11 @@ vi.mock('../../api', () => ({
   getTree: vi.fn(),
   treeOp: vi.fn(),
   scaffoldTree: vi.fn(),
-  setAssertionNode: vi.fn(),
+  setRuleNode: vi.fn(),
   assemble: vi.fn(),
   assembleBatch: vi.fn(),
   listJobs: vi.fn(),
-  getCard: vi.fn(),
+  getProfile: vi.fn(),
   getDoc: vi.fn(),
   getClarifications: vi.fn(),
   answerClar: vi.fn(),
@@ -82,18 +82,18 @@ const ev = (over: Partial<EvidenceItem>): EvidenceItem => ({
   id: 'TXT1', name: '材料', ext: '', type: '文本', stars: 2, reg: '2026-09-23',
   state: 'pending', count: 0, path: '', missing: false, ...over,
 })
-const asrt = (over: Partial<Assertion>): Assertion => ({
-  id: 'A1', text: '断言', src: 'src', conf: '实证', st: 'open', verified: false, suspect: false, ...over,
+const rule = (over: Partial<Rule>): Rule => ({
+  id: 'R1', text: '规则', src: 'src', conf: '实证', st: 'open', verified: false, suspect: false, ...over,
 })
 
 const EVIDENCE: EvidenceItem[] = [ev({ id: 'REPO1', name: 'git@internal:loan.git', type: '仓库', stars: 3 })]
-const ASSERTIONS: Assertion[] = [
-  asrt({ id: 'A1', text: '回调超时 30s 触发重试', src: 'retry.py:15' }),
-  asrt({ id: 'A2', text: '重试上限为 3 次', src: 'retry.py:42' }),
-  asrt({ id: 'A3', text: '重试上限为 5 次', src: '设计文档§2', conf: '文档' }),
+const ASSERTIONS: Rule[] = [
+  rule({ id: 'R1', text: '回调超时 30s 触发重试', src: 'retry.py:15' }),
+  rule({ id: 'R2', text: '重试上限为 3 次', src: 'retry.py:42' }),
+  rule({ id: 'R3', text: '重试上限为 5 次', src: '设计文档§2', conf: '文档' }),
 ]
 const CONFLICTS: Conflict[] = [
-  { id: 'C1', a: 'A2', b: 'A3', q: '重试上限到底几次？', st: 'open', resolution: null },
+  { id: 'C1', a: 'R2', b: 'R3', q: '重试上限到底几次？', st: 'open', resolution: null },
 ]
 // Fact 分组场景：树带 P0/P1/P2 标记，规则分挂各功能点
 const FACT_TREE: TreeNode[] = [
@@ -103,17 +103,17 @@ const FACT_TREE: TreeNode[] = [
     { name: '黑名单', children: [], open: true, priority: '' },
   ], open: true, priority: 'P2' },
 ]
-const GROUPED: Assertion[] = [
-  asrt({ id: 'A1', text: '回调超时 30s 触发重试', src: 'retry.py:15', node: '支付/放款重试', verified: true }),
-  asrt({ id: 'A2', text: '重试上限为 3 次', src: 'retry.py:42', node: '风控/额度', verified: true }),
-  asrt({ id: 'A3', text: '重试上限为 5 次', src: '设计文档§2', conf: '文档', node: '风控/额度' }),
-  asrt({ id: 'A4', text: '黑名单 T+1 生效', src: 'risk.py:7', node: '风控/黑名单' }),
+const GROUPED: Rule[] = [
+  rule({ id: 'R1', text: '回调超时 30s 触发重试', src: 'retry.py:15', node: '支付/放款重试', verified: true }),
+  rule({ id: 'R2', text: '重试上限为 3 次', src: 'retry.py:42', node: '风控/额度', verified: true }),
+  rule({ id: 'R3', text: '重试上限为 5 次', src: '设计文档§2', conf: '文档', node: '风控/额度' }),
+  rule({ id: 'R4', text: '黑名单 T+1 生效', src: 'risk.py:7', node: '风控/黑名单' }),
 ]
 const GAPS: Gap[] = [{ id: 'G1', dim: '状态', text: '「重试中」无出口', st: 'open' }]
 const CLARS: Clarification[] = [
   { no: 1, q: '幂等键用哪个字段？', opts: ['放款流水号', '订单号'], st: 'wait', answer: null, ref: 'C1' },
 ]
-const CARD: Card = {
+const CARD: Profile = {
   node: '放款/放款重试', goal: '不重复放款', entry: '回调超时 30s',
   flow: '① 入队 → ② 重发', rules: [
     { id: 'R1', text: '重试上限为 3 次', src: 'retry.py:42', conf: '实证' },
@@ -132,11 +132,11 @@ beforeEach(() => {
   top.value = 'proj' // App 挂载处于工作台态（默认 home 会渲染项目首页）
   location.hash = '#/p/演示项目' // 配套工作台 hash：App onMounted 的 syncFromHash 需一致才不被拉回 home
   vi.mocked(getEvidence).mockResolvedValue(EVIDENCE)
-  vi.mocked(getAssertions).mockResolvedValue(ASSERTIONS)
+  vi.mocked(getRules).mockResolvedValue(ASSERTIONS)
   vi.mocked(getConflicts).mockResolvedValue(CONFLICTS)
   vi.mocked(getGaps).mockResolvedValue(GAPS)
   vi.mocked(getDims).mockResolvedValue(['状态', '异常'])
-  vi.mocked(getCard).mockResolvedValue(CARD)
+  vi.mocked(getProfile).mockResolvedValue(CARD)
   vi.mocked(getClarifications).mockResolvedValue(CLARS)
   vi.mocked(listBaselines).mockResolvedValue([{ commit: 'abc1234', tag: 'v1', v: 1 }])
   vi.mocked(getTree).mockResolvedValue([])
@@ -171,7 +171,7 @@ describe('Fact.vue', () => {
 
   it('按模块›功能点分组：组头序列、P0 先行、功能点头带核验 x/y（默认收起，全部展开后可见）', async () => {
     vi.mocked(getTree).mockResolvedValue(FACT_TREE)
-    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    vi.mocked(getRules).mockResolvedValue(GROUPED)
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
     await flushPromises()
@@ -190,7 +190,7 @@ describe('Fact.vue', () => {
 
   it('点击组头折叠/展开该组', async () => {
     vi.mocked(getTree).mockResolvedValue(FACT_TREE)
-    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    vi.mocked(getRules).mockResolvedValue(GROUPED)
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
     await flushPromises()
@@ -204,7 +204,7 @@ describe('Fact.vue', () => {
 
   it('选中节点时规则表聚焦其子树（父节点含子节点，统计联动）', async () => {
     vi.mocked(getTree).mockResolvedValue(FACT_TREE)
-    vi.mocked(getAssertions).mockResolvedValue(GROUPED)
+    vi.mocked(getRules).mockResolvedValue(GROUPED)
     curPath.value = '1' // 风控（父节点）
     curName.value = '风控' // curName 由 App 的 watch 计算，单挂 Fact 需手动同步
     const Fact = (await import('../Fact.vue')).default
@@ -217,7 +217,7 @@ describe('Fact.vue', () => {
     expect(w.text()).not.toContain('回调超时 30s 触发重试') // 支付组规则不进视野
   })
 
-  it('未归类行选路径挂载调 setAssertionNode（选项 2 空格缩进/层）', async () => {
+  it('未归类行选路径挂载调 setRuleNode（选项 2 空格缩进/层）', async () => {
     vi.mocked(getTree).mockResolvedValue(FACT_TREE)
     const Fact = (await import('../Fact.vue')).default
     const w = mount(Fact)
@@ -228,7 +228,7 @@ describe('Fact.vue', () => {
     expect((opt.element as HTMLOptionElement).textContent).toBe('  风控/额度') // 二级节点缩进两格，value 为原始路径
     await sel.setValue('风控/额度')
     await flushPromises()
-    expect(setAssertionNode).toHaveBeenCalledWith('A1', '风控/额度')
+    expect(setRuleNode).toHaveBeenCalledWith('R1', '风控/额度')
   })
 
   it('树空时渲染骨架引导块，点击「AI 从证据池生成」调 scaffoldTree', async () => {
@@ -249,7 +249,7 @@ describe('Fact.vue', () => {
 })
 
 describe('Conflict.vue', () => {
-  it('渲染冲突对左右断言与三选裁决按钮', async () => {
+  it('渲染冲突对左右规则与三选裁决按钮', async () => {
     const Conflict = (await import('../Conflict.vue')).default
     const w = mount(Conflict)
     await flushPromises()
@@ -258,17 +258,17 @@ describe('Conflict.vue', () => {
     expect(w.find('.vs').text()).toBe('VS')
     expect(w.text()).toContain('重试上限到底几次？')
     const texts = w.findAll('button').map(b => b.text())
-    expect(texts).toContain('信 A2')
-    expect(texts).toContain('信 A3')
+    expect(texts).toContain('信 R2')
+    expect(texts).toContain('信 R3')
     expect(texts).toContain('转澄清')
   })
 
-  it('点击「信 A2」调 resolveConflict(code/a)', async () => {
+  it('点击「信 R2」调 resolveConflict(code/a)', async () => {
     vi.mocked(resolveConflict).mockResolvedValue(CONFLICTS[0])
     const Conflict = (await import('../Conflict.vue')).default
     const w = mount(Conflict)
     await flushPromises()
-    await w.findAll('button').find(b => b.text() === '信 A2')!.trigger('click')
+    await w.findAll('button').find(b => b.text() === '信 R2')!.trigger('click')
     await flushPromises()
     expect(resolveConflict).toHaveBeenCalledWith('C1', 'code', 'a')
   })
@@ -290,11 +290,11 @@ describe('Gap.vue', () => {
   })
 })
 
-describe('Card.vue', () => {
-  it('渲染卡片字段与规则行', async () => {
+describe('Profile.vue', () => {
+  it('渲染用户画像字段与规则行', async () => {
     curPath.value = '0,1'
-    const Card = (await import('../Card.vue')).default
-    const w = mount(Card)
+    const Profile = (await import('../Profile.vue')).default
+    const w = mount(Profile)
     await flushPromises()
     expect(w.text()).toContain('放款/放款重试')
     expect(w.text()).toContain('不重复放款')
@@ -306,13 +306,13 @@ describe('Card.vue', () => {
 
   it('切换树节点时重新拉取该节点画像（同视图不重挂载）', async () => {
     curPath.value = '0,0'
-    const Card = (await import('../Card.vue')).default
-    const w = mount(Card)
+    const Profile = (await import('../Profile.vue')).default
+    const w = mount(Profile)
     await flushPromises()
-    expect(getCard).toHaveBeenCalledWith('0,0')
+    expect(getProfile).toHaveBeenCalledWith('0,0')
     curPath.value = '0,1'
     await flushPromises()
-    expect(getCard).toHaveBeenCalledWith('0,1')
+    expect(getProfile).toHaveBeenCalledWith('0,1')
     w.unmount() // 卸载 curPath watcher，避免残留组件抢先消耗后续用例的一次性 mock
   })
 })
@@ -413,12 +413,12 @@ describe('Ask 交互', () => {
   })
 })
 
-describe('Card 空态', () => {
-  it('节点无卡片（404）时显示组装引导', async () => {
-    vi.mocked(getCard).mockRejectedValueOnce(new ApiError(404, '节点无卡片'))
+describe('Profile 空态', () => {
+  it('节点无用户画像（404）时显示组装引导', async () => {
+    vi.mocked(getProfile).mockRejectedValueOnce(new ApiError(404, '节点无用户画像'))
     curPath.value = '0,1'
-    const Card = (await import('../Card.vue')).default
-    const w = mount(Card)
+    const Profile = (await import('../Profile.vue')).default
+    const w = mount(Profile)
     await flushPromises()
     expect(w.text()).toContain('生成选中（含子树）')
   })
@@ -497,7 +497,7 @@ describe('全局 AI 进度条（aiBusy 挂 App，切视图不丢）', () => {
   })
 })
 
-describe('Card.vue 批量生成（后台任务 + 轮询）', () => {
+describe('Profile.vue 批量生成（后台任务 + 轮询）', () => {
   it('点「生成全部叶子」创建任务并轮询到 done：进度/汇总来自后端 job', async () => {
     vi.mocked(assembleBatch).mockResolvedValue({ job_id: 'J1', total: 2 })
     vi.mocked(listJobs).mockResolvedValue([
@@ -506,9 +506,9 @@ describe('Card.vue 批量生成（后台任务 + 轮询）', () => {
         started_at: 1, finished_at: 2 },
     ])
     const { jobRunning } = await import('../../jobs')
-    const Card = (await import('../Card.vue')).default
+    const Profile = (await import('../Profile.vue')).default
     const toasts: string[] = []
-    const w = mount(Card, { global: { provide: { toast: (m: string) => { toasts.push(m) } } } })
+    const w = mount(Profile, { global: { provide: { toast: (m: string) => { toasts.push(m) } } } })
     await flushPromises()
     await w.findAll('button').find(b => b.text().includes('生成全部叶子'))!.trigger('click')
     await flushPromises()

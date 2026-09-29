@@ -17,7 +17,7 @@ export interface TreeNode {
   /** 节点重要度：'' | 'P0' | 'P1' | 'P2'（Task 7 树标记） */
   priority?: string
   /** M1 后端无徽章聚合端点，stats 仅预留 T12 使用 */
-  stats?: { asrt?: number; warn?: number; ok?: boolean }
+  stats?: { rule?: number; warn?: number; ok?: boolean }
 }
 
 export interface EvidenceItem {
@@ -33,13 +33,13 @@ export interface EvidenceItem {
   missing: boolean
 }
 
-export type AssertConf = '实证' | '文档' | '推测' | '待实证' | '旧文档'
+export type RuleConf = '实证' | '文档' | '推测' | '待实证' | '旧文档'
 
-export interface Assertion {
+export interface Rule {
   id: string
   text: string
   src: string
-  conf: AssertConf
+  conf: RuleConf
   st: string
   verified: boolean
   suspect: boolean
@@ -74,19 +74,19 @@ export interface Clarification {
   ref: string | null
 }
 
-export interface CardRule {
+export interface ProfileRule {
   id: string
   text: string
   src: string
   conf: string
 }
 
-export interface Card {
+export interface Profile {
   node: string
   goal: string
   entry: string
   flow: string
-  rules: CardRule[]
+  rules: ProfileRule[]
   states: string
   boundaries: string
   note: string
@@ -108,7 +108,7 @@ export type TreeOpName = 'add' | 'rename' | 'del' | 'prio'
 export class ApiError extends Error {
   status: number
   detail: unknown
-  /** POST /cards/assemble 409：{detail:{unqualified:[断言id]}} */
+  /** POST /profiles/assemble 409：{detail:{unqualified:[规则id]}} */
   unqualified: string[] | null
 
   constructor(status: number, detail: unknown) {
@@ -150,39 +150,39 @@ export const addEvidenceFile = (file: File) =>
   })
 
 export const extractEvidence = (id: string) =>
-  req<{ added: number; assertions: Assertion[] }>(`/evidence/${encodeURIComponent(id)}/extract`, {
+  req<{ added: number }>(`/evidence/${encodeURIComponent(id)}/extract`, {
     method: 'POST',
   })
 
-/** 删除证据：连同其提取产出的断言一并移除 */
+/** 删除证据：连同其提取产出的规则一并移除 */
 export const deleteEvidence = (id: string) =>
   req<void>(`/evidence/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
-// ---------- 断言 ----------
+// ---------- 规则 ----------
 
-export const getAssertions = () => req<Assertion[]>('/assertions')
+export const getRules = () => req<Rule[]>('/rules')
 
 export const verifyAll = () =>
-  req<{ applied: string[]; results: unknown[] }>('/assertions/verify', json('POST', {}))
+  req<{ applied: string[]; results: unknown[] }>('/rules/verify', json('POST', {}))
 
 /** 全量核验后台任务：立即返回 job_id，进度/汇总由 GET /jobs 轮询 */
 export const verifyJob = () =>
-  req<{ job_id: string; total: number; rules: number }>('/assertions/verify-job', { method: 'POST' })
+  req<{ job_id: string; total: number; rules: number }>('/rules/verify-job', { method: 'POST' })
 
 export const verifyOne = (id: string) =>
-  req<{ applied: string[]; results: unknown[] }>('/assertions/verify', json('POST', { assert_id: id }))
+  req<{ applied: string[]; results: unknown[] }>('/rules/verify', json('POST', { rule_id: id }))
 
 /** 人工核过：不经 AI 直接确认 */
-export const confirmAssertion = (id: string) =>
-  req<void>(`/assertions/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
+export const confirmRule = (id: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
 
 /** 转问人：进「问人」清单，答案确认后自动核过 */
-export const askAssertion = (id: string) =>
-  req<void>(`/assertions/${encodeURIComponent(id)}/ask`, { method: 'POST' })
+export const askRule = (id: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}/ask`, { method: 'POST' })
 
 /** 人工挂载/改归属；node 为空串 = 回未归类 */
-export const setAssertionNode = (id: string, node: string) =>
-  req<void>(`/assertions/${encodeURIComponent(id)}/node`, json('PUT', { node }))
+export const setRuleNode = (id: string, node: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}/node`, json('PUT', { node }))
 
 // ---------- 矛盾 ----------
 
@@ -219,11 +219,11 @@ export const treeOp = (op: TreeOpName, path?: string, name?: string) =>
 /** AI 从证据池生成树骨架（仅树空时；后端 409/422 抛 ApiError） */
 export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'POST' })
 
-// ---------- 卡片 ----------
+// ---------- 用户画像 ----------
 
-/** 409 时抛 ApiError（unqualified 为未实证断言 id 列表） */
+/** 409 时抛 ApiError（unqualified 为未实证规则 id 列表） */
 export const assemble = (nodePath: string, note = '') =>
-  req<{ card: Card; file: string }>('/cards/assemble', json('POST', { node_path: nodePath, note }))
+  req<{ profile: Profile; file: string }>('/profiles/assemble', json('POST', { node_path: nodePath, note }))
 
 /** 提取+核验两阶段后台任务：立即返回 job_id（阶段一逐份提取→阶段二自动分批核验） */
 export const extractJob = () =>
@@ -250,11 +250,11 @@ export interface Job {
 
 /** 创建批量画像任务：立即返回（node_path 空=全部叶子，给定=该子树叶子）；运行中重复创建后端 409 */
 export const assembleBatch = (nodePath = '') =>
-  req<{ job_id: string; total: number }>('/cards/assemble-batch', json('POST', { node_path: nodePath }))
+  req<{ job_id: string; total: number }>('/profiles/assemble-batch', json('POST', { node_path: nodePath }))
 
 export const listJobs = () => req<Job[]>('/jobs')
 
-export const getCard = (nodePath: string) => req<Card>(`/cards/${encodeURIComponent(nodePath)}`)
+export const getProfile = (nodePath: string) => req<Profile>(`/profiles/${encodeURIComponent(nodePath)}`)
 
 export const getDoc = () => req<string>('/doc')
 

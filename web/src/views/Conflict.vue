@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue'
-import { ApiError, getAssertions, getConflicts, resolveConflict, rescanConflicts, type Assertion, type Conflict } from '../api'
+import { ApiError, getRules, getConflicts, resolveConflict, rescanConflicts, type Rule, type Conflict } from '../api'
 import { aiBusy, curName } from '../router'
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 const refreshClar = inject<() => Promise<void>>('refreshClar', async () => {})
 
 const conflicts = ref<Conflict[]>([])
-const assertions = ref<Assertion[]>([])
+const assertions = ref<Rule[]>([])
 const err = ref('')
 
 const confColor: Record<string, string> = {
@@ -19,7 +19,7 @@ const confColor: Record<string, string> = {
 }
 
 async function load() {
-  ;[conflicts.value, assertions.value] = await Promise.all([getConflicts(), getAssertions()])
+  ;[conflicts.value, assertions.value] = await Promise.all([getConflicts(), getRules()])
 }
 
 onMounted(async () => {
@@ -32,7 +32,7 @@ onMounted(async () => {
 
 const open = computed(() => conflicts.value.filter(c => c.st === 'open'))
 
-function byId(id: string): Assertion {
+function byId(id: string): Rule {
   return (
     assertions.value.find(a => a.id === id) ?? { id, text: `（${id}）`, src: '', conf: '文档', st: 'open', verified: false, suspect: false }
   )

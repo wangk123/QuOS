@@ -41,7 +41,7 @@ def save_gaps(root, items: list[Gap]) -> None:
 
 
 def merge_conflicts(root, detected: list[Conflict]) -> list[Conflict]:
-    """重扫合并：按无序断言对去重（防重扫 id 漂移丢新冲突），已知对保留裁决状态，已消失不删除"""
+    """重扫合并：按无序规则对去重（防重扫 id 漂移丢新冲突），已知对保留裁决状态，已消失不删除"""
     items = load_conflicts(root)
     seen = {frozenset((c.a, c.b)) for c in items}
     for d in detected:

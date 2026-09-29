@@ -1,4 +1,4 @@
-# server/app/storage/cards.py
+# server/app/storage/profiles.py
 import re
 from pathlib import Path
 
@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 from app.storage import tree
 from app.storage.project import slugify
 
-CARD_DIR = "cards"
+PROFILE_DIR = "profiles"
+OLD_DIR = "cards"  # 术语迁移前（卡片→用户画像）的目录名，读到即整目录改名
 CONF_MARK = {"实证": "✅", "文档": "✅"}
 
 _SECTIONS = [("flow", "主流程"), ("states", "状态机"), ("boundaries", "异常边界"),
@@ -15,19 +16,19 @@ _SECTIONS = [("flow", "主流程"), ("states", "状态机"), ("boundaries", "异
 _SECTION_KEY = {"规则": "rules", **{t: k for k, t in _SECTIONS}}
 
 
-class Rule(BaseModel):
+class ProfileRule(BaseModel):
     id: str
     text: str
     src: str
     conf: str
 
 
-class Card(BaseModel):
+class Profile(BaseModel):
     node: str
     goal: str = ""
     entry: str = ""
     flow: str = ""
-    rules: list[Rule] = Field(default_factory=list)
+    rules: list[ProfileRule] = Field(default_factory=list)
     states: str = ""
     boundaries: str = ""
     note: str = ""
@@ -35,27 +36,27 @@ class Card(BaseModel):
     unconfirmed: list[str] = Field(default_factory=list)
 
 
-def _dump(card: Card) -> str:
-    lines = ["---", f"node: {card.node}", f"goal: {card.goal}", f"entry: {card.entry}",
-             "---", "", f"# {card.node}", ""]
+def _dump(profile: Profile) -> str:
+    lines = ["---", f"node: {profile.node}", f"goal: {profile.goal}", f"entry: {profile.entry}",
+             "---", "", f"# {profile.node}", ""]
     for key, title in _SECTIONS:
         lines.append(f"## {title}")
         if key == "unconfirmed":
-            lines += [f"- {u}" for u in card.unconfirmed]
+            lines += [f"- {u}" for u in profile.unconfirmed]
         else:
-            lines.append(getattr(card, key))
+            lines.append(getattr(profile, key))
         lines.append("")
     lines += ["## 规则", ""]
-    if card.rules:
+    if profile.rules:
         lines += ["| ID | 规则 | 来源 | 置信度 |", "|---|---|---|---|"]
-        for r in card.rules:
+        for r in profile.rules:
             text = r.text.replace("|", "\\|")
             lines.append(f"| {r.id} | {text} | {r.src} | {r.conf} |")
     lines.append("")
     return "\n".join(lines)
 
 
-def _parse_rules(body: list[str]) -> list[Rule]:
+def _parse_rules(body: list[str]) -> list[ProfileRule]:
     rows = [ln for ln in body if ln.strip().startswith("|")]
     data = [r for r in rows if set(r.replace("|", "").replace(" ", "")) != {"-"}]
     rules = []
@@ -63,11 +64,11 @@ def _parse_rules(body: list[str]) -> list[Rule]:
         cells = [c.strip().replace("\\|", "|")
                  for c in re.split(r"(?<!\\)\|", row.strip().strip("|"))]
         if len(cells) >= 4:
-            rules.append(Rule(id=cells[0], text=cells[1], src=cells[2], conf=cells[3]))
+            rules.append(ProfileRule(id=cells[0], text=cells[1], src=cells[2], conf=cells[3]))
     return rules
 
 
-def _parse(text: str) -> Card:
+def _parse(text: str) -> Profile:
     lines = text.splitlines()
     meta, i = {}, 0
     if lines and lines[0].strip() == "---":
@@ -91,14 +92,19 @@ def _parse(text: str) -> Card:
                                     if ln.strip().startswith("- ")]}
     for key, _ in _SECTIONS[:-1]:
         kwargs[key] = "\n".join(bodies[key]).strip()
-    return Card(**kwargs)
+    return Profile(**kwargs)
 
 
 def _dir(root) -> Path:
-    return Path(root) / CARD_DIR
+    d = Path(root) / PROFILE_DIR
+    if not d.exists():
+        old = Path(root) / OLD_DIR
+        if old.is_dir():
+            old.rename(d)  # 旧数据目录整体迁移（含历史版本文件）
+    return d
 
 
-def save_card(root, node_path: str, card: Card) -> Path:
+def save_profile(root, node_path: str, profile: Profile) -> Path:
     d = _dir(root)
     d.mkdir(parents=True, exist_ok=True)
     name = slugify(node_path.rsplit("/", 1)[-1])
@@ -106,7 +112,7 @@ def save_card(root, node_path: str, card: Card) -> Path:
     while f.exists():
         f = d / f"{name}-{n}.md"
         n += 1
-    f.write_text(_dump(card), "utf-8")
+    f.write_text(_dump(profile), "utf-8")
     return f
 
 
@@ -115,57 +121,57 @@ def _file_no(f: Path) -> int:
     return int(m.group(2)) if m else 1
 
 
-def _latest_cards(root) -> dict[str, Card]:
-    """node -> 最新卡片（同节点取后缀数字最大的文件；重复 save 视为迭代，最新生效）"""
+def _latest_profiles(root) -> dict[str, Profile]:
+    """node -> 最新用户画像（同节点取后缀数字最大的文件；重复 save 视为迭代，最新生效）"""
     d = _dir(root)
     if not d.exists():
         return {}
-    best: dict[str, tuple[int, Card]] = {}
+    best: dict[str, tuple[int, Profile]] = {}
     for f in sorted(d.glob("*.md")):
-        card = _parse(f.read_text("utf-8"))
+        profile = _parse(f.read_text("utf-8"))
         no = _file_no(f)
-        if card.node not in best or no > best[card.node][0]:
-            best[card.node] = (no, card)
-    return {node: c for node, (_, c) in best.items()}
+        if profile.node not in best or no > best[profile.node][0]:
+            best[profile.node] = (no, profile)
+    return {node: p for node, (_, p) in best.items()}
 
 
-def load_card(root, node_path: str) -> Card | None:
-    return _latest_cards(root).get(node_path)
+def load_profile(root, node_path: str) -> Profile | None:
+    return _latest_profiles(root).get(node_path)
 
 
-def load_latest(root) -> list[Card]:
-    """各节点最新卡片列表（同节点多版本取最新；子树聚合等按节点视图用）"""
-    return list(_latest_cards(root).values())
+def load_latest(root) -> list[Profile]:
+    """各节点最新用户画像列表（同节点多版本取最新；子树聚合等按节点视图用）"""
+    return list(_latest_profiles(root).values())
 
 
-def load_all(root) -> list[Card]:
+def load_all(root) -> list[Profile]:
     d = _dir(root)
     if not d.exists():
         return []
     return [_parse(f.read_text("utf-8")) for f in sorted(d.glob("*.md"))]
 
 
-def _render_card(card: Card, with_title: bool = True) -> list[str]:
-    out = ([f"### {card.node}", ""] if with_title else []) + [
-        f"- 目标：{card.goal}", f"- 入口：{card.entry}", "",
-        "主流程：", card.flow or "无", ""]
-    if card.rules:
+def _render_profile(profile: Profile, with_title: bool = True) -> list[str]:
+    out = ([f"### {profile.node}", ""] if with_title else []) + [
+        f"- 目标：{profile.goal}", f"- 入口：{profile.entry}", "",
+        "主流程：", profile.flow or "无", ""]
+    if profile.rules:
         out += ["规则：", "", "| ID | 规则 | 来源 | 置信度 |", "|---|---|---|---|"]
-        for r in card.rules:
+        for r in profile.rules:
             text = r.text.replace("|", "\\|")
             out.append(f"| {r.id} | {text} | {r.src} | {r.conf} {CONF_MARK.get(r.conf, '⚠️')} |")
         out.append("")
     for key, title in _SECTIONS[1:-1]:
-        v = getattr(card, key)
+        v = getattr(profile, key)
         if v:
             out += [f"{title}：", v, ""]
-    if card.unconfirmed:
-        out += ["未确认项："] + [f"- {u}" for u in card.unconfirmed] + [""]
+    if profile.unconfirmed:
+        out += ["未确认项："] + [f"- {u}" for u in profile.unconfirmed] + [""]
     return out
 
 
 def export_doc(root) -> str:
-    cards = _latest_cards(root)
+    profiles = _latest_profiles(root)
     out = ["# 结果文档", ""]
     used: set[str] = set()
 
@@ -174,13 +180,13 @@ def export_doc(root) -> str:
             full = f"{prefix}/{n.name}" if prefix else n.name
             out.append("#" * (depth + 2) + " " + full)
             out.append("")
-            if full in cards:
+            if full in profiles:
                 used.add(full)
-                out.extend(_render_card(cards[full], with_title=False))
+                out.extend(_render_profile(profiles[full], with_title=False))
             walk(n.children, full, depth + 1)
 
     walk(tree.load(root), "", 0)
-    for node, card in cards.items():
+    for node, profile in profiles.items():
         if node not in used:
-            out.extend(_render_card(card))
+            out.extend(_render_profile(profile))
     return "\n".join(out).rstrip() + "\n"

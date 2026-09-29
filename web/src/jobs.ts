@@ -4,7 +4,7 @@
 import { listJobs, type Job } from './api'
 import { aiBusy } from './router'
 
-/** 是否有批量任务在跑（Card 批量按钮禁用用） */
+/** 是否有批量任务在跑（Profile 批量按钮禁用用） */
 import { ref } from 'vue'
 export const jobRunning = ref(false)
 

@@ -4,7 +4,7 @@ import { ApiError, curSlug, getClarifications, getTree, listBaselines, treeOp, t
 import AskDrawer from './components/AskDrawer.vue'
 import FuncTree from './components/FuncTree.vue'
 import Home from './views/Home.vue'
-import Card from './views/Card.vue'
+import Profile from './views/Profile.vue'
 import Conflict from './views/Conflict.vue'
 import Fact from './views/Fact.vue'
 import Gap from './views/Gap.vue'
@@ -164,7 +164,7 @@ const VIEW_CMP = {
   'v-fact': Fact,
   'v-conf': Conflict,
   'v-gap': Gap,
-  'v-card': Card,
+  'v-prof': Profile,
   'v-save': Save,
 } as const
 const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value])
@@ -230,7 +230,7 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
         <div v-else-if="view === 'v-base'">
           <div class="view-head">
             <h2>基线</h2>
-            <span class="sub">项目级版本存档。新需求 diff 定位受影响卡片，只重跑那部分整理。</span>
+            <span class="sub">项目级版本存档。新需求 diff 定位受影响用户画像，只重跑那部分整理。</span>
           </div>
           <div class="card-box">
             <div class="hd">版本时间线</div>
@@ -245,7 +245,7 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
             </div>
           </div>
           <div class="warn-strip">
-            <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响卡片 → 只重跑该子树的 ①-④ 再重新定稿。当前 M1 先建立基线闭环。
+            <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响用户画像 → 只重跑该子树的 ①-④ 再重新定稿。当前 M1 先建立基线闭环。
           </div>
         </div>
       </main>

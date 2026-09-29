@@ -4,8 +4,8 @@ import {
   ApiError,
   assemble,
   createBaseline,
-  getAssertions,
-  getCard,
+  getRules,
+  getProfile,
   getClarifications,
   getDoc,
   listBaselines,
@@ -18,7 +18,7 @@ const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 const hasCard = ref(false)
 const ruleCnt = ref(0)
 const waitCnt = ref(0)
-const asrtCnt = ref(0)
+const totalRuleCnt = ref(0)
 const baselines = ref<Baseline[]>([])
 const err = ref('')
 const showDoc = ref(false)
@@ -27,7 +27,7 @@ const note = ref('')
 const regen = ref(false)
 
 async function load() {
-  ;[baselines.value, asrtCnt.value] = await Promise.all([listBaselines(), getAssertions().then(r => r.length)])
+  ;[baselines.value, totalRuleCnt.value] = await Promise.all([listBaselines(), getRules().then(r => r.length)])
   waitCnt.value = (await getClarifications()).filter(c => c.st === 'wait').length
   if (!curPath.value) {
     hasCard.value = false
@@ -35,7 +35,7 @@ async function load() {
     return
   }
   try {
-    const card = await getCard(curPath.value)
+    const card = await getProfile(curPath.value)
     hasCard.value = true
     ruleCnt.value = card.rules.length
   } catch (e) {
@@ -131,7 +131,7 @@ function downloadDoc() {
         <div class="rule-row">
           <span class="badge b-green">规则 {{ ruleCnt }} 条</span>
           <span class="badge" :class="waitCnt ? 'b-amber' : 'b-green'">待确认 {{ waitCnt }} 项</span>
-          <span class="badge b-blue">规则 {{ asrtCnt }} 条</span>
+          <span class="badge b-blue">全项目规则 {{ totalRuleCnt }} 条</span>
         </div>
         <div v-if="waitCnt" style="font-size: 12px; color: var(--warn); margin-top: 8px">
           还有 {{ waitCnt }} 项待确认——建议先在顶栏澄清池收口，否则带「?」进基线。
