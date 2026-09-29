@@ -221,6 +221,28 @@ export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'P
 export const assemble = (nodePath: string, note = '') =>
   req<{ card: Card; file: string }>('/cards/assemble', json('POST', { node_path: nodePath, note }))
 
+/** 后台任务（批量画像）：进度源——前端轮询、刷新后可恢复 */
+export interface Job {
+  id: string
+  kind: string
+  label: string
+  cur: number
+  total: number
+  status: 'running' | 'done'
+  ok: number
+  skipped: string[]
+  blocked: string[]
+  failed: number
+  started_at: number
+  finished_at?: number
+}
+
+/** 创建批量画像任务：立即返回（node_path 空=全部叶子，给定=该子树叶子）；运行中重复创建后端 409 */
+export const assembleBatch = (nodePath = '') =>
+  req<{ job_id: string; total: number }>('/cards/assemble-batch', json('POST', { node_path: nodePath }))
+
+export const listJobs = () => req<Job[]>('/jobs')
+
 export const getCard = (nodePath: string) => req<Card>(`/cards/${encodeURIComponent(nodePath)}`)
 
 export const getDoc = () => req<string>('/doc')

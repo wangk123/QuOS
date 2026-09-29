@@ -6,7 +6,9 @@ import {
   ApiError,
   answerClar,
   assemble,
+  assembleBatch,
   createBaseline,
+  listJobs,
   getAssertions,
   getCard,
   getClarifications,
@@ -66,6 +68,8 @@ vi.mock('../../api', () => ({
   scaffoldTree: vi.fn(),
   setAssertionNode: vi.fn(),
   assemble: vi.fn(),
+  assembleBatch: vi.fn(),
+  listJobs: vi.fn(),
   getCard: vi.fn(),
   getDoc: vi.fn(),
   getClarifications: vi.fn(),
@@ -494,34 +498,28 @@ describe('全局 AI 进度条（aiBusy 挂 App，切视图不丢）', () => {
   })
 })
 
-describe('Card.vue 批量生成全部叶子', () => {
-  it('逐叶调 assemble，409 区分无规则跳过与未核验阻断，进度 x/y', async () => {
-    vi.mocked(getTree).mockResolvedValue([
-      { name: '支付', children: [{ name: '放款重试', children: [], open: true, priority: '' }], open: true, priority: '' },
-      { name: '风控', children: [], open: true, priority: '' },
+describe('Card.vue 批量生成（后台任务 + 轮询）', () => {
+  it('点「生成全部叶子」创建任务并轮询到 done：进度/汇总来自后端 job', async () => {
+    vi.mocked(assembleBatch).mockResolvedValue({ job_id: 'J1', total: 2 })
+    vi.mocked(listJobs).mockResolvedValue([
+      { id: 'J1', kind: 'assemble-batch', label: 'AI 生成画像 · 风控', cur: 2, total: 2,
+        status: 'done', ok: 1, skipped: ['支付/放款重试'], blocked: ['风控'], failed: 0,
+        started_at: 1, finished_at: 2 },
     ])
-    vi.mocked(assemble)
-      .mockRejectedValueOnce(new ApiError(409, '没有已挂载的规则'))  // 支付/放款重试：无规则 → 跳过
-      .mockRejectedValueOnce(new ApiError(409, { unqualified: ['A3'] }))  // 风控：未核验 → 阻断
-    curPath.value = '' // 批量不依赖选中
+    const { jobRunning } = await import('../../jobs')
     const Card = (await import('../Card.vue')).default
-    const w = mount(Card)
-    await flushPromises()
     const toasts: string[] = []
-    const w2 = mount(Card, { global: { provide: { toast: (m: string) => { toasts.push(m) } } } })
+    const w = mount(Card, { global: { provide: { toast: (m: string) => { toasts.push(m) } } } })
     await flushPromises()
-    const genBtn = w2.findAll('button').find(b => b.text().includes('生成全部叶子'))
-    if (!genBtn) throw new Error('按钮缺失')
-    await genBtn.trigger('click')
+    await w.findAll('button').find(b => b.text().includes('生成全部叶子'))!.trigger('click')
     await flushPromises()
-    expect(assemble).toHaveBeenCalledTimes(2)
-    expect(assemble).toHaveBeenCalledWith('0,0', '')
-    expect(assemble).toHaveBeenCalledWith('1', '')
-    expect(toasts.join()).toContain('成功 0 张')
+    expect(assembleBatch).toHaveBeenCalledWith('')
+    expect(toasts.join()).toContain('批量任务已创建')
+    expect(toasts.join()).toContain('成功 1 张')
     expect(toasts.join()).toContain('跳过 1')
     expect(toasts.join()).toContain('阻断 1')
-    expect(aiBusy.value).toBeNull() // 完成后清除
+    expect(jobRunning.value).toBe(false) // done 后复位
+    expect(aiBusy.value).toBeNull()
     w.unmount()
-    w2.unmount()
   })
 })

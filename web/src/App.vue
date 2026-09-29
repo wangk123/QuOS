@@ -11,6 +11,7 @@ import Gap from './views/Gap.vue'
 import Pool from './views/Pool.vue'
 import Save from './views/Save.vue'
 import { NAV_FLOW, NAV_PROJ, aiBusy, baseTag, curName, curPath, goto, view, top, goHome, syncFromHash } from './router'
+import { resumeJobs } from './jobs'
 
 const nodes = ref<TreeNode[]>([])
 const err = ref('')
@@ -92,6 +93,7 @@ async function boot() {
     await loadTree()
     if (top.value !== 'proj') return // 项目级 404：loadTree 已 goHome+toast，跳过基线加载
     await refreshBaselines()
+    void resumeJobs(toast) // 恢复后端仍在跑的批量任务进度（页面刷新/重开场景）
     void refreshClar().catch(() => {})
   } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'

@@ -1,4 +1,5 @@
 # server/app/api/router.py
+import asyncio
 import json
 from pathlib import Path
 from typing import Optional
@@ -13,7 +14,7 @@ from app.ai.runner import AITaskError
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
 from app.storage import assertions as assert_store
-from app.storage import cards, clarifications, dims, evidence, findings, gitops, project, tree
+from app.storage import cards, clarifications, dims, evidence, findings, gitops, jobs, project, tree
 from app.storage.project import is_valid_name, project_root
 
 api_router = APIRouter()
@@ -499,6 +500,59 @@ async def export_doc(proj: str):
     except tree.TreeFormatError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return PlainTextResponse(text, media_type="text/markdown; charset=utf-8")
+
+
+# ---------- 批量画像（后台任务 + 轮询） ----------
+
+class BatchIn(BaseModel):
+    node_path: str = ""  # 空 = 全部叶子；给定 = 该节点子树内的叶子
+
+
+@api_router.post("/cards/assemble-batch")
+async def assemble_batch(proj: str, body: BatchIn):
+    """创建批量画像后台任务，立即返回 job_id——长任务不走单请求（会超时），进度由 GET /jobs 轮询"""
+    root = _root(proj)
+    if jobs.running():
+        r = jobs.running()
+        raise HTTPException(status_code=409, detail=f"已有批量任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
+    nodes = _load_tree(root)
+    lv = tree.leaves(nodes)
+    if body.node_path:
+        node, full = _resolve(nodes, body.node_path)
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
+        lv = [(d, f) for d, f in lv if f == full or f.startswith(full + "/")]
+    if not lv:
+        raise HTTPException(status_code=422, detail="没有可生成的叶子节点（树为空或所选子树无叶子）")
+    jid = jobs.create("assemble-batch", f"批量生成画像 · {lv[0][1].split('/')[0] if not body.node_path else '选中子树'}", len(lv))
+    asyncio.create_task(_run_batch(proj, jid, lv))
+    return {"job_id": jid, "total": len(lv)}
+
+
+async def _run_batch(proj: str, jid: str, lv: list[tuple[str, str]]) -> None:
+    """逐叶组装：409 细分为「无规则→跳过 / 未核验→阻断」，其余计失败；单叶失败不中断"""
+    for i, (digits, name) in enumerate(lv, 1):
+        jobs.update(jid, cur=i, label=f"AI 生成画像 · {name}")
+        try:
+            await assemble_card(proj, AssembleIn(node_path=digits, note=""))
+            jobs.bump(jid, "ok")
+        except HTTPException as e:
+            if e.status_code == 409:
+                if isinstance(e.detail, dict) and e.detail.get("unqualified"):
+                    jobs.bump(jid, "blocked", name)
+                else:
+                    jobs.bump(jid, "skipped", name)
+            else:
+                jobs.bump(jid, "failed")
+        except Exception:
+            jobs.bump(jid, "failed")
+    jobs.finish(jid)
+
+
+@api_router.get("/jobs")
+async def list_jobs(proj: str):
+    _root(proj)  # 与其他端点同口径：非法/不存在项目名直接 4xx
+    return jobs.list_all()
 
 
 # ---------- 问人 ----------

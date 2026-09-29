@@ -123,3 +123,16 @@ def paths(nodes: list[Node], prefix: str = "") -> list[str]:
         out.append(full)
         out.extend(paths(n.children, full))
     return out
+
+
+def leaves(nodes: list[Node], digits: str = "", prefix: str = "") -> list[tuple[str, str]]:
+    """全部叶子 (数字路径, 全路径名)——批量画像逐叶产出的遍历单位"""
+    out: list[tuple[str, str]] = []
+    for i, n in enumerate(nodes):
+        d = f"{digits},{i}" if digits else str(i)
+        full = f"{prefix}/{n.name}" if prefix else n.name
+        if n.children:
+            out.extend(leaves(n.children, d, full))
+        else:
+            out.append((d, full))
+    return out

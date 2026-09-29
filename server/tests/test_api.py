@@ -457,3 +457,68 @@ async def test_tree_scaffold_empty_pool(client):
     ensure_root("演示项目")
     r = await client.post(f"{BASE}/tree/scaffold")
     assert r.status_code == 422 and "可提取" in r.json()["detail"]
+
+
+async def _wait_job_done(client, jid, timeout=5.0):
+    import asyncio
+    for _ in range(int(timeout / 0.05)):
+        rows = (await client.get(f"{BASE}/jobs")).json()
+        j = next(x for x in rows if x["id"] == jid)
+        if j["status"] != "running":
+            return j
+        await asyncio.sleep(0.05)
+    raise AssertionError("job 未在超时内完成")
+
+
+async def test_assemble_batch_job_lifecycle(client, monkeypatch):
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
+    from app.storage import assertions as assert_store
+    assert_store.save(root, [
+        Assertion(id="A1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
+    ])
+
+    async def mock_assemble(assertions, node_name, note):
+        return Card(node=node_name, goal="g")
+    monkeypatch.setattr(tasks, "assemble", mock_assemble)
+
+    r = await client.post(f"{BASE}/cards/assemble-batch", json={"node_path": ""})
+    assert r.status_code == 200
+    jid, total = r.json()["job_id"], r.json()["total"]
+    assert total == 2  # 叶子：支付/放款重试、风控
+    j = await _wait_job_done(client, jid)
+    assert j["ok"] == 1 and j["skipped"] == ["风控"]  # 风控无规则 → 409 → 跳过
+    assert (root / "cards").exists()  # 支付/放款重试 画像落盘
+
+
+async def test_assemble_batch_scoped_and_conflicts(client, monkeypatch):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
+
+    async def slow_assemble(assertions, node_name, note):
+        import asyncio
+        await asyncio.sleep(0.3)
+        return Card(node=node_name, goal="g")
+    monkeypatch.setattr(tasks, "assemble", slow_assemble)
+
+    r = await client.post(f"{BASE}/cards/assemble-batch", json={"node_path": "0"})  # 支付子树：1 叶
+    assert r.status_code == 200 and r.json()["total"] == 1
+    r2 = await client.post(f"{BASE}/cards/assemble-batch", json={})  # 运行中重复发起 → 409
+    assert r2.status_code == 409 and "进行中" in r2.json()["detail"]
+    await _wait_job_done(client, r.json()["job_id"])
+    # 运行中任务查询可见 running→done 流转（上面等待已覆盖），空树拒绝：
+    r3 = await client.post(f"{BASE}/tree", json={"op": "del", "path": "0"})
+    r4 = await client.post(f"{BASE}/tree", json={"op": "del", "path": "0"})
+    r5 = await client.post(f"{BASE}/cards/assemble-batch", json={})
+    assert r5.status_code == 422
+
+
+async def test_jobs_requires_valid_project(client):
+    ensure_root("演示项目")
+    r = await client.get(f"{BASE}/jobs")
+    assert r.status_code == 200 and isinstance(r.json(), list)
+    assert (await client.get("/api/projects/%2e%2e/jobs")).status_code == 422
