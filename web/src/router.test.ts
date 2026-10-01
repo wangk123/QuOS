@@ -1,7 +1,13 @@
 // hashchange 路由同步：syncFromHash 可重入（初始化/浏览器前进后退共用）
 import { afterEach, describe, expect, it } from 'vitest'
 import { curSlug, setProject } from './api'
-import { syncFromHash, top } from './router'
+import { syncFromHash, top, view } from './router'
+
+describe('ViewName 收敛（终态仅 v-wb）', () => {
+  it('默认工作台视图 v-wb', () => {
+    expect(view.value).toBe('v-wb')
+  })
+})
 
 describe('router syncFromHash', () => {
   afterEach(() => {

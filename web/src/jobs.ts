@@ -21,6 +21,9 @@ function applyJob(j: Job) {
 }
 
 function summary(j: Job): string {
+  // cancelled/failed 是终态：先于各 kind 的「完成」文案分流，避免误报完成
+  if (j.status === 'cancelled') return `任务已取消：${j.label}`
+  if (j.status === 'failed') return `任务已失败：${j.label}`
   if (j.kind === 'extract-verify') {
     const parts = [`提取 ${j.extracted ?? 0} 条`]
     if (j.corrected !== undefined) parts.push(`一致 ${j.ok}`, `修正 ${j.corrected}`, `无依据 ${j.nobasis}`)
@@ -35,6 +38,17 @@ function summary(j: Job): string {
   if (j.kind === 'clar-review') {
     // ok=AI 材料代答落库数（待人工采纳）
     return `澄清重检完成：材料代答 ${j.ok ?? 0} 题待采纳`
+  }
+  if (j.kind === 'generate') {
+    // ok=assemble 成功节点数；blocked=闸门拦下的未核验节点
+    const parts = [`${j.ok} 节点就绪`]
+    if (j.blocked.length) parts.push(`${j.blocked.length} 待核验跳过`)
+    return `生成完成：${parts.join(' · ')}`
+  }
+  if (j.kind === 'regen') {
+    const parts = [`${j.ok} 节点更新`]
+    if (j.blocked.length) parts.push(`${j.blocked.length} 待核验跳过`)
+    return `重生成完成：${parts.join(' · ')}`
   }
   const parts = [`成功 ${j.ok} 张`]
   if (j.skipped.length) parts.push(`跳过 ${j.skipped.length}（无规则：${j.skipped.slice(0, 3).join('、')}${j.skipped.length > 3 ? '…' : ''}）`)
@@ -53,7 +67,9 @@ async function tick(jobId: string, toast: (msg: string, cls?: string) => void): 
   }
   applyJob(j)
   if (j.status !== 'running') {
-    toast(summary(j), j.ok ? 'ok' : 'warn')
+    // cancelled/failed 终态固定 warn（ok>0 的部分结果也非成功色）；done 按 ok 有无分流
+    const cls = j.status === 'done' && j.ok > 0 ? 'ok' : 'warn'
+    toast(summary(j), cls)
     return true
   }
   return false

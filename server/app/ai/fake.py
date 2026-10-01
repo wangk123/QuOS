@@ -37,7 +37,8 @@ async def fake_gaps(profile_summary: str, dims: list[str]) -> list[Gap]:
     return [Gap(id="G1", dim=dim, text="「重试中」状态无出口——人工干预路径未定义")]
 
 
-async def fake_assemble(rules: list[Rule], node_name: str, note: str) -> Profile:
+async def fake_assemble(rules: list[Rule], node_name: str, note: str,
+                        parent_goal: str = "") -> Profile:
     # 与真实 assemble 相同的硬阻断：未核验/待实证规则不允许进用户画像
     unqualified = [r for r in rules if not (r.verified and r.conf != "待实证")]
     if unqualified:
@@ -58,8 +59,9 @@ async def fake_assemble(rules: list[Rule], node_name: str, note: str) -> Profile
     )
 
 
-async def fake_impact(diff_text: str, tree_dump: str, profile_list: list[str]) -> list[str]:
-    return profile_list[:1]
+async def fake_impact_analysis(new_text: str, rules_text: str, clars_text: str) -> tasks.ImpactOut:
+    # 假实现不解析清单：一律无影响、建议最保守的 partial（走查不触发重生成副作用）
+    return tasks.ImpactOut(nodes=[], rule_ids=[], clar_nos=[], mode="partial", reason="假实现：无影响")
 
 
 async def fake_outline(material: str) -> list[tasks.OutlineNode]:
@@ -76,6 +78,20 @@ async def fake_clar_review(questions_text: str, materials_text: str,
     }])
 
 
+async def fake_understand(material, images=None):
+    return tasks.UnderstandOut(
+        root=tasks.UnderstandRoot(goal="假需求：访前调查助手", entry="客户经理",
+                                  flow="输入→查询→输出", boundaries="无", note=""),
+        nodes=[tasks.OutlineNode(name="感知模块", goal="接收输入", children=[
+            tasks.OutlineNode(name="文字输入", goal="输入企业名称", children=[])])])
+
+
+async def fake_summary(parts: str, kind: str) -> tasks.SummaryOut:
+    # 假实现不解析子节点清单：给固定聚合结果（root/module 同款，走查只验写回链路）
+    return tasks.SummaryOut(goal=f"假聚合画像（{kind}）", entry="客户经理",
+                            boundaries="0 实证", note="")
+
+
 def install() -> None:
     """把假实现挂到 tasks 模块上（router 以 tasks.fn 形式调用，运行时生效）"""
     tasks.extract = fake_extract
@@ -83,6 +99,8 @@ def install() -> None:
     tasks.conflict = fake_conflict
     tasks.gaps = fake_gaps
     tasks.assemble = fake_assemble
-    tasks.impact = fake_impact
+    tasks.impact_analysis = fake_impact_analysis
     tasks.outline = fake_outline
     tasks.clar_review = fake_clar_review
+    tasks.understand = fake_understand
+    tasks.summary = fake_summary

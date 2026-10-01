@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>需求工作台（AI 访前调查）</title>
+<style>
+:root {
+  --primary: #1e40af; --secondary: #3b82f6; --accent: #d97706;
+  --bg: #f8fafc; --fg: #0f172a; --muted-fg: #475569; --muted: #e9eef6;
+  --border: #dbeafe; --border2: #cbd5e1; --destructive: #dc2626;
+  --ok: #16a34a; --warn: #b45309;
+  --amber-bg: #fef3c7; --green-bg: #dcfce7; --blue-bg: #dbeafe; --red-bg: #fee2e2;
+  --radius: 8px;
+  --font: 'Fira Sans', system-ui, -apple-system, 'PingFang SC', sans-serif;
+  --mono: 'Fira Code', ui-monospace, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.55; }
+button { font-family: inherit; cursor: pointer; border: none; border-radius: 6px; font-size: 12.5px; }
+textarea, input { font-family: inherit; font-size: 12.5px; }
+
+/* ── 演示器（非产品） ── */
+#proto-bar { background: #111827; color: #e5e7eb; padding: 7px 20px; display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
+#proto-bar .plabel { font-size: 12px; font-weight: 700; color: #93c5fd; }
+#proto-bar button { background: #1f2937; color: #d1d5db; padding: 4px 11px; font-size: 12px; border: 1px solid #374151; }
+#proto-bar button.cur { background: var(--secondary); color: #fff; border-color: var(--secondary); font-weight: 700; }
+#proto-bar .pnote { font-size: 11.5px; color: #9ca3af; flex: 1; min-width: 200px; }
+
+/* ── 顶栏 ── */
+header.app { display: flex; align-items: center; gap: 14px; background: #fff; border-bottom: 1px solid var(--border2); padding: 0 20px; height: 50px; position: sticky; top: 0; z-index: 50; }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--primary); }
+.proj { display: flex; align-items: center; gap: 8px; color: var(--muted-fg); }
+.pool-btn { position: relative; background: #fff; color: var(--primary); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
+.pool-btn:hover { background: var(--muted); }
+.pool-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--destructive); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+.ghost-sm { background: #fff; color: var(--muted-fg); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
+.ghost-sm.show, .pool-btn.show { display: inline-block; }
+.ghost-sm, .pool-btn { display: none; }
+
+/* ── 后台进度条 ── */
+#genstrip { display: none; align-items: center; gap: 12px; background: var(--blue-bg); border-bottom: 1px solid #b6d0f5; padding: 7px 20px; position: sticky; top: 50px; z-index: 49; font-size: 12.5px; color: var(--primary); }
+#genstrip.show { display: flex; }
+#genstrip .spin { width: 13px; height: 13px; border: 2.5px solid #b6d0f5; border-top-color: var(--primary); border-radius: 50%; animation: spin .9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#genstrip .bar { flex: 1; max-width: 360px; height: 5px; background: #cfe1fb; border-radius: 3px; overflow: hidden; }
+#genstrip .bar i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .8s ease; }
+#genstrip .cancel { background: #fff; color: var(--destructive); border: 1px solid #fca5a5; padding: 3px 10px; font-size: 11.5px; font-weight: 600; }
+
+/* ═══ 落地页 ═══ */
+.landing { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+.landing h1 { font-size: 19px; margin-bottom: 4px; }
+.landing .sub { color: var(--muted-fg); margin-bottom: 26px; }
+.bigdrop { border: 2.5px dashed var(--border2); border-radius: 16px; background: #fff; padding: 52px 30px; text-align: center; color: var(--muted-fg); }
+.bigdrop.over { border-color: var(--secondary); background: #f4f8ff; }
+.bigdrop h3 { color: var(--fg); font-size: 15.5px; margin-bottom: 6px; }
+.bigdrop .types { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.dropmini { border: 2px dashed var(--border2); border-radius: 10px; background: #fff; padding: 10px 14px; text-align: center; color: var(--muted-fg); font-size: 12px; margin-top: 12px; }
+.evlist { background: #fff; border: 1px solid var(--border2); border-radius: 12px; margin-top: 18px; overflow: hidden; }
+.evlist .hd { padding: 11px 16px; font-weight: 700; font-size: 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.evrow { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-top: 1px solid #f1f5f9; font-size: 12.5px; }
+.evrow .nm { font-family: var(--mono); flex: 1; min-width: 0; }
+.evrow .x { color: var(--muted-fg); background: none; padding: 2px 6px; }
+.evrow .x:hover { color: var(--destructive); }
+.genbar { display: flex; align-items: center; gap: 14px; margin-top: 20px; }
+.btn-gen { background: var(--primary); color: #fff; font-size: 14.5px; font-weight: 700; padding: 12px 34px; border-radius: 10px; box-shadow: 0 3px 12px rgba(30,64,175,.28); }
+.btn-gen:hover { background: #1d4ed8; }
+
+/* ═══ 工作台 ═══ */
+.stage { display: none; grid-template-columns: minmax(500px, 58fr) minmax(430px, 42fr); min-height: calc(100vh - 50px); }
+.stage.show { display: grid; }
+.treezone { padding: 16px 14px 80px 22px; overflow-y: auto; border-right: 1px solid var(--border2); }
+.detailzone { padding: 16px 22px 80px 18px; overflow-y: auto; max-height: calc(100vh - 50px); position: sticky; top: 50px; }
+
+/* ── 树 ── */
+.tree { position: relative; padding-left: 26px; margin-top: 12px; }
+.tree::before { content: ''; position: absolute; left: 10px; top: -14px; bottom: 12px; width: 2px; background: var(--border2); }
+.mods { display: flex; flex-direction: column; gap: 9px; position: relative; }
+.mod { position: relative; }
+.mod::before { content: ''; position: absolute; left: -16px; top: 20px; width: 16px; height: 2px; background: var(--border2); }
+.modcard { background: #fff; border: 1px solid var(--border2); border-radius: var(--radius); overflow: hidden; }
+.modhead { display: flex; align-items: center; gap: 10px; padding: 9px 13px; cursor: pointer; flex-wrap: wrap; }
+.modhead:hover { background: #f1f5fd; }
+.modhead .chev { width: 0; height: 0; border-left: 5px solid var(--muted-fg); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .15s; flex: none; }
+.mod.open .modhead .chev { transform: rotate(90deg); }
+.modhead .mname { font-weight: 700; font-size: 13.5px; color: var(--primary); white-space: nowrap; }
+.modhead .mdesc { color: var(--muted-fg); font-size: 12px; flex: 1; min-width: 120px; }
+.modhead .mb { display: flex; gap: 5px; flex: none; align-items: center; }
+.leaves { display: none; border-top: 1px dashed var(--border); background: #fbfdff; padding: 7px 12px 9px 28px; }
+.mod.open .leaves { display: block; }
+.leaf { display: flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 6px; cursor: pointer; position: relative; flex-wrap: wrap; }
+.leaf::before { content: ''; position: absolute; left: -11px; top: 50%; width: 11px; height: 1px; background: var(--border2); }
+.leaf:hover { background: var(--blue-bg); }
+.leaf.sel { background: var(--blue-bg); outline: 1.5px solid var(--secondary); }
+.leaf .lname { font-weight: 600; white-space: nowrap; }
+.leaf .ldesc { color: var(--muted-fg); font-size: 11.5px; flex: 1; min-width: 80px; }
+.leaf .lb { display: flex; gap: 4px; flex: none; }
+.nbadge { font-size: 10px; font-weight: 700; border-radius: 8px; padding: 0 6px; display: inline-flex; align-items: center; gap: 3px; }
+.nbadge.okc { background: var(--green-bg); color: var(--ok); }
+.nbadge.warn { background: var(--amber-bg); color: var(--warn); }
+.nbadge.cnt { background: var(--muted); color: var(--muted-fg); }
+.nbadge.conf { background: var(--red-bg); color: var(--destructive); }
+.nbadge.doing { background: var(--blue-bg); color: var(--primary); }
+.nbadge.doing::before { content: ''; width: 7px; height: 7px; border: 1.8px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+.editops { display: none; gap: 3px; margin-left: 4px; }
+.modhead:hover .editops, .leaf:hover .editops { display: inline-flex; }
+.editops button { background: var(--muted); color: var(--muted-fg); width: 20px; height: 20px; border-radius: 5px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.editops button:hover { background: var(--blue-bg); color: var(--primary); }
+.unbucket { position: relative; margin: 10px 0; }
+.unbucket .modcard { border-style: dashed; }
+.unbucket .modhead .mname { color: var(--muted-fg); }
+.rootcard { background: linear-gradient(135deg, #1e40af, #3b82f6); color: #fff; border-radius: 10px; padding: 14px 18px; cursor: pointer; position: relative; }
+.rootcard:hover { box-shadow: 0 4px 16px rgba(30,64,175,.3); }
+.rootcard.sel { outline: 2.5px solid var(--secondary); }
+.rootcard h2 { font-size: 14.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rootcard p { margin-top: 5px; font-size: 12.5px; opacity: .93; }
+.rootcard .rmeta { display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
+.rootcard .rmeta .badge { background: rgba(255,255,255,.18); color: #fff; }
+.rootcard .rmeta .badge.hot { background: #fecaca; color: #991b1b; }
+.rootcard .corner { position: absolute; top: 12px; right: 14px; display: flex; gap: 6px; }
+.rootcard .corner button { background: rgba(255,255,255,.16); color: #fff; font-size: 11px; padding: 3px 9px; font-weight: 600; }
+.rootcard .corner button:hover { background: rgba(255,255,255,.3); }
+
+/* ── 详情 ── */
+.crumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-fg); margin-bottom: 9px; flex-wrap: wrap; }
+.crumb b { color: var(--fg); }
+.crumb .sep { color: var(--border2); }
+.crumb .right { margin-left: auto; display: flex; gap: 6px; }
+.card { background: #fff; border: 1px solid var(--border2); border-radius: 10px; padding: 15px 18px; margin-bottom: 12px; }
+.card h3 { font-size: 14px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+.h4s { font-size: 11.5px; color: var(--muted-fg); margin: 13px 0 4px; letter-spacing: .05em; font-weight: 700; }
+.spec { display: grid; grid-template-columns: 76px 1fr; gap: 4px 12px; font-size: 12.5px; }
+.spec .k { color: var(--muted-fg); }
+.tabbar { display: flex; gap: 3px; border-bottom: 1.5px solid var(--border2); margin-bottom: 12px; }
+.tab { padding: 7px 13px; background: none; color: var(--muted-fg); border-radius: 8px 8px 0 0; border-bottom: 2.5px solid transparent; font-weight: 600; }
+.tab.on { color: var(--primary); border-bottom-color: var(--primary); background: #fff; }
+.tab .c { font-size: 10.5px; font-weight: 700; border-radius: 8px; padding: 0 6px; margin-left: 5px; background: var(--muted); color: var(--muted-fg); }
+.tab .c.warn { background: var(--amber-bg); color: var(--warn); }
+.tab .c.conf { background: var(--red-bg); color: var(--destructive); }
+.rrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 2px; border-top: 1px solid #f1f5f9; font-size: 12.5px; }
+.rrow:first-child { border-top: none; }
+.rrow .rid { font-family: var(--mono); font-size: 11.5px; color: var(--muted-fg); flex: none; padding-top: 1px; min-width: 26px; }
+.rrow .rtxt { flex: 1; min-width: 0; }
+.rrow .rsrc { font-size: 11px; color: var(--muted-fg); margin-top: 1px; }
+.rrow .acts { display: flex; gap: 5px; flex: none; align-items: center; }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.b-green { background: var(--green-bg); color: #166534; }
+.b-blue { background: var(--blue-bg); color: var(--primary); }
+.b-amber { background: var(--amber-bg); color: var(--warn); }
+.b-red { background: var(--red-bg); color: var(--destructive); }
+.b-gray { background: var(--muted); color: var(--muted-fg); }
+.btn { background: var(--primary); color: #fff; padding: 7px 14px; font-weight: 600; }
+.btn:hover { background: #1d4ed8; }
+.btn-ghost { background: #fff; color: var(--primary); border: 1px solid var(--border2); padding: 6px 12px; }
+.btn-ghost:hover { background: var(--muted); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.vprog { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--muted-fg); }
+.vprog .bar { flex: 1; height: 6px; background: var(--muted); border-radius: 3px; overflow: hidden; }
+.vprog .bar i { display: block; height: 100%; background: var(--ok); border-radius: 3px; transition: width .4s; }
+/* 冲突卡 */
+.confcard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 10px; }
+.confside { border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; font-size: 12px; }
+.confside .who { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.confside.a { background: #f6f9ff; border-color: #c3d7f7; }
+.confside.a .who { color: var(--primary); }
+.confside.b { background: #fffaf0; border-color: #ecd9b0; }
+.confside.b .who { color: var(--warn); }
+.confpick { display: flex; gap: 8px; flex-wrap: wrap; }
+.confpick button { border: 1.5px solid var(--border2); background: #fff; padding: 5px 13px; font-weight: 600; }
+.confpick button:hover { border-color: var(--secondary); color: var(--primary); }
+.confpick button.picked { background: var(--primary); color: #fff; border-color: var(--primary); }
+.resolved { display: flex; align-items: center; gap: 8px; background: var(--green-bg); border: 1px solid #bbe3c6; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #14532d; }
+/* 转澄清行内表单 */
+.askform { background: #fbfdff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 7px; }
+.askform textarea { width: 100%; border: 1px solid var(--border2); border-radius: 6px; padding: 7px 9px; min-height: 54px; resize: vertical; outline: none; }
+.askform textarea:focus { border-color: var(--secondary); }
+.askform .frow { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.jline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+.jstep-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--blue-bg); color: var(--primary); font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+.jstep-chip:hover { border-color: var(--secondary); }
+.jarr { color: var(--border2); font-size: 12px; }
+.mtx { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 4px; }
+.mtx th, .mtx td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+.mtx th { background: var(--muted); }
+.mtx td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mtx tr.clickable { cursor: pointer; }
+.mtx tr.clickable:hover { background: #f1f5fd; }
+.tracable { border-bottom: 1px dotted #94a3b8; cursor: help; position: relative; }
+.tracable:hover::after { content: attr(data-trace); position: absolute; bottom: calc(100% + 6px); left: 0; background: #0f172a; color: #fff; font-size: 11px; font-weight: 400; padding: 6px 10px; border-radius: 6px; white-space: pre-line; max-width: 420px; z-index: 60; box-shadow: 0 4px 14px rgba(0,0,0,.25); text-align: left; }
+.rule-tbl { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
+.rule-tbl th, .rule-tbl td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; vertical-align: top; }
+.rule-tbl th { background: var(--muted); }
+.doing-box { display: flex; align-items: center; gap: 12px; background: var(--blue-bg); border: 1px solid #b6d0f5; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; color: var(--primary); font-size: 12.5px; }
+.doing-box .spin { width: 15px; height: 15px; border: 2.5px solid #b6d0f5; border-top-color: var(--primary); border-radius: 50%; animation: spin .9s linear infinite; flex: none; }
+.skel { height: 11px; border-radius: 5px; background: linear-gradient(90deg, #e8eef8 25%, #f4f8fd 50%, #e8eef8 75%); background-size: 200% 100%; animation: shine 1.3s infinite; margin-bottom: 8px; }
+@keyframes shine { to { background-position: -200% 0; } }
+.skel.w90 { width: 90%; } .skel.w75 { width: 75%; } .skel.w60 { width: 60%; } .skel.w45 { width: 45%; }
+
+/* ── 弹窗 ── */
+.mask { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.42); z-index: 80; }
+.mask.open { display: flex; align-items: center; justify-content: center; }
+.modal { background: #fff; border-radius: 14px; width: 600px; max-width: 92vw; max-height: 84vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,.3); }
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 22px 12px; border-bottom: 1px solid var(--border); }
+.modal-head h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.modal-head .msub { color: var(--muted-fg); font-size: 12px; margin-top: 2px; }
+.modal-head .x { margin-left: auto; background: var(--muted); color: var(--muted-fg); width: 26px; height: 26px; border-radius: 7px; font-size: 13px; }
+.modal-head .x:hover { background: var(--red-bg); color: var(--destructive); }
+.modal-body { padding: 14px 22px; overflow-y: auto; }
+.modal-foot { padding: 12px 22px 16px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.segtabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.segtab { background: var(--muted); color: var(--muted-fg); padding: 5px 14px; border-radius: 999px; font-weight: 600; font-size: 12px; }
+.segtab.on { background: var(--primary); color: #fff; }
+/* 澄清卡 */
+.qcard { border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: #fff; }
+.qcard.done { background: #f7fdf9; border-color: #bbe3c6; }
+.qcard.ig { background: #f8fafc; border-color: var(--border); opacity: .75; }
+.qcard .qtop { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted-fg); margin-bottom: 5px; flex-wrap: wrap; }
+.qcard .qtop .from { background: var(--muted); border-radius: 5px; padding: 1px 7px; font-weight: 600; }
+.qcard .qtxt { font-size: 13px; font-weight: 600; }
+.qcard .qacts { display: flex; gap: 8px; margin-top: 9px; }
+.qcard .ans { background: #fff; border: 1px solid #bbe3c6; border-radius: 8px; padding: 8px 11px; font-size: 12.5px; margin-top: 9px; color: #14532d; }
+.qcard .ans b { display: block; font-size: 11px; color: var(--ok); margin-bottom: 2px; }
+.srcpick { display: flex; gap: 12px; font-size: 12px; color: var(--muted-fg); align-items: center; }
+.srcpick label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+/* 版本时间线 */
+.vtl { position: relative; padding-left: 22px; }
+.vtl::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--border2); }
+.vitem { position: relative; padding: 8px 0 12px; }
+.vitem::before { content: ''; position: absolute; left: -21px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2.5px solid var(--border2); }
+.vitem.cur::before { border-color: var(--ok); background: var(--green-bg); }
+.vitem h4 { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.vitem .vmeta { font-size: 11.5px; color: var(--muted-fg); margin-top: 2px; }
+.vitem .vdelta { margin-top: 5px; display: flex; gap: 6px; flex-wrap: wrap; }
+.doc-outline { font-family: var(--mono); font-size: 12px; line-height: 2; white-space: pre; background: #fbfdff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; }
+.toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 120; }
+.toast { background: #0f172a; color: #fff; font-size: 12.5px; padding: 9px 16px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.toast.ok { background: var(--ok); }
+.flash { animation: flash 1.5s ease-out 2; }
+@keyframes flash { 0%,55% { box-shadow: 0 0 0 4px rgba(59,130,246,.35); } 100% { box-shadow: none; } }
+/* 影响分析 */
+.newev { display: flex; align-items: center; gap: 10px; background: #f6f9ff; border: 1px solid #c3d7f7; border-radius: 8px; padding: 9px 13px; margin-bottom: 10px; }
+.relrow { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12px; }
+.relrow .rel { color: var(--muted-fg); }
+.optcard { border: 1.5px solid var(--border2); border-radius: 10px; padding: 11px 14px; margin-bottom: 9px; cursor: pointer; transition: all .15s; }
+.optcard:hover { border-color: var(--secondary); }
+.optcard.sel { border-color: var(--primary); background: #f6f9ff; box-shadow: 0 0 0 1px var(--primary); }
+.optcard .optop { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.optcard .radio { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--border2); flex: none; display: inline-block; }
+.optcard.sel .radio { border-color: var(--primary); background: radial-gradient(circle, var(--primary) 42%, #f6f9ff 46%); }
+.optcard p { font-size: 12px; color: var(--muted-fg); margin: 5px 0 4px 24px; }
+.optcard .optmeta { font-size: 11px; color: var(--primary); margin-left: 24px; font-weight: 600; }
+/* AI 代答卡 */
+.qcard .aians { background: #f6f9ff; border: 1px solid #c3d7f7; border-radius: 8px; padding: 9px 12px; font-size: 12.5px; margin-top: 9px; }
+.qcard .aians b { display: block; font-size: 11px; color: var(--primary); margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<div id="proto-bar">
+  <span class="plabel">演示</span>
+  <button id="pb-reset" onclick="reset()">① 空项目</button>
+  <button id="pb-mat" onclick="showMaterials()">② 导入材料后</button>
+  <button id="pb-gen" onclick="generate()">③ 生成需求</button>
+  <button id="pb-done" onclick="jumpDone()">④ 完成后（可操作）</button>
+  <button id="pb-chg" onclick="demoChange()">⑤ 补材料→影响分析</button>
+  <span class="pnote" id="pnote">生成后的核验 / 冲突裁决 / 转待确认 / 弹窗都可真实操作</span>
+</div>
+
+<header class="app">
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20" /><circle cx="12" cy="12" r="9" /></svg>
+    QuOS
+  </div>
+  <div class="proj" id="projTag">项目 <b style="color:var(--fg)">aifangqian</b></div>
+  <span style="flex:1"></span>
+  <button class="ghost-sm" id="verBtn" onclick="openMask('verMask')">版本</button>
+  <button class="pool-btn show" id="evBtn" onclick="openMask('evMask')">证据池<span class="pool-badge" id="evCount">5</span></button>
+  <button class="pool-btn" id="clarBtn" onclick="openMask('clarMask')">待确认<span class="pool-badge" id="clarCount">0</span></button>
+</header>
+
+<div id="genstrip">
+  <span class="spin"></span><span id="genlabel">正在从材料中梳理需求大纲…</span>
+  <div class="bar"><i id="genbar" style="width:4%"></i></div>
+  <button class="cancel" onclick="cancelGen()">取消</button>
+</div>
+
+<!-- ═══ 落地 ═══ -->
+<div class="landing" id="landing">
+  <h1 id="land-title">把需求的材料丢进来</h1>
+  <p class="sub">多烂都行——文档、聊天记录、截图、git 仓库、甚至一句话。生成需求之后随时可以再补。</p>
+  <div class="bigdrop" id="bigdrop">
+    <h3>拖拽材料到这里 · 或点击选择 · ⌘V 粘贴</h3>
+    <p>支持批量，一次丢完</p>
+    <div class="types"><span class="badge b-gray">文档</span><span class="badge b-amber">聊天记录</span><span class="badge b-amber">截图</span><span class="badge b-blue">git 仓库</span><span class="badge b-gray">一句话想法</span></div>
+  </div>
+  <div class="evlist" id="evlist" style="display:none">
+    <div class="hd">材料 <span class="badge b-gray" id="evN">5 份</span><span style="flex:1"></span><span style="font-weight:400;color:var(--muted-fg);font-size:12px">删错了没关系，之后随时补</span></div>
+    <div id="evrows"></div>
+    <div class="dropmini" style="margin:0">继续拖入 / ⌘V 追加材料</div>
+  </div>
+  <div class="genbar" id="genbar2" style="display:none">
+    <button class="btn-gen" onclick="generate()">✦ 生成需求</button>
+    <span style="color:var(--muted-fg);font-size:12.5px">生成后材料收进顶栏「证据池」，随时点开补充、重新生成</span>
+  </div>
+</div>
+
+<!-- ═══ 工作台 ═══ -->
+<div class="stage" id="stage">
+  <div class="treezone" id="treezone"></div>
+  <div class="detailzone" id="detailzone"></div>
+</div>
+
+<!-- ═══ 证据池弹窗 ═══ -->
+<div class="mask" id="evMask" onclick="closeMask('evMask')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>证据池 <span class="badge b-gray" id="evN2">5 份</span></h3>
+      <div class="msub">补充材料后重新生成——已整理的结果保留，新内容增量并入</div>
+      <button class="x" onclick="closeMask('evMask')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="dropmini" style="margin:0 0 12px;cursor:pointer" onclick="demoAddEv()">拖入 / ⌘V / 点击上传，追加材料 <span style="color:var(--primary);font-weight:600">（演示：点此模拟拖入新材料）</span></div>
+      <div id="evrows2"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="regen()">↻ 重新生成</button>
+      <span style="font-size:11.5px;color:var(--muted-fg)">先出影响分析方案——AI 判断局部还是全量，你确认后执行</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 待确认（澄清池）弹窗 ═══ -->
+<div class="mask" id="clarMask" onclick="closeMask('clarMask')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>待确认 <span class="badge b-red" id="clarN">0</span></h3>
+      <div class="msub">需求里说不清的地方都攒在这里——问过相关人员后把答复记回来，对应内容自动更新</div>
+      <button class="x" onclick="closeMask('clarMask')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="segtabs">
+        <button class="segtab on" id="seg-wait" onclick="segClar('wait')">等待答复 <span id="segWaitN">0</span></button>
+        <button class="segtab" id="seg-done" onclick="segClar('done')">已答复 <span id="segDoneN">0</span></button>
+      </div>
+      <div id="clarlist"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 版本弹窗 ═══ -->
+<div class="mask" id="verMask" onclick="closeMask('verMask')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>版本</h3>
+      <div class="msub">需求文档的存档历史——可回看、可对比，随时存一版留底</div>
+      <button class="x" onclick="closeMask('verMask')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="verlist"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="saveVer()">存为版本</button>
+      <button class="btn-ghost" onclick="openMask('exportMask')">预览 / 导出需求文档</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 导出预览 ═══ -->
+<div class="mask" id="exportMask" onclick="closeMask('exportMask')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>需求文档 · 导出预览</h3>
+      <div class="msub">总览开篇 + 按树分层——整份需求一份文档，给评审/开发直接看</div>
+      <button class="x" onclick="closeMask('exportMask')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="doc-outline"># 需求文档 · AI 访前调查
+
+## 需求总览
+  这是什么 · 给谁 · 端到端主线 · 模块速览 · 风险与待确认
+
+## 感知模块
+  ### 文字输入（目标 / 主流程 / 状态机 / 异常 / 39→1 条）
+  ### 语音输入 …  ### 多模态输入 …
+## 记忆模块 …  ## 知识模块 …  ## 规划模块 …
+## 工具模块
+  ### 工商信息查询（39 条 · 2 已核待确认）…
+  ### 负面风险排查 …  ### 动产质押查询 …
+## 执行模块
+  ### 任务执行 …  ### 一纸禅输出 …</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="toast('已导出 需求文档.md','ok')">导出 .md</button>
+      <button class="btn-ghost" onclick="closeMask('exportMask')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 影响分析弹窗 ═══ -->
+<div class="mask" id="impactMask" onclick="closeMask('impactMask')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>重新生成 · 影响分析</h3>
+      <div class="msub">AI 分析新材料与现有需求的关联，给出影响范围与建议——你来定怎么跑</div>
+      <button class="x" onclick="closeMask('impactMask')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="newev">
+        <span class="badge b-blue">新材料</span>
+        <span style="font-family:var(--mono);font-size:12.5px">验证码处理说明.docx</span>
+        <span style="font-size:11.5px;color:var(--muted-fg)">★★★ 文档</span>
+      </div>
+      <div class="relrow">
+        <span class="badge b-blue">1 个节点</span><span class="rel">工具模块 / 工商信息查询</span>
+        <span class="badge b-red">1 组冲突</span><span class="rel">C1 验证码处理方式</span>
+        <span class="badge b-amber">2 个待确认</span><span class="rel">Q1（验证码）· Q3（历史记录）</span>
+        <span class="badge b-gray">1 条条目</span><span class="rel">R11（推测级，可被新材料升级）</span>
+      </div>
+      <div id="opts">
+        <div class="optcard sel" onclick="pickOpt(this,'partial')">
+          <div class="optop"><span class="radio"></span><b>局部重新生成</b><span class="badge b-green">✦ AI 推荐</span></div>
+          <p>只重跑「工商信息查询」并重扫关联待确认；其余 14 个节点与你已做的核验、裁决全部保持不动。</p>
+          <div class="optmeta">影响 1/15 节点 · 约 2 分钟 · 已有人工判断保留</div>
+        </div>
+        <div class="optcard" onclick="pickOpt(this,'rescan')">
+          <div class="optop"><span class="radio"></span><b>仅重扫待确认</b></div>
+          <p>树和条目完全不动——只用新材料回答待确认问题（AI 找答案，你逐条采纳/忽略）。</p>
+          <div class="optmeta">影响 0 节点 · 最快 · 适合「材料只是答疑」的场景</div>
+        </div>
+        <div class="optcard" onclick="pickOpt(this,'full')">
+          <div class="optop"><span class="radio"></span><b>全量重新生成</b></div>
+          <p>15 个节点全部重来。注意：已做的核验、裁决、手动编辑会被 AI 重新组织，不保证保留。</p>
+          <div class="optmeta">影响 15/15 节点 · 最慢 · 适合「原始材料大改」的场景</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="runImpact()">按所选方案执行</button>
+      <span style="font-size:11.5px;color:var(--muted-fg)">执行中可取消；完成后变更摘要会列出更新了什么</span>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ═══════════ 数据 ═══════════
+const EVS = [
+  { n: 'AI访前调查#3_整体方案.docx', t: '文档', s: '★★★', st: 'in' },
+  { n: '方案概述_背景和目标.docx', t: '文档', s: '★★★', st: 'in' },
+  { n: '工商Skill能力说明.md', t: '文档', s: '★★', st: 'in' },
+  { n: '客户经理群聊天记录.txt', t: '聊天记录', s: '★', st: 'in' },
+  { n: '龙虾对话框_查询演示.gif', t: '截图', s: '★★', st: 'in' },
+];
+const RULES = {
+  '工商信息查询': [
+    { id: 'R1', text: '首次安装工商 skill 时，自动在「国家企业信用信息公示系统」完成账号注册', src: '整体方案.docx §自动注册', conf: '文档', v: true },
+    { id: 'R7', text: '检测到未登录时，使用浏览器中存储的账号和密码自动登录', src: '能力说明.md §自动登录', conf: '文档', v: true },
+    { id: 'R11', text: '点击查询后弹出验证码时，完成验证码处理以继续查询', src: '能力说明.md §查询', conf: '推测', v: false },
+    { id: 'R16', text: '用户确认企业进入详情页后，询问是否关注或订阅该企业并按其意图操作', src: '能力说明.md §查询', conf: '文档', v: true },
+    { id: 'R19', text: '输出普通企业关键人物时，输出董事长与经理/负责人的姓名及简介', src: '能力说明.md §关键人物', conf: '文档', v: false },
+    { id: 'R23', text: '未选择股权穿透层数时，默认执行 6 层股权穿透', src: '能力说明.md §股权架构', conf: '文档', v: true },
+    { id: 'R28', text: '企业类型为「股份有限公司(上市)」时，自动打开巨潮资讯网按名称查询', src: '能力说明.md §股权架构', conf: '文档', v: false },
+    { id: 'R33', text: '获取到工商信息后，进入年报页面获取最新 2 年年报并提取', src: '能力说明.md §年报', conf: '文档', v: false },
+  ],
+};
+const CONFS = [
+  { id: 'C1', node: '工商信息查询', q: '验证码是系统自动处理，还是需要人工点击？',
+    a: { src: '整体方案.docx', star: '★★★', text: '查询遇验证码时由 skill 自动完成验证码处理（对应 R11，推测）' },
+    b: { src: '群聊天记录', star: '★', text: '「验证码都是人手动点的，系统点不动」' }, st: 'open' },
+  { id: 'C2', node: '工商信息查询', q: '确认企业后是否询问关注/订阅？',
+    a: { src: '能力说明.md', star: '★★', text: '确认企业后询问是否关注或订阅并按意图操作（R16）' },
+    b: { src: '整体方案.docx', star: '★★★', text: '详情页流程仅到「提取企业基本信息」，未提及关注/订阅' }, st: 'open' },
+];
+let CLARS = [
+  { id: 'Q1', q: '验证码是系统自动处理还是人工点击？', from: '工商信息查询 · 冲突 C1', st: 'wait' },
+  { id: 'Q2', q: '二期阶段的进入条件与判定方式是什么？', from: '需求总览', st: 'wait' },
+  { id: 'Q3', q: '历史浏览记录的保留时长与清理策略？', from: '工商信息查询', st: 'wait' },
+  { id: 'Q4', q: '动产质押查询原因为何固定「交易前调查」？', from: '动产质押查询', st: 'done', ans: '客户经理确认：监管要求，交易前调查为默认必选项，不可修改。', by: '口头确认 · 09-30', link: '对应条目已自动核过' },
+];
+const GAPS = [
+  { t: '用户不响应多结果选择时，「查询中」状态的出口未定义', dim: '状态机' },
+  { t: '验证码识别失败的重试上限与兜底未定义', dim: '异常边界' },
+];
+const NODES = {
+  '文字输入': { state: '', rules: 1 }, '语音输入': { state: '', rules: 1 }, '多模态输入': { state: '', rules: 1 },
+  '访前查询记录': { state: '', rules: 1 }, '本地知识文档': { state: '', rules: 2 }, '产品文档': { state: '', rules: 1 },
+  '合规文档': { state: '', rules: 1 }, '任务规划': { state: '', rules: 1 },
+  '工商信息查询': { state: '', rules: 39 }, '负面风险排查': { state: '', rules: 8 }, '动产质押查询': { state: '', rules: 20 },
+  '业务技能匹配': { state: '', rules: 5 }, '一键安装': { state: '', rules: 1 },
+  '任务执行': { state: '', rules: 1 }, '一纸禅输出': { state: '', rules: 15 },
+};
+const TREE = [
+  ['m-ganzhi', '感知模块', '接收输入——一期文字，二期多模态', ['文字输入', '语音输入', '多模态输入']],
+  ['m-jiyi', '记忆模块', '记住访前查询，命中免验证码', ['访前查询记录']],
+  ['m-zhishi', '知识模块', '本地三类文档优先', ['本地知识文档', '产品文档', '合规文档']],
+  ['m-guihua', '规划模块', '按一页纸框架拆任务', ['任务规划']],
+  ['m-gongju', '工具模块', '工商/负面/质押/匹配/安装 五技能', ['工商信息查询', '负面风险排查', '动产质押查询', '业务技能匹配', '一键安装']],
+  ['m-zhixing', '执行模块', '自动执行并输出一纸禅', ['任务执行', '一纸禅输出']],
+];
+const ROOT_DESC = '给银行客户经理的访前调查助手：输入企业名称 → 自动注册/登录公示系统 → 工商/股权/年报/负面/动产多源查询 → 本地文档业务匹配 → 产出「一纸禅」营销页。';
+
+// ═══════════ 全局状态 ═══════════
+let stg = 'empty', sel = 'root', timers = [], vers = [], tab = 'overview', clarSeg = 'wait';
+
+// ═══════════ 派生统计 ═══════════
+const ruleStat = n => { const rs = RULES[n] || []; return { total: rs.length, ok: rs.filter(r => r.v).length, pend: rs.filter(r => !r.v).length }; };
+const confOpen = n => CONFS.filter(c => c.node === n && c.st === 'open').length;
+const pendOf = n => (RULES[n] ? ruleStat(n).pend : 0) + confOpen(n);
+const clarWait = () => CLARS.filter(c => c.st === 'wait' || c.st === 'aiwait').length;
+const totalPend = () => Object.keys(NODES).reduce((s, n) => s + pendOf(n), 0);
+
+// ═══════════ 生命周期 ═══════════
+function reset() {
+  timers.forEach(clearTimeout); timers = [];
+  stg = 'empty'; sel = 'root'; tab = 'overview'; vers = []; impMode = 'partial';
+  document.querySelectorAll('.optcard').forEach((o, i) => o.classList.toggle('sel', i === 0));
+  CLARS.forEach(c => { delete c.aiAns; });
+  const idx = EVS.findIndex(e => e.n === '验证码处理说明.docx'); if (idx > -1) EVS.splice(idx, 1);
+  NEWEV = null;
+  Object.values(NODES).forEach(n => n.state = '');
+  CONFS.forEach(c => c.st = 'open');
+  CLARS = CLARS.map(c => c.st === 'done' ? c : { ...c, st: 'wait' });
+  RULES['工商信息查询'].forEach(r => { if (r.id === 'R11' || r.id === 'R19' || r.id === 'R28' || r.id === 'R33') r.v = false; });
+  setPB('pb-reset');
+  document.getElementById('landing').style.display = 'block';
+  document.getElementById('stage').classList.remove('show');
+  document.getElementById('genstrip').classList.remove('show');
+  document.getElementById('evlist').style.display = 'none';
+  document.getElementById('genbar2').style.display = 'none';
+  document.getElementById('evCount').parentElement.classList.add('show');
+  document.getElementById('clarBtn').classList.remove('show');
+  document.getElementById('verBtn').classList.remove('show');
+  document.getElementById('pnote').textContent = '空项目：一个大导入框';
+  updateBadges();
+}
+function showMaterials() {
+  reset(); stg = 'materials'; setPB('pb-mat');
+  document.getElementById('evlist').style.display = 'block';
+  document.getElementById('genbar2').style.display = 'flex';
+  renderEvRows();
+  document.getElementById('pnote').textContent = '材料列表 + 生成按钮';
+}
+function generate() {
+  if (stg === 'running') return;
+  timers.forEach(clearTimeout); timers = [];
+  Object.values(NODES).forEach(n => n.state = '');
+  stg = 'running'; sel = 'root'; tab = 'overview'; setPB('pb-gen');
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('stage').classList.add('show');
+  document.getElementById('genstrip').classList.add('show');
+  document.getElementById('clarBtn').classList.add('show');
+  document.getElementById('verBtn').classList.add('show');
+  if (!vers.length) { vers = []; renderVers(); }
+  renderAll();
+  document.getElementById('pnote').textContent = '生成中：大纲先出，细节后台一块块补——可随时切节点看状态、取消';
+  const steps = [
+    [600, () => setGen('正在细化「感知模块」…', 12)],
+    [1600, () => mark('文字输入', '语音输入', '多模态输入')],
+    [2600, () => { mark('访前查询记录', '本地知识文档', '产品文档', '合规文档'); setGen('正在细化「知识/规划模块」…', 26); }],
+    [3600, () => { mark('任务规划'); mark('工商信息查询', 'doing'); setGen('正在细化「工具模块/工商信息查询」(12/39)…', 38); }],
+    [5200, () => setGen('正在细化「工具模块/工商信息查询」(28/39)…', 55)],
+    [6800, () => { mark('工商信息查询', '负面风险排查', '动产质押查询'); setGen('正在核对来源与矛盾…', 72); }],
+    [8000, () => { mark('业务技能匹配', '一键安装', '任务执行', '一纸禅输出'); setGen('正在汇总需求画像…', 90); }],
+    [9200, () => finishGen()],
+  ];
+  steps.forEach(([t, f]) => timers.push(setTimeout(f, t)));
+}
+function mark(...names) { const st = names.pop(); names.forEach(n => NODES[n].state = st === 'doing' ? 'doing' : 'done'); renderAll(); }
+function setGen(label, pct) { document.getElementById('genlabel').textContent = label; document.getElementById('genbar').style.width = pct + '%'; }
+function finishGen() {
+  stg = 'done'; setPB(null);
+  Object.values(NODES).forEach(n => n.state = 'done');
+  document.getElementById('genstrip').classList.remove('show');
+  renderAll();
+  toast('初版完成——还有 ' + totalPend() + ' 处需要你判断（核验/裁决/待确认）', 'ok');
+  document.getElementById('pnote').textContent = '完成态：右侧可核验条目、裁决冲突、转待确认；顶栏三个弹窗都可操作';
+}
+function cancelGen() {
+  timers.forEach(clearTimeout); timers = [];
+  stg = 'cancelled';
+  document.getElementById('genstrip').classList.remove('show');
+  Object.values(NODES).forEach(n => { if (n.state === 'doing') n.state = ''; });
+  renderAll(); toast('已取消——已完成的内容保留');
+}
+function jumpDone() { generate(); timers.forEach(clearTimeout); timers = []; finishGen(); }
+function regen() { closeMask('evMask'); openImpact(); }
+function setPB(id) { document.querySelectorAll('#proto-bar button').forEach(b => b.classList.toggle('cur', b.id === id)); }
+
+// ═══════════ 渲染 ═══════════
+function renderAll() { renderTree(); renderDetail(); updateBadges(); }
+function updateBadges() {
+  document.getElementById('clarCount').textContent = clarWait();
+  const n = EVS.filter(e => !e.del).length;
+  document.getElementById('evCount').textContent = n;
+  document.getElementById('evN').textContent = n + ' 份';
+  document.getElementById('evN2').textContent = n + ' 份';
+  document.getElementById('clarN').textContent = clarWait();
+}
+function renderEvRows() {
+  const live = EVS.filter(e => !e.del);
+  const rows = live.map((e, i) => `<div class="evrow"><span class="nm">${e.n}</span><span class="badge ${e.t === '聊天记录' || e.t === '截图' ? 'b-amber' : 'b-gray'}">${e.t}</span><span style="font-size:11.5px;color:var(--muted-fg)">${e.s}</span><span class="badge ${stg === 'empty' || stg === 'materials' ? 'b-gray' : 'b-green'}">${stg === 'empty' || stg === 'materials' ? '未生成' : '已并入需求'}</span><button class="x" title="移除" onclick="delEv(${EVS.indexOf(e)})">✕</button></div>`).join('');
+  document.getElementById('evrows').innerHTML = rows || '<div class="evrow" style="color:var(--muted-fg)">池是空的——拖文件 / ⌘V / 粘贴文本</div>';
+  document.getElementById('evrows2').innerHTML = rows || '<div class="evrow" style="color:var(--muted-fg)">池是空的</div>';
+  updateBadges();
+}
+function delEv(i) { EVS[i].del = true; renderEvRows(); toast('已移除《' + EVS[i].n + '》'); }
+
+function renderTree() {
+  const tz = document.getElementById('treezone');
+  const pend = totalPend();
+  let h = `<div class="rootcard ${sel === 'root' ? 'sel' : ''}" onclick="selRoot()">
+    <h2>◉ AI 访前调查</h2>
+    <p>${ROOT_DESC}</p>
+    <div class="rmeta">
+      <span class="badge">给谁：客户经理</span><span class="badge">一期文字 / 二期多模态</span>
+      ${stg === 'running' ? `<span class="badge">正在完善 ${Object.values(NODES).filter(n => n.state === 'done').length}/15</span>`
+        : stg === 'done' ? `<span class="badge">172 条目</span>${pend ? `<span class="badge hot">${pend} 待判断</span>` : '<span class="badge">判断清零 ✓</span>'}` : '<span class="badge">大纲就绪</span>'}
+    </div>
+    <div class="corner">
+      <button onclick="event.stopPropagation();toast('总览已按最新内容重生成')">↻ 摘要</button>
+      <button onclick="event.stopPropagation();toast('结构与描述随时可编辑')">✎</button>
+    </div>
+  </div>`;
+  if (stg === 'done') h += `<div class="mod unbucket"><div class="modcard"><div class="modhead" onclick="toast('7 条挂不上树的条目——下拉分配到节点，缺枝现场加')"><span style="width:5px;height:5px;background:var(--muted-fg);border-radius:50%;flex:none"></span><span class="mname">待归类</span><span class="mdesc">挂不上树的条目——树缺枝的探伤器</span><span class="mb"><span class="nbadge cnt">7</span></span></div></div></div>`;
+  h += `<div class="tree"><div class="mods">`;
+  for (const [id, name, desc, kids] of TREE) {
+    const open = id === 'm-gongju' || id === 'm-ganzhi';
+    const kdone = kids.filter(k => NODES[k].state === 'done').length;
+    const kdoing = kids.some(k => NODES[k].state === 'doing');
+    const mpend = kids.reduce((s, k) => s + pendOf(k), 0);
+    const mstat = kdoing ? '<span class="nbadge doing">处理中</span>'
+      : (stg === 'done' && mpend) ? `<span class="nbadge warn">${mpend} 待判断</span>` : '';
+    h += `<div class="mod ${open ? 'open' : ''}" id="${id}"><div class="modcard">
+      <div class="modhead" onclick="this.closest('.mod').classList.toggle('open')">
+        <span class="chev"></span><span class="mname">${name}</span><span class="mdesc">${desc}</span>
+        <span class="mb">${mstat}<span class="editops"><button title="改名" onclick="event.stopPropagation();toast('行内改名')">✎</button><button title="加子节点" onclick="event.stopPropagation();toast('现场加节点')">＋</button></span></span>
+      </div><div class="leaves">`;
+    for (const k of kids) {
+      const n = NODES[k];
+      const p = pendOf(k);
+      const lb = n.state === 'done'
+        ? `${p ? `<span class="nbadge warn">${p} 待判断</span>` : '<span class="nbadge okc">✓</span>'}<span class="nbadge cnt">${n.rules} 条</span>`
+        : n.state === 'doing' ? '<span class="nbadge doing">处理中</span>' : '';
+      h += `<div class="leaf ${sel === k ? 'sel' : ''}" onclick="selLeaf('${k}')">
+        <span class="lname">${k}</span><span class="ldesc">${n.state === 'done' ? '内容就绪' : n.state === 'doing' ? '后台正在完善…' : '排队中'}</span>
+        <span class="lb">${lb}<span class="editops"><button title="编辑" onclick="event.stopPropagation();toast('「${k}」行内编辑')">✎</button></span></span>
+      </div>`;
+    }
+    h += `</div></div></div>`;
+  }
+  h += `</div></div><p style="color:var(--muted-fg);font-size:11.5px;margin-top:12px">这棵树就是需求文档本身——节点、描述随时可改（hover 出现 ✎ ＋），改动即时生效。</p>`;
+  tz.innerHTML = h;
+}
+
+// ═══ 详情 ═══
+function selRoot() { sel = 'root'; renderAll(); }
+function selLeaf(n) { sel = n; tab = 'overview'; renderAll(); }
+function setTab(t) { tab = t; renderDetail(); }
+function renderDetail() {
+  const dz = document.getElementById('detailzone');
+  if (sel === 'root') { dz.innerHTML = rootHTML(); return; }
+  dz.innerHTML = leafHTML(sel);
+}
+function rootHTML() {
+  const running = stg === 'running';
+  const nDone = Object.values(NODES).filter(n => n.state === 'done').length;
+  const pend = totalPend();
+  return `
+  <div class="crumb"><b>◉ AI 访前调查</b><span class="right">${running ? '<span class="nbadge doing">后台处理中</span>' : stg === 'done' ? (pend ? `<span class="badge b-amber">${pend} 处待你判断</span>` : '<span class="badge b-green">判断清零</span>') : ''}</span></div>
+  ${running ? `<div class="doing-box"><span class="spin"></span><span>后台正在逐个节点完善（${nDone}/15）——已出来的部分随时可以看和改，不用等</span></div>
+  <div class="card skelt"><div class="skel w90"></div><div class="skel w75"></div><div class="skel w60"></div><div class="skel w45"></div></div>` : ''}
+  <div class="card">
+    <h3>这份需求是什么</h3>
+    <p class="tracable" data-trace="出处：整体方案.docx × 方案概述.docx 交叉支持">${ROOT_DESC}</p>
+    <div class="h4s">给谁 · 边界</div>
+    <div class="jline"><span class="jstep-chip" style="cursor:default">客户经理</span><span class="jstep-chip" style="cursor:default">一期文字输入</span><span class="jstep-chip" style="cursor:default">二期多模态</span><span class="jstep-chip" style="cursor:default">外部依赖 10 项</span></div>
+    ${stg === 'done' ? `
+    <div class="h4s">端到端主线（点击定位到树上）</div>
+    <div class="jline">
+      <span class="jstep-chip" onclick="jump('m-gongju')">准备登录</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-ganzhi')">输入</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-gongju')">查询选择</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-gongju')">企业画像</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-gongju')">负面排查</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-gongju')">动产质押</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-zhishi')">知识匹配</span><span class="jarr">→</span>
+      <span class="jstep-chip" onclick="jump('m-zhixing')">一纸禅输出</span>
+    </div>
+    <div class="h4s">模块速览</div>
+    <table class="mtx">
+      <tr><th>模块</th><th>条目</th><th>状态</th></tr>
+      <tr class="clickable" onclick="jump('m-ganzhi')"><td>感知</td><td class="num">4</td><td><span class="badge b-green">就绪</span></td></tr>
+      <tr class="clickable" onclick="jump('m-jiyi')"><td>记忆</td><td class="num">1</td><td><span class="badge b-green">就绪</span></td></tr>
+      <tr class="clickable" onclick="jump('m-zhishi')"><td>知识</td><td class="num">4</td><td><span class="badge b-green">就绪</span></td></tr>
+      <tr class="clickable" onclick="jump('m-guihua')"><td>规划</td><td class="num">1</td><td><span class="badge b-green">就绪</span></td></tr>
+      <tr class="clickable" onclick="jump('m-gongju')"><td>工具</td><td class="num">73</td><td><span class="badge b-amber">2 冲突待裁决</span></td></tr>
+      <tr class="clickable" onclick="jump('m-zhixing')"><td>执行</td><td class="num">16</td><td><span class="badge b-green">就绪</span></td></tr>
+    </table>
+    <div class="h4s">风险</div>
+    <ul style="padding-left:18px;font-size:12.5px">
+      <li>172 条目中 <b>0 实证</b>——全部来自文档与口头，未见系统佐证</li>
+      <li>验证码处理两处材料矛盾 → <button class="btn-ghost btn-sm" onclick="openMask('clarMask')">去待确认</button></li>
+    </ul>` : ''}
+  </div>`;
+}
+function leafHTML(name) {
+  const n = NODES[name];
+  if (n.state === '') return `<div class="crumb"><b>工具模块/${name}</b><span class="right"><span class="badge b-gray">排队中</span></span></div>
+    <div class="card"><div class="doing-box" style="margin:0"><span class="spin"></span><span>排在后台队列里——先处理前面的节点。不用等，可以先去改树的结构。</span></div></div>`;
+  if (n.state === 'doing') return `<div class="crumb"><b>工具模块/${name}</b><span class="right"><span class="nbadge doing">后台正在完善</span></span></div>
+    <div class="doing-box"><span class="spin"></span><span>正在读《工商Skill能力说明.md》，逐条提炼行为要求…（12/39）</span></div>
+    <div class="card skelt"><div class="skel w90"></div><div class="skel w75"></div><div class="skel w60"></div><div class="skel w75"></div><div class="skel w45"></div></div>`;
+  if (name !== '工商信息查询' || !RULES[name]) return `<div class="crumb"><button onclick="selRoot()">◉ AI 访前调查</button><span class="sep">›</span><b>${name}</b><span class="right"><span class="badge b-green">内容就绪</span></span></div>
+    <div class="card"><h3>${name}</h3><p style="color:var(--muted-fg)">详情与「工商信息查询」同构——概要 / 条目 / 存疑 三段一致。</p></div>`;
+  const rs = RULES[name], st = ruleStat(name), open = confOpen(name);
+  return `
+  <div class="crumb"><button onclick="selRoot()">◉ AI 访前调查</button><span class="sep">›</span><button onclick="jump('m-gongju')">工具模块</button><span class="sep">›</span><b>工商信息查询</b>
+    <span class="right"><span class="badge b-blue">P0</span>${st.pend + open ? `<span class="badge b-amber">${st.pend + open} 处待判断</span>` : '<span class="badge b-green">判断清零</span>'}</span></div>
+  <div class="tabbar">
+    <button class="tab ${tab === 'overview' ? 'on' : ''}" onclick="setTab('overview')">概要</button>
+    <button class="tab ${tab === 'rules' ? 'on' : ''}" onclick="setTab('rules')">条目 <span class="c">39</span>${st.pend ? `<span class="c warn">${st.pend}</span>` : ''}</button>
+    <button class="tab ${tab === 'doubt' ? 'on' : ''}" onclick="setTab('doubt')">存疑 ${open ? `<span class="c conf">${open}</span>` : ''}${GAPS.length ? `<span class="c warn">${GAPS.length}</span>` : ''}</button>
+  </div>
+  ${tab === 'overview' ? `
+  <div class="card">
+    <h3>概要 <span class="badge b-amber">随条目核验自动更新</span></h3>
+    <div class="spec">
+      <span class="k">目标</span><span>验证工商 skill 在公示系统上的自动注册、登录、查询与详情提取、关键人物提取、股权穿透与架构图绘制、工商年报获取与分析等行为均符合要求。</span>
+      <span class="k">入口</span><span>首次安装自动触发（注册）；或发起查询时触发（登录→查询）</span>
+      <span class="k">主流程</span><span>① 首次安装自动注册（短信确认）② 查询前校验登录 ③ 输入企业名称+验证码处理 ④ 多结果选择/单结果直进 ⑤ 提取基本信息 ⑥ 关键人物（≤100字）⑦ 股权穿透（6/12层、上市转巨潮）⑧ 架构图+解读 ⑨ 年报+财务分析</span>
+      <span class="k">状态机</span><span>安装态 / 账号授权态 / 登录态 / 查询态 / 详情态 / 穿透态 / 年报态</span>
+      <span class="k">异常</span><span>未授权提示 · 重复注册拒绝 · 验证码（推测）· 多结果待选 · 简介无匹配显示「无」· 个体户输出经营者</span>
+      <span class="k">依赖</span><span>公示系统 · 短信通道 · 浏览器凭据 · 巨潮资讯网 · 互联网公开信息</span>
+    </div>
+  </div>
+  ${st.pend + open ? `<div class="card" style="border-left:4px solid var(--accent)"><h3>待你判断 <span class="badge b-amber">${st.pend + open} 处</span></h3>
+    <div class="rrow"><span class="rtxt">${st.pend} 条条目未核验——确认「材料确实这么说的」<span class="rsrc">来源材料可 hover 溯源</span></span><button class="btn-ghost btn-sm" onclick="setTab('rules')">去核验</button></div>
+    ${open ? `<div class="rrow"><span class="rtxt">${open} 组材料矛盾待裁决（信哪边 / 转待确认）</span><button class="btn-ghost btn-sm" onclick="setTab('doubt')">去裁决</button></div>` : ''}
+  </div>` : ''}` : ''}
+  ${tab === 'rules' ? `
+  <div class="card">
+    <h3>条目 · 核验 ${st.ok}/${st.total} <span class="badge b-gray">来自材料，逐条标出处</span></h3>
+    <div class="vprog"><span>核验进度</span><div class="bar"><i style="width:${Math.round(st.ok / st.total * 100)}%"></i></div><b style="color:var(--ok)">${Math.round(st.ok / st.total * 100)}%</b></div>
+    ${rs.map(r => ruleRow(name, r)).join('')}
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-ghost btn-sm" onclick="aiVerify()">✦ AI 辅助核验（比对原文自动标）</button>
+      <span style="font-size:11.5px;color:var(--muted-fg)">… 共 39 条，节选 8 条；核验=确认材料确实这么说</span>
+    </div>
+  </div>` : ''}
+  ${tab === 'doubt' ? `
+  ${CONFS.filter(c => c.node === name).map(confCard).join('')}
+  <div class="card">
+    <h3>缺口 <span class="badge b-amber">${GAPS.length}</span> <span style="font-weight:400;font-size:11.5px;color:var(--muted-fg)">按维度扫概要发现的「没说到」</span></h3>
+    ${GAPS.map((g, i) => `<div class="rrow"><span class="rtxt">${g.t}<span class="rsrc">维度：${g.dim}</span></span><span class="acts"><button class="btn-ghost btn-sm" onclick="gapAsk(${i})">去问人</button><button class="btn-ghost btn-sm" onclick="toast('已标记为设计如此','ok')">设计如此</button></span></div>`).join('')}
+  </div>` : ''}`;
+}
+function ruleRow(node, r) {
+  const confB = r.conf === '实证' ? '<span class="badge b-green">实证</span>' : r.conf === '推测' ? '<span class="badge b-red">推测</span>' : '<span class="badge b-amber">文档</span>';
+  return `<div class="rrow"><span class="rid">${r.id}</span>
+    <span class="rtxt"><span class="tracable" data-trace="出处：${r.src}
+可信度 ${r.conf}${r.v ? ' · 你已核验' : ''}">${r.text}</span><div class="rsrc">${r.src}</div></span>
+    <span class="acts">${r.v ? '<span class="badge b-green">已核过</span>' : ''}
+      ${r.v ? '' : `<button class="btn-ghost btn-sm" onclick="verifyRule('${node}','${r.id}')">核验</button>`}
+      <button class="btn-ghost btn-sm" style="color:var(--muted-fg)" onclick="askForm(this,'${node}','${r.id}')">待确认？</button>
+    </span><span style="display:none">${confB}</span></div>`;
+}
+function confCard(c) {
+  if (c.st !== 'open') return `<div class="card"><div class="resolved">✓ ${c.q} —— ${c.st === 'a' ? '采信 ' + c.a.src : c.st === 'b' ? '采信 ' + c.b.src : '已转待确认（Q#' + c.clarId + '）'}</div></div>`;
+  return `<div class="card">
+    <h3>矛盾 · ${c.id} <span class="badge b-red">两处材料说法冲突</span></h3>
+    <p style="font-weight:600;font-size:13px">${c.q}</p>
+    <div class="confcard">
+      <div class="confside a"><div class="who">A · ${c.a.src} <span style="font-weight:400">${c.a.star}</span></div>${c.a.text}</div>
+      <div class="confside b"><div class="who">B · ${c.b.src} <span style="font-weight:400">${c.b.star}</span></div>${c.b.text}</div>
+    </div>
+    <div class="confpick">
+      <button onclick="resolveConf('${c.id}','a')">信 A（${c.a.src}）</button>
+      <button onclick="resolveConf('${c.id}','b')">信 B（${c.b.src}）</button>
+      <button style="color:var(--accent)" onclick="resolveConf('${c.id}','clar')">拿不准 → 转待确认</button>
+    </div>
+  </div>`;
+}
+
+// ═══ 人工判断操作 ═══
+function verifyRule(node, id) {
+  const r = RULES[node].find(x => x.id === id); if (!r) return;
+  r.v = true; renderAll();
+  toast(`${id} 已核验 · 可信度按材料升级`, 'ok');
+}
+function aiVerify() {
+  let n = 0;
+  RULES['工商信息查询'].forEach(r => { if (!r.v && r.conf === '文档' && n < 3) { r.v = true; n++; } });
+  renderAll(); toast(`AI 比对原文核过 ${n} 条（推测级仍需人工）`, 'ok');
+}
+function askForm(btn, node, id) {
+  const row = btn.closest('.rrow');
+  if (row.querySelector('.askform')) return;
+  const f = document.createElement('div');
+  f.className = 'askform';
+  f.innerHTML = `<textarea placeholder="想确认什么？例如：「${id} 的具体触发条件/兜底行为是什么？」——问题会带着出处发给能答复的人"></textarea>
+    <div class="frow"><button class="btn btn-sm" onclick="submitAsk(this,'${node}','${id}')">投递到待确认</button><button class="btn-ghost btn-sm" onclick="this.closest('.askform').remove()">取消</button><span style="font-size:11px;color:var(--muted-fg)">答复回收后这条自动核过</span></div>`;
+  row.querySelector('.rtxt').appendChild(f);
+  f.querySelector('textarea').focus();
+}
+function submitAsk(btn, node, id) {
+  const q = btn.closest('.askform').querySelector('textarea').value.trim() || `「${node} ${id}」待确认`;
+  const cid = 'Q' + (CLARS.length + 1);
+  CLARS.push({ id: cid, q, from: `${node} · ${id}`, st: 'wait' });
+  renderAll(); renderClars();
+  toast(`已投递 ${cid} 到待确认——答复后 ${id} 自动核过`, 'ok');
+}
+function resolveConf(cid, pick) {
+  const c = CONFS.find(x => x.id === cid); if (!c) return;
+  if (pick === 'clar') {
+    const qid = 'Q' + (CLARS.length + 1);
+    c.st = 'clar'; c.clarId = qid.replace('Q', '');
+    CLARS.push({ id: qid, q: c.q, from: `${c.node} · 冲突${c.id}`, st: 'wait' });
+    toast(`${c.id} 已转待确认（${qid}）——两处材料都存疑，问人`, 'ok');
+  } else {
+    c.st = pick;
+    toast(`${c.id} 已裁决：采信 ${pick === 'a' ? c.a.src : c.b.src}`, 'ok');
+  }
+  renderAll(); renderClars();
+}
+function gapAsk(i) {
+  const g = GAPS[i];
+  const qid = 'Q' + (CLARS.length + 1);
+  CLARS.push({ id: qid, q: g.t + '——具体怎么定？', from: '工商信息查询 · 缺口', st: 'wait' });
+  renderAll(); renderClars();
+  toast(`缺口已转待确认（${qid}）`, 'ok');
+}
+
+// ═══ 待确认弹窗 ═══
+function segClar(s) { clarSeg = s; renderClars(); }
+function renderClars() {
+  document.getElementById('segWaitN').textContent = clarWait();
+  document.getElementById('segDoneN').textContent = CLARS.filter(c => c.st !== 'wait' && c.st !== 'aiwait').length;
+  document.getElementById('seg-wait').classList.toggle('on', clarSeg === 'wait');
+  document.getElementById('seg-done').classList.toggle('on', clarSeg !== 'wait');
+  const list = CLARS.filter(c => clarSeg === 'wait' ? (c.st === 'wait' || c.st === 'aiwait') : (c.st !== 'wait' && c.st !== 'aiwait'));
+  const aiN = CLARS.filter(c => c.st === 'aiwait').length;
+  document.getElementById('clarlist').innerHTML =
+    (clarSeg === 'wait' && aiN ? `<div class="doing-box" style="margin-bottom:11px"><span style="flex:none">✦</span><span>AI 从新材料找到 <b>${aiN}</b> 个可能答案——采纳即核过关联条目，忽略则继续等人工</span></div>` : '') +
+    list.map(c => c.st === 'aiwait' ? `
+    <div class="qcard" style="border-color:#c3d7f7;background:#fbfdff">
+      <div class="qtop"><span class="from">${c.id}</span><span>来自：${c.from}</span><span class="badge b-blue">✦ AI 找到可能答案</span></div>
+      <div class="qtxt">${c.q}</div>
+      <div class="aians"><b>出处：${c.aiAns.src}</b>${c.aiAns.text}</div>
+      <div class="qacts">
+        <button class="btn btn-sm" onclick="adoptClar('${c.id}')">采纳</button>
+        <button class="btn-ghost btn-sm" onclick="ignoreClar('${c.id}')">忽略</button>
+        <span style="font-size:11px;color:var(--muted-fg);align-self:center">${c.id === 'Q1' ? '采纳后：Q1 关闭 · R11 核过（推测→文档）· 冲突 C1 解除' : '采纳后：问题关闭 · 关联条目核过'}</span>
+      </div>
+    </div>` : c.st === 'wait' ? `
+    <div class="qcard">
+      <div class="qtop"><span class="from">${c.id}</span><span>来自：${c.from}</span></div>
+      <div class="qtxt">${c.q}</div>
+      <div class="qacts">
+        <button class="btn btn-sm" onclick="answerForm('${c.id}')">记下答复</button>
+        <button class="btn-ghost btn-sm" onclick="ignoreClar('${c.id}')">忽略</button>
+      </div>
+      <div id="ansbox-${c.id}"></div>
+    </div>` : `
+    <div class="qcard ${c.st === 'ignored' ? 'ig' : 'done'}">
+      <div class="qtop"><span class="from">${c.id}</span><span>来自：${c.from}</span>${c.st === 'ignored' ? '<span class="badge b-gray">已忽略</span>' : '<span class="badge b-green">已答复</span>'}</div>
+      <div class="qtxt" style="font-weight:500">${c.q}</div>
+      ${c.st === 'done' ? `<div class="ans"><b>答复 · ${c.by || '口头确认'}</b>${c.ans || ''}${c.link ? `<div style="font-size:11px;margin-top:4px;color:var(--ok)">✓ ${c.link}</div>` : ''}</div>` : ''}
+    </div>`).join('') || '<p style="color:var(--muted-fg);padding:14px 0;text-align:center">这里空着——没有等待答复的问题</p>';
+  updateBadges();
+}
+function answerForm(cid) {
+  const box = document.getElementById('ansbox-' + cid);
+  box.innerHTML = `<div class="askform" style="margin-top:9px">
+    <textarea placeholder="相关人员怎么说，记下来…（口头答复即可）"></textarea>
+    <div class="frow">
+      <span class="srcpick">
+        <label><input type="radio" name="src-${cid}" checked>口头确认</label>
+        <label><input type="radio" name="src-${cid}">材料佐证</label>
+      </span>
+      <button class="btn btn-sm" onclick="submitAnswer('${cid}')">提交答复</button>
+    </div>
+    <div class="frow" style="font-size:11px;color:var(--muted-fg)">提交后：关联的条目自动核过，矛盾自动解除</div>
+  </div>`;
+  box.querySelector('textarea').focus();
+}
+function submitAnswer(cid) {
+  const c = CLARS.find(x => x.id === cid); if (!c) return;
+  const box = document.getElementById('ansbox-' + cid);
+  const ans = box.querySelector('textarea').value.trim() || '（口头确认，无补充）';
+  const oral = box.querySelector('input[type=radio]').checked;
+  c.st = 'done'; c.ans = ans; c.by = (oral ? '口头确认' : '材料佐证') + ' · 刚刚'; c.link = '关联条目已自动核过';
+  // 联动：来自冲突 C1 的问题答复 → 冲突解决；来自规则 → 核过
+  const m = c.from.match(/冲突\s*(C\d)/);
+  if (m) { const cf = CONFS.find(x => x.id === m[1]); if (cf) cf.st = 'clar'; }
+  const rm = c.from.match(/(R\d+)/);
+  if (rm) { const r = RULES['工商信息查询'].find(x => x.id === rm[1]); if (r) r.v = true; }
+  renderClars(); renderAll();
+  toast(`${cid} 已记录答复——关联内容自动更新`, 'ok');
+}
+function ignoreClar(cid) { const c = CLARS.find(x => x.id === cid); c.st = 'ignored'; renderClars(); renderAll(); toast(`${cid} 已忽略（不再提醒）`); }
+
+// ═══ 变更影响分析与增量重生成 ═══
+let NEWEV = null, impMode = 'partial';
+function demoAddEv() {
+  if (NEWEV) { toast('新材料已在池中'); return; }
+  NEWEV = { n: '验证码处理说明.docx', t: '文档', s: '★★★', st: 'new' };
+  EVS.push(NEWEV); renderEvRows();
+  toast('新材料已入池：《验证码处理说明.docx》');
+}
+function openImpact() { openMask('impactMask'); }
+function pickOpt(el, mode) {
+  impMode = mode;
+  document.querySelectorAll('.optcard').forEach(o => o.classList.toggle('sel', o === el));
+}
+function runImpact() {
+  closeMask('impactMask');
+  if (impMode === 'full') { toast('按全量方案重新生成——已有人工判断会被重新组织'); generate(); return; }
+  const strip = document.getElementById('genstrip');
+  strip.classList.add('show');
+  if (impMode === 'partial') {
+    NODES['工商信息查询'].state = 'doing'; renderAll();
+    setGen('局部重新生成 · 工具模块/工商信息查询…', 30);
+    timers.push(setTimeout(() => setGen('局部重新生成 · 重扫关联待确认…', 70), 1200));
+    timers.push(setTimeout(() => { NODES['工商信息查询'].state = 'done'; aiRescan(); strip.classList.remove('show'); }, 2400));
+  } else {
+    setGen('重扫待确认 · 用新材料找答案…', 50);
+    timers.push(setTimeout(() => { aiRescan(); strip.classList.remove('show'); }, 1400));
+  }
+}
+function aiRescan() {
+  const hits = [];
+  const q1 = CLARS.find(c => c.id === 'Q1'); if (q1 && q1.st === 'wait') { q1.st = 'aiwait'; q1.aiAns = { src: '《验证码处理说明.docx》§2', text: '「验证码统一走平台打码通道自动处理；连续失败 2 次转人工，页面提示并暂停该笔查询。」' }; hits.push('Q1'); }
+  const q3 = CLARS.find(c => c.id === 'Q3'); if (q3 && q3.st === 'wait') { q3.st = 'aiwait'; q3.aiAns = { src: '《验证码处理说明.docx》§5', text: '「历史浏览记录保留 90 天，到期自动清理，可手动清空。」' }; hits.push('Q3'); }
+  renderAll(); renderClars();
+  toast(hits.length ? `完成：${hits.join('、')} 找到可能答案——打开「待确认」采纳` : '完成：新材料未回答现有待确认', hits.length ? 'ok' : '');
+  document.getElementById('pnote').textContent = 'AI 代答已就绪：打开顶栏「待确认」→ 逐条 采纳/忽略';
+}
+function adoptClar(cid) {
+  const c = CLARS.find(x => x.id === cid); if (!c) return;
+  c.st = 'done'; c.ans = c.aiAns.text; c.by = '材料佐证（AI 重检）· 刚刚';
+  const r11 = RULES['工商信息查询'].find(r => r.id === 'R11');
+  if (cid === 'Q1') {
+    if (r11) { r11.v = true; r11.conf = '文档'; }
+    const c1 = CONFS.find(x => x.id === 'C1'); if (c1 && c1.st === 'open') c1.st = 'clar';
+    c.link = 'R11 已核过（推测→文档）· 冲突 C1 已解除';
+  } else { c.link = '关联条目已核过'; }
+  renderClars(); renderAll();
+  toast(`${cid} 已采纳——${c.link}`, 'ok');
+}
+function demoChange() {
+  jumpDone();
+  const btn = document.getElementById('pb-chg'); setPB('pb-chg');
+  document.getElementById('pnote').textContent = '变更场景：补材料 → AI 影响分析 → 选方案 → 增量执行 → 代答采纳';
+  timers.push(setTimeout(() => { openMask('evMask'); demoAddEv(); }, 700));
+  timers.push(setTimeout(() => { openImpact(); }, 1800));
+}
+
+// ═══ 版本弹窗 ═══
+function renderVers() {
+  document.getElementById('verlist').innerHTML = vers.length ? `<div class="vtl">${vers.map((v, i) => `
+    <div class="vitem ${i === 0 ? 'cur' : ''}">
+      <h4>${v.tag} ${i === 0 ? '<span class="badge b-green">当前</span>' : ''}</h4>
+      <div class="vmeta">${v.time} · ${v.note}</div>
+      <div class="vdelta">${v.deltas.map(d => `<span class="badge ${d[0] === '+' ? 'b-green' : 'b-amber'}">${d}</span>`).join('')}</div>
+    </div>`).join('')}</div>`
+    : '<p style="color:var(--muted-fg);padding:10px 0 4px;text-align:center">还没有版本——需要留底时点「存为版本」；存档后可对比任意两版差异</p>';
+}
+function saveVer() {
+  const pend = totalPend();
+  vers.unshift({
+    tag: 'v' + (vers.length + 1), time: '刚刚 · ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    note: `15 节点 · 172 条目 · ${clarWait()} 待确认`,
+    deltas: pend ? [`+141 条目`, `${pend} 处待判断`, `${clarWait()} 待确认`] : ['+141 条目', '判断清零 ✓'],
+  });
+  document.getElementById('projTag').innerHTML = `项目 <b style="color:var(--fg)">aifangqian</b> <span style="font-family:var(--mono);font-size:11px;color:var(--muted-fg)">${vers[0].tag}</span>`;
+  renderVers(); toast('已存为 ' + vers[0].tag, 'ok');
+}
+
+// ═══ 通用 ═══
+function jump(id) { const el = document.getElementById(id); if (!el) return; el.classList.add('open'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 3200); }
+function openMask(id) { document.getElementById(id).classList.add('open'); if (id === 'clarMask') renderClars(); if (id === 'verMask') renderVers(); }
+function closeMask(id) { document.getElementById(id).classList.remove('open'); }
+function toast(msg, cls = '') { const t = document.createElement('div'); t.className = 'toast ' + cls; t.textContent = msg; document.getElementById('toasts').appendChild(t); setTimeout(() => t.remove(), 2800); }
+
+reset(); renderEvRows(); renderClars(); renderVers();
+</script>
+</body>
+</html>

@@ -116,11 +116,13 @@ export interface Profile {
   unconfirmed: string[]
 }
 
-/** GET /baseline 仅含 tag/commit；v 仅 POST /baseline 创建时返回 */
+/** GET /baseline 仅含 tag/commit；v 仅 POST /baseline 创建时返回；time/note 后端补字段后时间线直接展示 */
 export interface Baseline {
   commit: string
   tag: string
   v?: number
+  time?: string
+  note?: string
 }
 
 export type TreeOpName = 'add' | 'rename' | 'del' | 'prio'
@@ -172,11 +174,6 @@ export const addEvidenceFile = (file: File, source?: string) =>
     body: file,
   })
 
-export const extractEvidence = (id: string) =>
-  req<{ added: number }>(`/evidence/${encodeURIComponent(id)}/extract`, {
-    method: 'POST',
-  })
-
 /** 删除证据：连同其提取产出的规则一并移除 */
 export const deleteEvidence = (id: string) =>
   req<void>(`/evidence/${encodeURIComponent(id)}`, { method: 'DELETE' })
@@ -185,23 +182,18 @@ export const deleteEvidence = (id: string) =>
 
 export const getRules = () => req<Rule[]>('/rules')
 
-export const verifyAll = () =>
-  req<{ applied: string[]; results: unknown[] }>('/rules/verify', json('POST', {}))
-
-/** 全量核验后台任务：立即返回 job_id，进度/汇总由 GET /jobs 轮询 */
-export const verifyJob = () =>
-  req<{ job_id: string; total: number; rules: number }>('/rules/verify-job', { method: 'POST' })
-
-export const verifyOne = (id: string) =>
-  req<{ applied: string[]; results: unknown[] }>('/rules/verify', json('POST', { rule_id: id }))
+/** 全量核验后台任务：立即返回 job_id，进度/汇总由 GET /jobs 轮询；only_doc=只核文档级（跳过推测） */
+export const verifyJob = (opts?: { only_doc?: boolean }) =>
+  req<{ job_id: string; total: number; rules: number }>(
+    '/rules/verify-job', opts?.only_doc ? json('POST', { only_doc: true }) : { method: 'POST' })
 
 /** 人工核过：不经 AI 直接确认 */
 export const confirmRule = (id: string) =>
   req<void>(`/rules/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
 
-/** 转问人：进「问人」清单，答案确认后自动核过 */
-export const askRule = (id: string) =>
-  req<void>(`/rules/${encodeURIComponent(id)}/ask`, { method: 'POST' })
+/** 转问人：进「问人」清单，答案确认后自动核过；q 为自定义问法（空 = 后端默认拼接问法） */
+export const askRule = (id: string, q?: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}/ask`, json('POST', { q: q ?? '' }))
 
 /** 人工挂载/改归属；node 为空串 = 回未归类 */
 export const setRuleNode = (id: string, node: string) =>
@@ -211,17 +203,12 @@ export const setRuleNode = (id: string, node: string) =>
 
 export const getConflicts = () => req<Conflict[]>('/conflicts')
 
-export const rescanConflicts = () => req<Conflict[]>('/conflicts/rescan', { method: 'POST' })
-
 export const resolveConflict = (id: string, action: 'code' | 'clar', side?: 'a' | 'b') =>
   req<Conflict>('/conflicts', json('POST', { id, action, side }))
 
 // ---------- 空白 ----------
 
 export const getGaps = () => req<Gap[]>('/gaps')
-
-export const rescanGaps = (nodePath?: string) =>
-  req<Gap[]>(`/gaps/rescan${nodePath ? `?node_path=${encodeURIComponent(nodePath)}` : ''}`, { method: 'POST' })
 
 export const disposeGap = (id: string, action: 'clar' | 'ok') => req<Gap>('/gaps', json('POST', { id, action }))
 
@@ -239,21 +226,10 @@ export const getTree = () => req<TreeNode[]>('/tree')
 export const treeOp = (op: TreeOpName, path?: string, name?: string) =>
   req<TreeNode[]>('/tree', json('POST', { op, path: path || undefined, name }))
 
-/** AI 从证据池生成树骨架（仅树空时；后端 409/422 抛 ApiError） */
-export const scaffoldTree = () => req<TreeNode[]>('/tree/scaffold', { method: 'POST' })
-
 // ---------- 用户画像 ----------
-
-/** 409 时抛 ApiError（unqualified 为未实证规则 id 列表） */
-export const assemble = (nodePath: string, note = '') =>
-  req<{ profile: Profile; file: string }>('/profiles/assemble', json('POST', { node_path: nodePath, note }))
 
 /** 项目级画像清单（node 全路径）——⑤ 定稿存档页统计「画像 x/功能点」 */
 export const listProfiles = () => req<string[]>('/profiles')
-
-/** 提取+核验两阶段后台任务：立即返回 job_id（阶段一逐份提取→阶段二自动分批核验） */
-export const extractJob = () =>
-  req<{ job_id: string; total: number }>('/evidence/extract-job', { method: 'POST' })
 
 /** 后台任务（批量画像）：进度源——前端轮询、刷新后可恢复 */
 export interface Job {
@@ -262,11 +238,14 @@ export interface Job {
   label: string
   cur: number
   total: number
-  status: 'running' | 'done'
+  status: 'running' | 'done' | 'cancelled' | 'failed'
   ok: number
   extracted?: number  // extract-verify：阶段一提取条数
   corrected?: number  // verify-batch：读错已修正条数
   nobasis?: number    // verify-batch：材料无依据条数
+  phase?: string        // generate/regen：outline|extract|verify|conflict|assemble|gap|summary
+  current_node?: string // generate/regen：assemble 阶段当前节点全路径
+  done_nodes?: string[] // generate/regen：已完成节点全路径清单（总表 state 标记用）
   skipped: string[]
   blocked: string[]
   failed: number
@@ -274,13 +253,13 @@ export interface Job {
   finished_at?: number
 }
 
-/** 创建批量画像任务：立即返回（node_path 空=全部叶子，给定=该子树叶子）；运行中重复创建后端 409 */
-export const assembleBatch = (nodePath = '') =>
-  req<{ job_id: string; total: number }>('/profiles/assemble-batch', json('POST', { node_path: nodePath }))
-
 export const listJobs = () => req<Job[]>('/jobs')
 
 export const getProfile = (nodePath: string) => req<Profile>(`/profiles/${encodeURIComponent(nodePath)}`)
+
+/** 行内编辑画像 goal：无画像节点后端自动建空画像；'__root__' 可用（根画像） */
+export const patchProfileGoal = (full: string, goal: string) =>
+  req<Profile>(`/profiles/${encodeURIComponent(full)}`, json('PATCH', { goal }))
 
 export const getDoc = () => req<string>('/doc')
 
@@ -316,6 +295,68 @@ export const createBaseline = (note = '基线存档') =>
   req<Baseline>('/baseline', json('POST', { note }))
 
 export const listBaselines = () => req<Baseline[]>('/baseline')
+
+// ---------- 工作台（总表 / 一键生成 / 重生成；对应 server/app/api/generate.py、router.py 工作台段） ----------
+
+/** 总表行（server WbNode 十字段）：path=数字路径，full=全路径，state=''|'done'|'doing' */
+export interface WbNodeRow {
+  path: string
+  name: string
+  full: string
+  goal: string
+  kind: 'module' | 'leaf'
+  rules: number
+  pend: number
+  conf: number
+  profiled: boolean
+  state: '' | 'done' | 'doing'
+}
+
+/** 根画像卡片（profiles/__root__.md；未建时为 null） */
+export interface WbRoot {
+  goal: string
+  entry: string
+  flow: string
+  boundaries: string
+  note: string
+  kind: 'root'
+}
+
+export interface WbSummary {
+  tree: WbNodeRow[]
+  root: WbRoot | null
+}
+
+export type RegenMode = 'partial' | 'rescan' | 'full'
+
+/** POST /regen/impact 方案卡：关联清单 + AI 建议 mode；recommend 为白名单校验后的推荐方案（失配取 partial）；reason=AI 判断依据一句话 */
+export interface ImpactPlan {
+  nodes: string[]
+  rule_ids: string[]
+  clar_nos: string[]
+  mode: string
+  reason: string
+  recommend: RegenMode
+}
+
+/** GET /wb/summary：树总表（含每节点徽章计数与 job 进行态）+ 根画像 */
+export const wbSummary = () => req<WbSummary>('/wb/summary')
+
+/** 一键生成（证据池非空且树空时；后端 409/422 抛 ApiError），进度走 GET /jobs */
+export const generateReq = () => req<{ job_id: string; total: number }>('/generate', { method: 'POST' })
+
+/** 取消当前 generate/regen job（已完成内容保留） */
+export const generateCancel = () => req<{ status: string }>('/generate/cancel', { method: 'POST' })
+
+/** 影响分析：新材料 × 现有条目/待确认 → 方案卡（T17 接线，端点 T15 交付） */
+export const impactAnalyse = (evIds: string[]) => req<ImpactPlan>('/regen/impact', json('POST', { ev_ids: evIds }))
+
+/** 重生成三模式：partial=受影响节点局部 / rescan=仅待确认代答 / full=全量（T17 接线，端点 T16 交付） */
+export const regen = (mode: RegenMode, evIds: string[], nodes?: string[]) =>
+  req<{ job_id: string }>('/regen', json('POST', { mode, ev_ids: evIds, nodes }))
+
+/** 根卡 ↻ 摘要：同步重聚合 root+全部 module 画像并写回（不 job 化，秒级返回） */
+export const summaryRegen = () => req<{ updated: string[] }>('/summary/regen', { method: 'POST' })
 
 // ---------- 项目管理（无 proj 前缀，对应 server/app/api/projects.py） ----------
 

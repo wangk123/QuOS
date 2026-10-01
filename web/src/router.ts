@@ -1,38 +1,15 @@
-// 简单视图状态路由（M1 不引 vue-router）：App.vue 内 view 切换 + 跨视图共享状态
+// 简单视图状态路由（M1 不引 vue-router）：App.vue 顶层 home/proj 切换 + 跨组件共享状态
 import { ref } from 'vue'
 import { curSlug, openProject, setProject } from './api'
 
-export type ViewName =
-  | 'v-ev' | 'v-fact' | 'v-conf' | 'v-gap' | 'v-prof' | 'v-save' | 'v-base'
+/** 工作台终态（T19）：仅 v-wb 单一工作台——证据池/待确认/版本全为弹窗，五步旧视图与 v-base 已删 */
+export type ViewName = 'v-wb'
 
-export const view = ref<ViewName>('v-ev')
-export function goto(v: ViewName) {
-  view.value = v
-}
+export const view = ref<ViewName>('v-wb')
 
-/** 当前整理目标（功能树叶节点数字路径，'' = 未选中） */
-export const curPath = ref('')
-/** 当前整理节点名（App.vue 树加载/切换时写入，各视图标题用） */
-export const curName = ref('（未选中节点）')
-
-/** 顶栏基线标签（Save 并入基线后刷新） */
-export const baseTag = ref('未建基线')
-
-/** 全局 AI 任务进行中状态：挂在 App 级进度条上，切视图不丢失。
+/** 全局 AI 任务进行中状态：挂在 App 级进度条上，切页不丢失。
  *  cur/total 给出时进度条显示真实百分比，否则为不定态跑马灯 */
 export const aiBusy = ref<{ label: string; cur?: number; total?: number } | null>(null)
-
-export const NAV_PROJ: [ViewName, string][] = [
-  ['v-ev', '证据池'],
-  ['v-base', '基线'],
-]
-export const NAV_FLOW: [ViewName, string][] = [
-  ['v-fact', '规则提取'],
-  ['v-conf', '冲突裁决'],
-  ['v-prof', '生成画像'],
-  ['v-gap', '查漏补缺'],
-  ['v-save', '定稿存档'],
-]
 
 // ---------- 两级顶层导航：home 项目首页 / proj 项目工作台 ----------
 

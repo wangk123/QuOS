@@ -74,7 +74,7 @@ async def test_end_to_end(client, monkeypatch):
     assert all(a["verified"] and not a["suspect"] for a in r.json())
 
     # ⑤ 组装成功：用户画像落盘
-    async def mock_assemble(rules, node_name, note):
+    async def mock_assemble(rules, node_name, note, parent_goal=""):
         assert node_name == "放款重试" and "幂等" in note
         return Profile(node=node_name, goal="验证放款重试行为正确",
                     rules=[ProfileRule(id="R1", text="超时后重试3次", src="retry.py:15", conf="实证")],
@@ -238,6 +238,23 @@ async def test_node_addressing_errors(client):
     assert (await client.get(f"{BASE}/profiles/x")).status_code == 422
 
 
+async def test_ask_rule_custom_q(client):
+    """POST /rules/{id}/ask 带自定义 q：澄清池问题 q 字段=自定义文本；不带 q 走默认拼接问法"""
+    from app.storage import clarifications as cl
+    from app.storage import rules as rule_store
+
+    root = ensure_root("演示项目")
+    rule_store.save(root, [Rule(id="R1", text="失败后兜底转人工", src="s", conf="推测"),
+                           Rule(id="R2", text="冷却期 7 天", src="s", conf="待实证")])
+    r = await client.post(f"{BASE}/rules/R1/ask", json={"q": "「R1」的具体触发条件是什么？"})
+    assert r.status_code == 204
+    r = await client.post(f"{BASE}/rules/R2/ask", json={})
+    assert r.status_code == 204
+    rows = {c.ref: c for c in await cl.list_all(root)}
+    assert rows["R1"].q == "「R1」的具体触发条件是什么？"
+    assert rows["R2"].q == "冷却期 7 天——该推测与实际系统一致吗？"
+
+
 async def test_baseline_without_changes(client):
     ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
@@ -305,7 +322,7 @@ async def test_assemble_excludes_voided_rules(client, monkeypatch):
 
     seen = {}
 
-    async def mock_assemble(rules, node_name, note):
+    async def mock_assemble(rules, node_name, note, parent_goal=""):
         seen["ids"] = [a.id for a in rules]
         return Profile(node=node_name, goal="不重复放款",
                     rules=[ProfileRule(id="R1", text="重试上限 3 次", src="retry.py:42", conf="实证")])
@@ -328,7 +345,7 @@ async def test_assemble_filters_by_node(client, monkeypatch):
         Rule(id="R3", text="未归类规则", src="r.py:3", conf="实证", verified=True, node=""),
     ])
     seen = {}
-    async def mock_assemble(rules, node_name, note):
+    async def mock_assemble(rules, node_name, note, parent_goal=""):
         seen["ids"] = [a.id for a in rules]
         return Profile(node=node_name, goal="g")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
@@ -344,7 +361,7 @@ async def test_assemble_no_rules_blocked(client, monkeypatch):
     # 节点无任何归属规则 → 409 阻断：空规则集只会生成空画像（上线验证证伪了「AI 产出框架」假设）
     ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
-    async def mock_assemble(rules, node_name, note):
+    async def mock_assemble(rules, node_name, note, parent_goal=""):
         raise RuleError("空规则集不应进入 AI 组装")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
     r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0", "note": ""})
@@ -506,7 +523,7 @@ async def test_assemble_batch_job_lifecycle(client, monkeypatch):
         Rule(id="R1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
     ])
 
-    async def mock_assemble(rules, node_name, note):
+    async def mock_assemble(rules, node_name, note, parent_goal=""):
         return Profile(node=node_name, goal="g")
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
 
@@ -525,7 +542,7 @@ async def test_assemble_batch_scoped_and_conflicts(client, monkeypatch):
     await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
 
-    async def slow_assemble(rules, node_name, note):
+    async def slow_assemble(rules, node_name, note, parent_goal=""):
         import asyncio
         await asyncio.sleep(0.3)
         return Profile(node=node_name, goal="g")
@@ -610,3 +627,164 @@ async def test_extract_job_two_phases(client, monkeypatch):
 
     # 池中无 pending 再发起 → 422
     assert (await client.post(f"{BASE}/evidence/extract-job")).status_code == 422
+
+
+async def test_wb_summary(client):
+    from app.storage import findings as finding_store
+    from app.storage import profiles as profile_store
+    from app.storage import rules as rule_store
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    rule_store.save(root, [
+        Rule(id="R1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
+        Rule(id="R2", text="超时30s", src="r.py:2", conf="实证", verified=False, node="支付/放款重试"),
+        Rule(id="R3", text="风控拦截", src="r.py:3", conf="实证", verified=True, node="风控"),
+    ])
+    finding_store.save_conflicts(root, [Conflict(id="C1", a="R1", b="R2", q="重试几次？")])
+    profile_store.save_profile(root, "支付/放款重试", Profile(node="支付/放款重试", goal="不重复放款"))
+    profile_store.save_profile(root, profile_store.ROOT_NODE,
+                               Profile(node=profile_store.ROOT_NODE, kind="root", goal="全树总览"))
+
+    r = await client.get(f"{BASE}/wb/summary")
+    assert r.status_code == 200
+    rows = {n["full"]: n for n in r.json()["tree"]}
+    pay = rows["支付"]
+    assert pay["kind"] == "module" and pay["path"] == "0" and not pay["profiled"]
+    assert pay["rules"] == 2 and pay["pend"] == 2 and pay["conf"] == 1  # 模块聚合子树：R1+R2、未核1+冲突1、open 冲突 1
+    leaf = rows["支付/放款重试"]
+    assert leaf["kind"] == "leaf" and leaf["path"] == "0,0" and leaf["profiled"]
+    assert leaf["goal"] == "不重复放款" and leaf["state"] == "done"  # 无 running job：日常态全部就绪
+    root_seg = r.json()["root"]
+    assert root_seg["kind"] == "root" and root_seg["goal"] == "全树总览"
+
+
+async def test_wb_state_done_when_no_job(client, monkeypatch):
+    from app.storage import jobs
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
+
+    # 无 running job：全部节点 done
+    rows = (await client.get(f"{BASE}/wb/summary")).json()["tree"]
+    assert rows and all(n["state"] == "done" for n in rows)
+
+    # generate 期间：全树三态分化（done_nodes→done、current_node→doing、其余→''）
+    monkeypatch.setattr(jobs, "running", lambda: {
+        "id": "J1", "kind": "generate", "status": "running",
+        "done_nodes": ["支付/放款重试"], "current_node": "支付"})
+    rows = {n["full"]: n for n in (await client.get(f"{BASE}/wb/summary")).json()["tree"]}
+    assert rows["支付/放款重试"]["state"] == "done"
+    assert rows["支付"]["state"] == "doing"
+    assert rows["风控"]["state"] == ""
+
+    # regen 期间：仅 current_node 动（doing），未受影响节点不误显排队（done）
+    monkeypatch.setattr(jobs, "running", lambda: {
+        "id": "J2", "kind": "regen", "status": "running",
+        "done_nodes": [], "current_node": "支付/放款重试"})
+    rows = {n["full"]: n for n in (await client.get(f"{BASE}/wb/summary")).json()["tree"]}
+    assert rows["支付/放款重试"]["state"] == "doing"
+    assert rows["支付"]["state"] == "done"
+    assert rows["风控"]["state"] == "done"
+
+    # 其他 job（verify/clar-review 等）期间：不误显排队，全部 done
+    monkeypatch.setattr(jobs, "running", lambda: {
+        "id": "J3", "kind": "verify-batch", "status": "running", "current_node": "支付"})
+    rows = (await client.get(f"{BASE}/wb/summary")).json()["tree"]
+    assert all(n["state"] == "done" for n in rows)
+
+
+async def test_patch_profile_goal(client):
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "放款"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+
+    # 无画像节点自动建：模块 kind=module，PATCH 后 GET 断言 goal 变化
+    r = await client.patch(f"{BASE}/profiles/0", json={"goal": "放款链路一键执行"})
+    assert r.status_code == 200
+    assert r.json()["goal"] == "放款链路一键执行" and r.json()["kind"] == "module"
+    r = await client.get(f"{BASE}/profiles/0")
+    assert r.status_code == 200 and r.json()["goal"] == "放款链路一键执行"
+
+    # 叶子自动建 kind=leaf；已有画像只改 goal 其余保留
+    from app.storage import profiles as profile_store
+    profile_store.save_profile(root, "放款/放款重试", Profile(node="放款/放款重试", goal="旧", entry="重试入口"))
+    r = await client.patch(f"{BASE}/profiles/0,0", json={"goal": "重试三次不重复"})
+    assert r.status_code == 200
+    assert r.json()["kind"] == "leaf" and r.json()["goal"] == "重试三次不重复"
+    assert r.json()["entry"] == "重试入口"  # 只改 goal，不抹其他字段
+    assert (await client.get(f"{BASE}/wb/summary")).json()["tree"][1]["goal"] == "重试三次不重复"
+
+    # __root__ 可 PATCH（无数字路径，跳过树校验）
+    r = await client.patch(f"{BASE}/profiles/__root__", json={"goal": "总览一句话"})
+    assert r.status_code == 200 and r.json()["kind"] == "root"
+    assert (await client.get(f"{BASE}/wb/summary")).json()["root"]["goal"] == "总览一句话"
+
+    # 节点不存在 404
+    assert (await client.patch(f"{BASE}/profiles/9", json={"goal": "x"})).status_code == 404
+
+
+async def test_conflict_clar_answer_resolves_code(client):
+    """B6/B9 闭环：矛盾裁决转澄清 → 答题（idx）/采纳代答 → 矛盾 st='code'、resolution=胜方规则 id，
+    败方规则进 _void_ids（assemble 不再吃败方）"""
+    from app.api import router as R
+    from app.storage import clarifications as cl
+    from app.storage import rules as rule_store
+    root = ensure_root("演示项目")
+    rule_store.save(root, [
+        Rule(id="R1", text="重试3次", src="a.py:1", conf="实证", verified=True),
+        Rule(id="R2", text="不重试", src="b.py:1", conf="实证", verified=True),
+        Rule(id="R3", text="每日对账", src="c.py:1", conf="实证", verified=True),
+        Rule(id="R4", text="每周对账", src="d.py:1", conf="实证", verified=True),
+    ])
+    from app.storage import findings as finding_store
+    finding_store.save_conflicts(root, [
+        Conflict(id="C1", a="R1", b="R2", q="超时后重试吗？"),
+        Conflict(id="C2", a="R3", b="R4", q="对账频率？"),
+    ])
+    # C1 转澄清（opts=[R1 文本, R2 文本]）→ answer idx=0 → R1 胜
+    await client.post(f"{BASE}/conflicts", json={"id": "C1", "action": "clar"})
+    c = next(x for x in await cl.list_all(root) if x.ref == "C1")
+    assert c.opts == ["重试3次", "不重试"], "opts 构造序 = [a 规则文本, b 规则文本]"
+    r = await client.post(f"{BASE}/clarifications", json={"no": c.no, "action": "answer", "idx": 0})
+    assert r.status_code == 200
+    # C2 转澄清 → 造代答（answer=b 侧文本）→ adopt → R4 胜
+    await client.post(f"{BASE}/conflicts", json={"id": "C2", "action": "clar"})
+    c2 = next(x for x in await cl.list_all(root) if x.ref == "C2")
+    await cl.set_ai(root, c2.no, {"answer": "每周对账", "quote": "原文", "ev_ids": [], "conf": "high", "quote_ok": True})
+    r = await client.post(f"{BASE}/clarifications", json={"no": c2.no, "action": "adopt"})
+    assert r.status_code == 200
+
+    confs = {x.id: x for x in finding_store.load_conflicts(root)}
+    assert confs["C1"].st == "code" and confs["C1"].resolution == "R1"
+    assert confs["C2"].st == "code" and confs["C2"].resolution == "R4"
+    void = R._void_ids(root)
+    assert "R2" in void and "R3" in void, "败方规则作废，assemble 不再吃"
+    assert "R1" not in void and "R4" not in void
+
+
+async def test_verify_job_only_doc_skips_guesses(client, monkeypatch):
+    """文档级核验（only_doc）：推测级规则不进 AI 核验（不核、不落「无依据」），文档级照核"""
+    from app.storage import rules as rule_store
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "制度：超时重试3次。"})
+    rule_store.save(root, [
+        Rule(id="R1", text="超时重试3次", src="spec.md#3", conf="文档"),
+        Rule(id="R2", text="失败兜底转人工（猜）", src="x", conf="推测"),
+    ])
+    seen: list[str] = []
+
+    async def mock_verify(rules, material):
+        seen.extend(a.id for a in rules)
+        return tasks.VerifyOut(results=[{"id": a.id, "ok": True, "corrected_text": None, "reason": None}
+                                        for a in rules])
+
+    monkeypatch.setattr(tasks, "verify", mock_verify)
+    r = await client.post(f"{BASE}/rules/verify-job", json={"only_doc": True})
+    assert r.status_code == 200 and r.json()["rules"] == 1  # 推测级不计数
+    j = await _wait_job_done(client, r.json()["job_id"])
+    assert j["kind"] == "verify-batch" and j["status"] == "done"
+    assert seen == ["R1"], "推测级未送 AI"
+    rows = {a["id"]: a for a in (await client.get(f"{BASE}/rules")).json()}
+    assert rows["R1"]["verified"] and not rows["R2"]["verified"]

@@ -39,14 +39,35 @@ async def test_assemble_success(monkeypatch):
     assert out.rules[0].id == "R1" and out.rules[0].conf == "实证"
     assert seen["node"] == "放款重试"
     assert "幂等" in seen["note"]
+    assert seen["parent_goal"] == ""  # 默认不传父职责时 prompt 变量仍齐全
 
 
-async def test_impact_success(monkeypatch):
-    fake = tasks.ImpactOut(nodes=["放款重试"])
+async def test_assemble_passes_parent_goal(monkeypatch):
+    card = Profile(node="文字输入", goal="输入企业名称")
+    seen = {}
 
     async def mock(task, variables, schema):
+        seen.update(variables)
+        return tasks.AssembleOut(profile=card)
+
+    monkeypatch.setattr(tasks, "complete", mock)
+    await tasks.assemble(
+        [Rule(id="R1", text="输入企业名称自动开网页", src="材料实证", conf="实证", verified=True)],
+        "文字输入", "", parent_goal="接收并解析用户输入",
+    )
+    assert seen["parent_goal"] == "接收并解析用户输入"
+
+
+async def test_impact_analysis_success(monkeypatch):
+    fake = tasks.ImpactOut(nodes=["感知/文字输入"], rule_ids=["R1"], clar_nos=["Q1"],
+                           mode="partial", reason="新材料仅修正该节点")
+    seen = {}
+
+    async def mock(task, variables, schema):
+        seen.update(variables)
         return fake
 
     monkeypatch.setattr(tasks, "complete", mock)
-    out = await tasks.impact("diff --git a/retry.py", "放款重试", ["放款重试", "额度校验"])
-    assert out == ["放款重试"]
+    out = await tasks.impact_analysis("当输入企业名称时自动开网页", "- R1 | 感知/文字输入 | 开网页", "- Q1 | 可配置？")
+    assert out is fake
+    assert "自动开网页" in seen["new_text"] and "R1" in seen["rules_text"]

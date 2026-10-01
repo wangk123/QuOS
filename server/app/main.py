@@ -6,9 +6,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.api.generate import api_router as generate_router
 from app.api.projects import projects_router
 from app.api.router import api_router
-from app.storage import db, project
+from app.storage import db, jobs, project
+
+# 后台任务状态落盘恢复：重启后 jobs 仍可查（cancelled 不复活为 running）
+jobs.load(Path(__file__).resolve().parent.parent / "data" / ".jobs.json")
 
 
 @asynccontextmanager
@@ -24,6 +28,7 @@ app = FastAPI(title="QuOS", lifespan=lifespan)
 
 app.include_router(projects_router, prefix="/api/projects")
 app.include_router(api_router, prefix="/api/projects/{proj}")
+app.include_router(generate_router, prefix="/api/projects/{proj}")
 
 
 @app.get("/api/health")

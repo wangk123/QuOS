@@ -1,19 +1,18 @@
 <script setup lang="ts">
+// 工作台终态（T19）：App = 顶栏（版本 | 证据池(n) | 待确认(n)）+ Workbench 单视图 + 全局进度条 + 弹窗/toasts。
+// 五步旧视图、侧栏树与 v-base 基线块均已删（版本入口收敛为 VerModal 弹窗）。
 import { computed, onMounted, provide, ref, watch } from 'vue'
-import { ApiError, curSlug, getClarifications, getTree, listBaselines, treeOp, type Baseline, type TreeNode } from './api'
-import AskDrawerV2 from './components/AskDrawerV2.vue'
-import FuncTree from './components/FuncTree.vue'
+import { ApiError, curSlug, generateCancel, getClarifications, getEvidence, listBaselines, type Baseline, type EvidenceItem } from './api'
+import ClarModal from './components/ClarModal.vue'
+import EvPoolModal from './components/EvPoolModal.vue'
+import ImpactModal from './components/ImpactModal.vue'
+import VerModal from './components/VerModal.vue'
 import Home from './views/Home.vue'
-import Profile from './views/Profile.vue'
-import Conflict from './views/Conflict.vue'
-import Fact from './views/Fact.vue'
-import Gap from './views/Gap.vue'
-import Pool from './views/Pool.vue'
-import Save from './views/Save.vue'
-import { NAV_FLOW, NAV_PROJ, aiBusy, baseTag, curName, curPath, goto, view, top, goHome, syncFromHash } from './router'
+import Workbench from './views/Workbench.vue'
+import { aiBusy, goHome, syncFromHash, top } from './router'
 import { resumeJobs } from './jobs'
+import { refreshWb } from './wb'
 
-const nodes = ref<TreeNode[]>([])
 const err = ref('')
 const baselines = ref<Baseline[]>([])
 
@@ -31,71 +30,78 @@ function toast(msg: string, cls = '') {
   setTimeout(() => (toasts.value = toasts.value.filter(x => x.id !== t.id)), 2800)
 }
 provide('toast', toast)
+provide('refreshClar', refreshClar) // Workbench 右栏待确认落定后刷新顶栏角标
 
-function findNode(path: string): TreeNode | null {
-  if (!path) return null
-  let layer = nodes.value
-  let cur: TreeNode | null = null
-  for (const seg of path.split(',')) {
-    cur = layer[+seg] ?? null
-    if (!cur) return null
-    layer = cur.children
-  }
-  return cur
+async function refreshBaselines() {
+  baselines.value = await listBaselines()
 }
 
-async function loadTree() {
+// 顶栏「待确认」弹窗（T13）：wait 状态条数角标
+const clarOpen = ref(false)
+const clarWait = ref(0)
+async function refreshClar() {
+  clarWait.value = (await getClarifications()).filter(c => c.st === 'wait').length
+}
+// 弹窗内单题落定（记答复/采纳→规则自动核过）：角标与工作台树徽章同刷
+function onClarChanged() {
+  void refreshClar().catch(() => {})
+  void refreshWb().catch(() => {})
+}
+
+// 顶栏「证据池」弹窗（T12）：列表数据由 App 持有，角标 = 同源计数；增删后弹窗 emit changed 重拉
+const evOpen = ref(false)
+const evidence = ref<EvidenceItem[]>([])
+const evCount = computed(() => evidence.value.length)
+async function refreshEv() {
+  evidence.value = await getEvidence()
+}
+function onEvChanged() {
+  void refreshEv().catch(() => {})
+}
+
+/** B3 取消入口：终结当前 generate/regen job；已完成内容保留，aiBusy 由 jobs 轮询驱动自动消失 */
+async function onCancelAi() {
   try {
-    nodes.value = await getTree()
+    await generateCancel()
+    toast('已取消——已完成内容保留')
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '取消失败', 'warn')
+  }
+}
+/** 重新生成入口（T17）：打开影响分析弹窗——触发材料 = 未提取（state!=='extracted'）的新材料；
+ *  同时关掉证据池弹窗，防双弹窗叠层与两处 paste 监听双投递 */
+const impactOpen = ref(false)
+const newEvIds = computed(() => evidence.value.filter(e => e.state !== 'extracted').map(e => e.id))
+function onImpact() {
+  evOpen.value = false
+  impactOpen.value = true
+}
+/** regen job 已发起：立即刷总表（空新材料直接打开时弹窗内自会提示，不执行） */
+function onImpactDone() {
+  void refreshWb().catch(() => {})
+}
+
+// 顶栏「版本」弹窗（T14 终态唯一版本入口）：存版成功后重拉基线
+const verOpen = ref(false)
+function onSaved() {
+  void refreshBaselines().catch(() => {})
+}
+
+async function boot() {
+  err.value = ''
+  try {
+    await refreshWb() // wb 探测：项目不存在 404 统一在此兜底（Workbench 内 useWb 刷新失败静默）
+    if (top.value !== 'proj') return
+    await refreshBaselines()
+    void resumeJobs(toast) // 恢复后端仍在跑的批量任务进度（页面刷新/重开场景）
+    void refreshClar().catch(() => {})
+    void refreshEv().catch(() => {})
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       goHome()
       toast('项目不存在或已归档')
       return
     }
-    throw e
-  }
-  if (curPath.value && !findNode(curPath.value)) curPath.value = '' // 删选中节点后悬挂重置
-}
-provide('reloadTree', loadTree) // Fact 骨架生成后刷新侧栏树
-provide('refreshClar', refreshClar) // 各视图投递澄清后刷新顶栏角标
-
-watch(
-  () => [nodes.value, curPath.value],
-  () => (curName.value = findNode(curPath.value)?.name ?? '（未选中节点）'),
-  { deep: true },
-)
-
-async function refreshBaselines() {
-  baselines.value = await listBaselines()
-  if (baselines.value.length) {
-    // list_baselines 按版本号升序返回，「当前」= 最新（最后一项）
-    const b = baselines.value[baselines.value.length - 1]
-    baseTag.value = `基线 ${b.tag} · ${b.commit.slice(0, 7)}`
-  }
-}
-
-// 切到「基线」视图时重新拉取（Save 并入基线后本组件数组不会自动更新）
-watch(view, v => {
-  if (v === 'v-base') void refreshBaselines().catch(() => {})
-})
-
-// 顶栏澄清池抽屉：未答角标数（wait 状态条数）
-const clarOpen = ref(false)
-const clarWait = ref(0)
-async function refreshClar() {
-  clarWait.value = (await getClarifications()).filter(c => c.st === 'wait').length
-}
-
-async function boot() {
-  err.value = ''
-  try {
-    await loadTree()
-    if (top.value !== 'proj') return // 项目级 404：loadTree 已 goHome+toast，跳过基线加载
-    await refreshBaselines()
-    void resumeJobs(toast) // 恢复后端仍在跑的批量任务进度（页面刷新/重开场景）
-    void refreshClar().catch(() => {})
-  } catch (e) {
     err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'
   }
 }
@@ -124,50 +130,6 @@ onMounted(() => {
 watch([top, curSlug], ([t]) => {
   if (t === 'proj') void boot()
 })
-
-function onToggle(path: string) {
-  const n = findNode(path)
-  if (n) n.open = !n.open
-}
-
-async function onOp(op: 'add' | 'rename' | 'del' | 'prio', path: string) {
-  try {
-    if (op === 'add') {
-      const parent = findNode(path)
-      const name = prompt(`加子节点${parent ? ` · ${parent.name}` : '（根层级）'}`)
-      if (!name?.trim()) return
-      await treeOp('add', path, name.trim())
-    } else if (op === 'rename') {
-      const n = findNode(path)
-      if (!n) return
-      const name = prompt('新名称', n.name)
-      if (!name?.trim() || name.trim() === n.name) return
-      await treeOp('rename', path, name.trim())
-    } else if (op === 'prio') {
-      const n = findNode(path)
-      if (!n) return
-      const NEXT: Record<string, string> = { '': 'P0', P0: 'P1', P1: 'P2', P2: '' }
-      await treeOp('prio', path, NEXT[n.priority ?? ''] ?? 'P0')
-    } else {
-      const n = findNode(path)
-      if (!n || !confirm(`删除「${n.name}」及其全部子节点？`)) return
-      await treeOp('del', path)
-    }
-    await loadTree()
-  } catch (e) {
-    err.value = e instanceof ApiError ? `操作失败（HTTP ${e.status}）：${e.message}` : String(e)
-  }
-}
-
-const VIEW_CMP = {
-  'v-ev': Pool,
-  'v-fact': Fact,
-  'v-conf': Conflict,
-  'v-gap': Gap,
-  'v-prof': Profile,
-  'v-save': Save,
-} as const
-const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value])
 </script>
 
 <template>
@@ -182,74 +144,34 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
       </div>
       <button class="ghost" @click="goHome">⟵ 项目</button>
       <div class="proj">项目 <b>{{ curSlug }}</b></div>
-      <span class="baseline-tag">{{ baseTag }}</span>
-      <button class="ghost clar-btn" type="button" @click="clarOpen = true">
-        澄清池<span v-if="clarWait" class="clar-badge">{{ clarWait }}</span>
+      <span class="spacer"></span>
+      <!-- 三入口全为弹窗位：版本弹窗（T14）/证据池弹窗（T12）/待确认弹窗（T13） -->
+      <button class="ghost-sm" type="button" @click="verOpen = true">版本</button>
+      <button class="pool-btn" type="button" @click="evOpen = true">
+        证据池<span v-if="evCount" class="pool-badge">{{ evCount }}</span>
+      </button>
+      <button class="pool-btn" type="button" @click="clarOpen = true">
+        待确认<span v-if="clarWait" class="pool-badge">{{ clarWait }}</span>
       </button>
     </header>
 
-    <AskDrawerV2 :open="clarOpen" @close="clarOpen = false" @changed="refreshClar" />
+    <ClarModal :open="clarOpen" :evidence="evidence" @close="clarOpen = false" @changed="onClarChanged" />
+    <EvPoolModal :open="evOpen" :evidence="evidence" @close="evOpen = false" @changed="onEvChanged" @impact="onImpact" />
+    <ImpactModal :open="impactOpen" :ev-ids="newEvIds" :evidence="evidence" @close="impactOpen = false" @done="onImpactDone" />
+    <VerModal :open="verOpen" @close="verOpen = false" @saved="onSaved" />
 
-    <nav class="navbar">
-      <div class="navgrp">
-        <span class="grp-lbl">项目</span>
-        <button
-          v-for="[v, n] in NAV_PROJ"
-          :key="v"
-          class="step"
-          :class="{ active: view === v }"
-          type="button"
-          @click="goto(v)"
-        >{{ n }}</button>
-      </div>
-      <div class="navgrp">
-        <span class="sep" />
-        <span class="grp-lbl">整理{{ curPath ? ` · ${curName}` : '' }}</span>
-        <template v-for="([v, n], i) in NAV_FLOW" :key="v">
-          <button class="step" :class="{ active: view === v }" type="button" @click="goto(v)">
-            <span class="n">{{ i + 1 }}</span>{{ n }}
-          </button>
-          <span v-if="i < NAV_FLOW.length - 1" class="step-arrow">›</span>
-        </template>
-      </div>
-    </nav>
+    <p v-if="err" class="err">{{ err }}</p>
 
-    <!-- 全局 AI 进度条：状态在 router.ts 的 aiBusy，切视图不丢失；有 cur/total 时为真实百分比 -->
+    <!-- 后台进度条：状态在 router.ts 的 aiBusy，切页不丢失；有 cur/total 时为真实百分比 -->
     <div v-if="aiBusy" class="ai-run global-ai">
       <span class="spin" /><span>{{ aiBusy.label }}{{ aiBusy.total ? `（${aiBusy.cur ?? 0}/${aiBusy.total}）` : '' }}</span>
       <div class="bar"><i :style="aiBusy.total ? { width: `${Math.round(((aiBusy.cur ?? 0) / aiBusy.total) * 100)}%`, animation: 'none' } : undefined" /></div>
+      <button class="cancel-btn" type="button" @click="onCancelAi">取消</button>
     </div>
 
-    <div class="main">
-      <aside aria-label="功能树">
-        <p v-if="err" class="err">{{ err }}</p>
-        <FuncTree :nodes="nodes" :cur-path="curPath" @pick="p => (curPath = p)" @toggle="onToggle" @op="onOp" />
-      </aside>
-      <main class="content">
-        <component :is="viewCmp" v-if="viewCmp" />
-        <div v-else-if="view === 'v-base'">
-          <div class="view-head">
-            <h2>基线</h2>
-            <span class="sub">项目级版本存档。新需求 diff 定位受影响用户画像，只重跑那部分整理。</span>
-          </div>
-          <div class="card-box">
-            <div class="hd">版本时间线</div>
-            <div class="bd">
-              <div v-if="baselines.length" class="tl">
-                <div v-for="(b, i) in baselines" :key="b.tag" class="tl-item" :class="{ cur: i === baselines.length - 1 }">
-                  <h4>{{ b.tag }} <span v-if="i === baselines.length - 1" class="badge b-blue">当前</span></h4>
-                  <div class="meta">{{ b.commit }}</div>
-                </div>
-              </div>
-              <div v-else style="color: var(--muted-fg)">还没有基线——某节点定稿存档后出现</div>
-            </div>
-          </div>
-          <div class="warn-strip">
-            <b>增量定位（M2）</b>粘贴 git diff → AI 定位受影响用户画像 → 只重跑该子树的 ①-④ 再重新定稿。当前 M1 先建立基线闭环。
-          </div>
-        </div>
-      </main>
-    </div>
+    <main class="content wb">
+      <Workbench />
+    </main>
   </template>
 
   <div class="toasts" aria-live="polite">
@@ -261,7 +183,7 @@ const viewCmp = computed(() => (VIEW_CMP as Record<string, unknown>)[view.value]
 header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   background: #fff;
   border-bottom: 1px solid var(--border2);
   padding: 0 20px;
@@ -272,95 +194,29 @@ header {
 }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--primary); }
 .proj { display: flex; align-items: center; gap: 8px; color: var(--muted-fg); }
-.baseline-tag {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted-fg);
-  background: var(--muted);
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-.clar-btn { position: relative; }
-.clar-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px;
+.ghost-sm { background: #fff; color: var(--muted-fg); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
+.ghost-sm:hover { background: var(--muted); }
+.pool-btn { position: relative; background: #fff; color: var(--primary); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
+.pool-btn:hover { background: var(--muted); }
+.pool-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px;
   border-radius: 8px; background: var(--destructive); color: #fff; font-size: 10px;
   display: flex; align-items: center; justify-content: center; padding: 0 4px; }
-.navbar {
-  display: flex;
-  gap: 18px;
-  background: #fff;
-  border-bottom: 1px solid var(--border2);
-  padding: 8px 20px;
-  overflow-x: auto;
-  position: sticky;
-  top: 52px;
-  z-index: 49;
-  align-items: center;
-}
-.navgrp { display: flex; gap: 4px; align-items: center; }
-.navgrp .grp-lbl {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--muted-fg);
-  letter-spacing: 0.06em;
-  margin-right: 6px;
-  white-space: nowrap;
-}
-.navgrp .sep { width: 1px; height: 18px; background: var(--border2); margin: 0 12px 0 18px; }
-.step {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  white-space: nowrap;
-  color: var(--muted-fg);
-  background: transparent;
-}
-.step:hover { background: var(--muted); }
-.step .n {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--muted);
-  color: var(--muted-fg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.step.active { background: var(--primary); color: #fff; font-weight: 600; }
-.step.active .n { background: rgba(255, 255, 255, 0.25); color: #fff; }
-.step-arrow { color: var(--border2); flex-shrink: 0; align-self: center; }
 .global-ai {
   position: sticky;
-  top: 100px; /* header 52 + navbar 48 */
+  top: 52px;
   z-index: 48;
   margin: 10px 20px 0;
 }
-.main { display: flex; min-height: calc(100vh - 100px); }
-aside {
-  width: 264px;
-  background: #fff;
-  border-right: 1px solid var(--border2);
-  padding: 10px 8px;
-  flex-shrink: 0;
-  /* sticky + 自起高度：树恒定可见，不随主内容长页被拉伸（否则整页滚动时侧栏大片空白跟着走） */
-  position: sticky;
-  top: 100px; /* header 52 + navbar 48 */
-  align-self: flex-start;
-  max-height: calc(100vh - 116px);
-  overflow-y: auto;
-}
+.global-ai .cancel-btn { background: #fff; color: var(--destructive); border: 1px solid var(--border2); border-radius: 6px; padding: 3px 12px; font-size: 12px; font-weight: 600; flex: none; cursor: pointer; }
+.global-ai .cancel-btn:hover { background: var(--red-bg); }
 .err {
   font-size: 12px;
   color: var(--destructive);
   background: var(--red-bg);
   border-radius: 6px;
   padding: 8px 10px;
-  margin-bottom: 8px;
+  margin: 10px 20px 0;
 }
-.content { flex: 1; padding: 18px 22px; min-width: 0; }
-@media (max-width: 960px) { aside { display: none; } }
+.content { min-height: calc(100vh - 52px); padding: 18px 22px; min-width: 0; }
+.content.wb { padding: 0; } /* Workbench 的 .stage 自带分栏 padding */
 </style>

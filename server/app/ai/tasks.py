@@ -33,15 +33,33 @@ class AssembleOut(BaseModel):
 
 
 class ImpactOut(BaseModel):
-    nodes: list[str]
+    nodes: list[str] = []
+    rule_ids: list[str] = []
+    clar_nos: list[str] = []
+    mode: str = "partial"
+    reason: str = ""
 
 
 class OutlineNode(BaseModel):
     name: str
+    goal: str = ""
     children: list["OutlineNode"] = []
 
 
 class OutlineOut(BaseModel):
+    nodes: list[OutlineNode]
+
+
+class UnderstandRoot(BaseModel):
+    goal: str = ""
+    entry: str = ""
+    flow: str = ""
+    boundaries: str = ""
+    note: str = ""
+
+
+class UnderstandOut(BaseModel):
+    root: UnderstandRoot
     nodes: list[OutlineNode]
 
 
@@ -55,6 +73,13 @@ class ClarReviewItem(BaseModel):
 
 class ClarReviewOut(BaseModel):
     results: list[ClarReviewItem]
+
+
+class SummaryOut(BaseModel):
+    goal: str = ""
+    entry: str = ""
+    boundaries: str = ""
+    note: str = ""
 
 
 def _fmt_rules(rules: list[Rule]) -> str:
@@ -98,34 +123,36 @@ async def gaps(profile_summary: str, dims: list[str]) -> list[Gap]:
     return out.gaps
 
 
-async def assemble(rules: list[Rule], node_name: str, note: str) -> Profile:
+async def assemble(rules: list[Rule], node_name: str, note: str,
+                   parent_goal: str = "") -> Profile:
     unqualified = [r for r in rules if not (r.verified and r.conf != "待实证")]
     if unqualified:
         raise AssembleBlocked(unqualified)
     out = await complete(
         "assemble",
-        {"rules": _fmt_rules(rules), "node": node_name, "note": note},
+        {"rules": _fmt_rules(rules), "node": node_name, "note": note,
+         "parent_goal": parent_goal},
         AssembleOut,
     )
     return out.profile
 
 
-async def impact(diff_text: str, tree_dump: str, profile_list: list[str]) -> list[str]:
-    out = await complete(
+async def impact_analysis(new_text: str, rules_text: str, clars_text: str) -> ImpactOut:
+    """材料级影响分析：新材料 × 现有条目/待确认 → 受影响范围 + 重生成方案建议"""
+    return await complete(
         "impact",
-        {
-            "diff": diff_text,
-            "tree": tree_dump,
-            "profiles": "\n".join(f"- {p}" for p in profile_list),
-        },
+        {"new_text": new_text, "rules_text": rules_text, "clars_text": clars_text},
         ImpactOut,
     )
-    return out.nodes
 
 
 async def outline(material: str) -> list[OutlineNode]:
     out = await complete("outline", {"material": material}, OutlineOut)
     return out.nodes
+
+
+async def understand(material: str, images: list[bytes] | None = None) -> UnderstandOut:
+    return await complete("understand", {"material": material}, UnderstandOut, images=images)
 
 
 async def clar_review(questions_text: str, materials_text: str,
@@ -136,3 +163,8 @@ async def clar_review(questions_text: str, materials_text: str,
         ClarReviewOut,
         images=images,
     )
+
+
+async def summary(parts: str, kind: str) -> SummaryOut:
+    """模块/根概要聚合：子节点画像清单 → 只覆写 goal/entry/boundaries/note 四字段"""
+    return await complete("summary", {"parts": parts, "kind": kind}, SummaryOut)

@@ -55,6 +55,10 @@ class AssembleIn(BaseModel):
     note: str = ""
 
 
+class GoalIn(BaseModel):
+    goal: str
+
+
 class ClarIn(BaseModel):
     no: int
     action: str  # answer | adopt | ignore | verify
@@ -69,6 +73,10 @@ class BaselineIn(BaseModel):
 
 class NodeIn(BaseModel):
     node: str
+
+
+class AskIn(BaseModel):
+    q: str = ""  # 自定义问法；空 = 默认拼接问法（「该推测与实际系统一致吗？」）
 
 
 def _root(proj: str) -> Path:
@@ -265,8 +273,9 @@ async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
     await _run_verify_phase(proj, jid, ids)
 
 
-async def _run_verify_phase(proj: str, jid: str, ids: list[str]) -> None:
-    """分批核验落盘并累计三路计数（verify-job 与 extract-verify 阶段二共用）"""
+async def _run_verify_phase(proj: str, jid: str, ids: list[str], only_doc: bool = False) -> None:
+    """分批核验落盘并累计三路计数（verify-job 与 extract-verify 阶段二共用）；
+    only_doc=跳过推测级规则（推测无材料依据，核验必然落「无依据」——只核文档/实证级）"""
     root = _root(proj)
     material = "\n\n".join(t for t, _ in await _evidence_texts(root))
     for i in range(0, len(ids), VERIFY_BATCH):
@@ -275,7 +284,9 @@ async def _run_verify_phase(proj: str, jid: str, ids: list[str]) -> None:
         try:
             root = _root(proj)
             items = rule_store.load(root)
-            targets = [a for a in items if a.id in set(batch)]
+            targets = [a for a in items if a.id in set(batch) and not (only_doc and a.conf == "推测")]
+            if not targets:
+                continue
             out = await _ai(tasks.verify, targets, material)
             stat = _apply_verify_results(items, out.results)
             rule_store.save(root, items)
@@ -344,26 +355,32 @@ async def verify_rules(proj: str, body: VerifyIn):
 VERIFY_BATCH = 20  # 每批核验条数：一次 LLM 调用一批，job 进度按批推进
 
 
+class VerifyJobIn(BaseModel):
+    only_doc: bool = False  # 文档级核验：跳过推测级（推测无材料依据，核也必落「无依据」）
+
+
 @api_router.post("/rules/verify-job")
-async def verify_job(proj: str):
-    """全量核验后台任务：分批逐批核验，进度由 GET /jobs 轮询（提取后前端自动链入，也可手动重核）"""
+async def verify_job(proj: str, body: VerifyJobIn | None = None):
+    """全量核验后台任务：分批逐批核验，进度由 GET /jobs 轮询（提取后前端自动链入，也可手动重核）；
+    body.only_doc=true 只核文档/实证级（不核推测级）"""
     root = _root(proj)
     if jobs.running():
         r = jobs.running()
         raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
-    ids = [a.id for a in rule_store.load(root) if not a.verified]
+    only_doc = bool(body and body.only_doc)
+    ids = [a.id for a in rule_store.load(root) if not a.verified and not (only_doc and a.conf == "推测")]
     if not ids:
         raise HTTPException(status_code=422, detail="没有未核验的规则")
     total = (len(ids) + VERIFY_BATCH - 1) // VERIFY_BATCH
-    jid = jobs.create("verify-batch", "AI 全量核验", total)
-    asyncio.create_task(_run_verify(proj, jid, ids))
+    jid = jobs.create("verify-batch", "AI 全量核验" + ("（文档级）" if only_doc else ""), total)
+    asyncio.create_task(_run_verify(proj, jid, ids, only_doc))
     return {"job_id": jid, "total": total, "rules": len(ids)}
 
 
-async def _run_verify(proj: str, jid: str, ids: list[str]) -> None:
+async def _run_verify(proj: str, jid: str, ids: list[str], only_doc: bool = False) -> None:
     """verify-job 入口：初始化计数后复用分批公共体"""
     jobs.update(jid, ok=0, corrected=0, nobasis=0, failed=0)
-    await _run_verify_phase(proj, jid, ids)
+    await _run_verify_phase(proj, jid, ids, only_doc)
 
 
 @api_router.post("/rules/{rid}/confirm", status_code=204)
@@ -379,8 +396,8 @@ async def confirm_rule(proj: str, rid: str):
 
 
 @api_router.post("/rules/{rid}/ask", status_code=204)
-async def ask_rule(proj: str, rid: str):
-    """转问人：推测/无依据规则进「问人」清单，答案确认后自动核过"""
+async def ask_rule(proj: str, rid: str, body: AskIn | None = None):
+    """转问人：推测/无依据规则进「问人」清单，答案确认后自动核过；body.q 非空时替代默认问法"""
     root = _root(proj)
     rmap = _rule_map(root)
     if rid not in rmap:
@@ -388,8 +405,8 @@ async def ask_rule(proj: str, rid: str):
     a = rmap[rid]
     if a.clar:
         raise HTTPException(status_code=409, detail=f"{rid} 已转问人（问#{a.clar}）")
-    c = await clarifications.add(root, a.text + "——该推测与实际系统一致吗？",
-                                 ["确认一致", "与实际不符", "不清楚"], ref=a.id)
+    q = (body.q.strip() if body else "") or (a.text + "——该推测与实际系统一致吗？")
+    c = await clarifications.add(root, q, ["确认一致", "与实际不符", "不清楚"], ref=a.id)
     a.clar = c.no
     rule_store.save(root, list(rmap.values()))
 
@@ -587,6 +604,15 @@ def _void_ids(root) -> set[str]:
             for x in (c.a, c.b) if x != c.resolution}
 
 
+def _parent_goal(root, node_path: str) -> str:
+    """父节点（所属模块）画像的 goal——assemble 的父上下文；顶层节点/无画像给空串"""
+    _, full = _resolve(_load_tree(root), node_path)
+    if not full or "/" not in full:
+        return ""
+    parent = profiles._latest_profiles(root).get(full.rsplit("/", 1)[0])
+    return parent.goal if parent else ""
+
+
 @api_router.post("/profiles/assemble")
 async def assemble_profile(proj: str, body: AssembleIn):
     root = _root(proj)
@@ -601,7 +627,8 @@ async def assemble_profile(proj: str, body: AssembleIn):
             status_code=409,
             detail=f"「{full}」及其子树没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
         )
-    profile = await _ai(tasks.assemble, usable, node.name, body.note)
+    profile = await _ai(tasks.assemble, usable, node.name, body.note,
+                        _parent_goal(root, body.node_path))
     profile.node = full  # 存储按树全路径寻址（load/export 匹配用）
     f = profiles.save_profile(root, full, profile)
     return {"profile": profile.model_dump(), "file": f.name}
@@ -623,6 +650,24 @@ async def get_profile(proj: str, node_path: str):
     card = profiles.load_profile(root, full)
     if card is None:
         raise HTTPException(status_code=404, detail=f"节点无用户画像: {node_path}")
+    return card.model_dump()
+
+
+@api_router.patch("/profiles/{node_path}")
+async def patch_profile_goal(proj: str, node_path: str, body: GoalIn):
+    """工作台行内编辑 goal：读现有画像（无则建空画像，kind 按树上有无子节点）；__root__ 跳过树校验直接存取"""
+    root = _root(proj)
+    if node_path == profiles.ROOT_NODE:
+        full, kind = profiles.ROOT_NODE, "root"
+    else:
+        nodes = _load_tree(root)
+        node, full = _resolve(nodes, node_path)
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
+        kind = "module" if node.children else "leaf"
+    card = profiles.load_profile(root, full) or profiles.Profile(node=full, kind=kind)
+    card.goal = body.goal
+    profiles.save_profile(root, full, card)
     return card.model_dump()
 
 
@@ -688,6 +733,60 @@ async def list_jobs(proj: str):
     return jobs.list_all()
 
 
+# ---------- 工作台 ----------
+
+class WbNode(BaseModel):
+    path: str; name: str; full: str; goal: str = ""
+    kind: str = "leaf"; rules: int = 0; pend: int = 0; conf: int = 0
+    profiled: bool = False; state: str = ""
+
+
+@api_router.get("/wb/summary")
+async def wb_summary(proj: str):
+    root = _root(proj); nodes = _load_tree(root)
+    profs = profiles._latest_profiles(root)
+    rules = rule_store.load(root); void = _void_ids(root)
+    confs = findings.load_conflicts(root)
+    rmap = _rule_map(root)
+    run = jobs.running() or {}
+    jobless = not run or run.get("kind") not in ("generate", "regen")  # 其他 job（核验/重检等）不动树：日常态全部就绪
+
+    def state_of(full: str) -> str:
+        """generate 期间全树三态（done_nodes→done、current→doing、其余排队）；
+        regen 期间仅受影响节点动（current→doing，其余就绪）——B8 局部语义"""
+        if jobless:
+            return "done"
+        if full == run.get("current_node"):
+            return "doing"
+        if run.get("kind") == "regen":
+            return "done"
+        return "done" if full in run.get("done_nodes", []) else ""
+
+    def stat(full: str) -> dict:
+        rs = [a for a in rules if a.id not in void and _in_subtree(a.node, full)]
+        cf = [c for c in confs if c.st == "open" and _in_subtree(
+            next((rmap[x].node for x in (c.a, c.b) if x in rmap), ""), full)]  # 冲突按其规则归属计
+        return {"rules": len(rs), "pend": sum(0 if a.verified else 1 for a in rs) + len(cf), "conf": len(cf)}
+    out: list[dict] = []
+    def walk(items, prefix, name_prefix, depth):
+        for i, n in enumerate(items):
+            path = f"{prefix},{i}" if prefix else str(i)
+            full = f"{name_prefix}/{n.name}" if name_prefix else n.name
+            kids = bool(n.children)
+            s = stat(full)
+            p = profs.get(full)
+            out.append({"path": path, "name": n.name, "full": full,
+                        "goal": (p.goal if p else "")[:60], "kind": "module" if kids else "leaf",
+                        **s, "profiled": full in profs,
+                        "state": state_of(full)})
+            walk(n.children, path, full, depth + 1)
+    walk(nodes, "", "", 0)
+    rp = profs.get(profiles.ROOT_NODE)
+    return {"tree": out, "root": {"goal": rp.goal, "entry": rp.entry, "flow": rp.flow,
+                                  "boundaries": rp.boundaries, "note": rp.note,
+                                  "kind": "root"} if rp else None}
+
+
 # ---------- 问人 ----------
 
 @api_router.get("/clarifications")
@@ -721,6 +820,16 @@ async def resolve_clarification(proj: str, body: ClarIn):
     if cl.ref in rmap:
         rmap[cl.ref].verified, rmap[cl.ref].nb, rmap[cl.ref].clar = True, "", None
         rule_store.save(root, list(rmap.values()))
+    # 闭环联动二：ref 指向矛盾（① 裁决转澄清）时，人工答案 = 代码侧裁决——
+    # 胜方写 resolution（opts 构造序 [a 规则文本, b 规则文本]：idx 0→a、1→b），败方由 _void_ids 自动作废
+    if body.action in ("answer", "adopt"):
+        confs = findings.load_conflicts(root)
+        c = next((x for x in confs if x.id == cl.ref and x.st == "clar"), None)
+        if c is not None and c.a and c.b:
+            idx = cl.opts.index(cl.answer) if cl.answer in cl.opts else body.idx
+            if idx in (0, 1):
+                c.st, c.resolution = "code", c.a if idx == 0 else c.b
+                findings.save_conflicts(root, confs)
     return cl.model_dump()
 
 
@@ -784,7 +893,8 @@ async def review_clarifications(proj: str, body: ReviewIn):
     return {"job_id": jid, "total": total, "questions": len(waits)}
 
 
-async def _run_review(proj, jid, root, waits, text, images, ev_ids, truncated: bool = False):
+async def _review_batches(proj, jid, root, waits, text, images, ev_ids, truncated: bool = False) -> int:
+    """重检分批循环体（不收尾）——/clarifications/review 与 regen(rescan/partial) 共用；返回代答落库数"""
     has_image = bool(images)
     suffix = "（材料超长已截断）" if truncated else ""
     answered = 0
@@ -802,6 +912,11 @@ async def _run_review(proj, jid, root, waits, text, images, ev_ids, truncated: b
                 await clarifications.set_ai(root, w.no, w.ai.model_dump() if w.ai else None)
         except Exception:
             jobs.update(jid, failed=jobs.get(jid).get("failed", 0) + len(batch))
+    return answered
+
+
+async def _run_review(proj, jid, root, waits, text, images, ev_ids, truncated: bool = False):
+    answered = await _review_batches(proj, jid, root, waits, text, images, ev_ids, truncated)
     jobs.update(jid, ok=answered)
     jobs.finish(jid)
 
