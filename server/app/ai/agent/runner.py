@@ -7,7 +7,9 @@ from pathlib import Path
 
 from app.ai.runner import _strip_fence  # 围栏剥离复用现有实现
 
-_ENV_OK = ("PATH", "HOME", "LANG", "DSH_HOME",
+# TMPDIR 必传：dsh 沙箱（workspace-write）可写根 = workspace + os.tmpdir()——
+# 缺 TMPDIR 时 dsh 的 tmpdir 回落 /tmp，任务目录（python tempfile 同样依赖 TMPDIR）会落在沙箱可写根外被拒写
+_ENV_OK = ("PATH", "HOME", "LANG", "LC_ALL", "TERM", "TMPDIR", "DSH_HOME",
            "http_proxy", "https_proxy", "no_proxy",
            "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")
 # 任务接线文本：注入任务目录绝对路径——QUOS_DSH_CMD 可含 cd（dsh workspace 在别处），agent 经绝对路径读材料
@@ -50,11 +52,13 @@ async def _pump(proc, dir_path: Path, on_event) -> bool:
                 log.write(chunk)
 
         err_task = asyncio.create_task(_err())
+        events = open(dir_path / "events.log", "wb")  # 事件流全文存档：失败排障现场
         try:
             while True:
                 raw = await proc.stdout.readline()
                 if not raw:
                     break
+                events.write(raw)
                 line = raw.decode("utf-8", errors="replace").strip()
                 if not line.startswith("{"):
                     continue
@@ -67,6 +71,7 @@ async def _pump(proc, dir_path: Path, on_event) -> bool:
                 if on_event is not None and (text := _label(ev)):
                     on_event(text)
         finally:
+            events.close()
             # 取消场景（超时）不得阻塞在 stderr 读上；正常路径 err_task 已自然结束
             if not err_task.done():
                 err_task.cancel()

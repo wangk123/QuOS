@@ -7,6 +7,7 @@
   {"hang": true}         睡 60s（测超时 kill）
 用法：QUOS_DSH_CMD="python3 <abs>/tests/fake_dsh.py"（cwd=任务目录）"""
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -15,6 +16,9 @@ cwd = Path.cwd()
 ctrl = json.loads((cwd / "FAKE.json").read_text("utf-8")) if (cwd / "FAKE.json").exists() else {}
 (cwd / "out").mkdir(exist_ok=True)
 (cwd / "out" / "stdin.txt").write_text(task_text, "utf-8")
+(cwd / "out" / "env.txt").write_text(
+    "TMPDIR=" + os.environ.get("TMPDIR", "") + "\n"
+    + "HAS_LLM_KEY=" + str("QUOS_LLM_API_KEY" in os.environ) + "\n", "utf-8")
 task = (cwd / "RULES.md").stem if (cwd / "RULES.md").exists() else ""
 for e in ({"type": "session", "id": "session-fake"},
           {"type": "text", "text": f"正在处理 {task}"},

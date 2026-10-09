@@ -63,3 +63,22 @@ async def test_prompt_uses_absolute_task_dir(tmp_path):
     stdin_text = (d / "out" / "stdin.txt").read_text("utf-8")
     assert str(d.resolve()) in stdin_text
     assert "TASK.md" in stdin_text and "out/result.json" in stdin_text
+
+
+async def test_events_archived(tmp_path):
+    """NDJSON 事件流全文落盘 events.log——失败排障现场（label 透传是有损投影不够用）"""
+    d = await _mk_dir(tmp_path)
+    await run_agent(d)
+    raw = (d / "events.log").read_text("utf-8")
+    assert '"type": "session"' in raw and '"type": "final"' in raw
+
+
+async def test_env_whitelist(tmp_path, monkeypatch):
+    """TMPDIR 必传（dsh 沙箱可写根=os.tmpdir()，缺了任务目录会被拒写）；平台密钥不泄漏"""
+    monkeypatch.setenv("TMPDIR", "/tmp/quos-env-test")
+    monkeypatch.setenv("QUOS_LLM_API_KEY", "secret")
+    d = await _mk_dir(tmp_path)
+    await run_agent(d)
+    env_txt = (d / "out" / "env.txt").read_text("utf-8")
+    assert "TMPDIR=/tmp/quos-env-test" in env_txt
+    assert "HAS_LLM_KEY=False" in env_txt
