@@ -3,7 +3,7 @@
 // 弹窗三段结构同 EvPoolModal（.mask/.modal 全局样式）；卡片流样式沿旧澄清抽屉（T19 已删）。
 import { computed, inject, ref, watch } from 'vue'
 import {
-  ApiError, adoptClar, answerClar, answerClarOpen, getClarifications, ignoreClar,
+  ApiError, adoptClar, answerClar, answerClarOpen, getClarifications, ignoreClar, listJobs, reviewClars,
   type Clarification, type EvidenceItem,
 } from '../api'
 
@@ -24,6 +24,37 @@ const pick = ref<Record<number, number>>({})
 const draft = ref<Record<number, string>>({})
 const src = ref<Record<number, 'oral' | 'material'>>({})
 const evPick = ref<Record<number, string[]>>({})
+
+// 四态类型徽章：确认(蓝)/取舍(紫)/补全(橙)/自定义(灰)；旧数据 type 空 → 按来源兜底
+const TYPE_BADGE: Record<string, [string, string]> = {
+  confirm: ['b-blue', '确认题'], choose: ['b-purple', '取舍题'],
+  supply: ['b-open', '补全题'], custom: ['b-gray', '自定义题'],
+}
+const typeOf = (c: Clarification) => c.type || (c.ref?.startsWith('R') ? 'confirm' : 'custom')
+
+// confirm 选「不符」的必填补充
+const extra = ref<Record<number, string>>({})
+
+/** done 卡联动反馈：按题型×答案分流（与后端 resolve_clarification 同口径） */
+function doneFb(c: Clarification): string {
+  if (typeOf(c) === 'confirm') {
+    if (c.answer === '确认一致') return `✓ 关联条目 ${c.ref} 已核过`
+    if (c.answer === '与实际不符') return `✓ 条目 ${c.ref} 已按答复改写并标黄（修正态）`
+    return '条目未动（未核过）——可重新转问'
+  }
+  if (typeOf(c) === 'choose') return '✓ 已按所选侧裁决，另一侧作废'
+  if (typeOf(c) === 'supply') return '✓ 答复已存为材料池（来源=待确认），可走受影响重生成'
+  return '已记录；无自动联动'
+}
+
+// choice 脚注：confirm 题随选中项切换（一致→核过 / 不符→必填 / 不清楚→不核过），其余题保持通用文案
+function choiceHint(c: Clarification): string {
+  if (typeOf(c) !== 'confirm') return '点选项后记下答复，口头答案=推测级'
+  const i = pick.value[c.no]
+  if (i === 1) return '补全实际行为后记下，条目按答复改写并标黄'
+  if (i === 2) return '选「不清楚」不核过条目，可重新转问'
+  return '选「确认一致」记下后，关联条目自动核过'
+}
 
 // 旧数据无 kind：按 opts 兜底（有选项=选择题，无选项=开放题）
 async function load() {
@@ -87,13 +118,15 @@ async function reload() {
   emit('changed')
 }
 
-// choice：点选项记答复（口头答案=推测级）
+// choice：点选项记答复（口头答案=推测级）；confirm 选「不符」需带 extra 实际行为
 async function answerChoice(c: Clarification) {
   const idx = pick.value[c.no]
   if (idx === undefined) return
+  const ex = (extra.value[c.no] ?? '').trim()
+  if (typeOf(c) === 'confirm' && idx === 1 && !ex) return  // 不符必填，前端先拦
   try {
-    await answerClar(c.no, idx)
-    toast(`${c.no} 已记录（口头答案=推测级）`)
+    await answerClar(c.no, idx, ex)
+    toast(`${c.no} 已记录${idx === 1 && typeOf(c) === 'confirm' ? '（条目将按答复改写并标黄）' : ''}`)
     await reload()
   } catch (e) {
     failToast(e, '记录')
@@ -135,6 +168,34 @@ async function ignore(c: Clarification) {
     failToast(e, '忽略')
   }
 }
+
+// ✦ AI 重检投递条：材料多选 → reviewClars → 轮询 job → 重拉列表 + 进度/跳过说明
+const rbEvs = ref<string[]>([])
+const rbBusy = ref(false)
+const rbSkip = ref('')
+const rbProg = ref('') // job.label 进度文案（分批 n/m），完成后清空
+const RB_POLL = 500 // 测试可接受的最短间隔
+
+async function runReview() {
+  if (!rbEvs.value.length) { toast('先选择要投递的材料', 'warn'); return }
+  rbBusy.value = true
+  rbSkip.value = ''
+  try {
+    const r = await reviewClars(rbEvs.value)
+    let done = false // 轮询见到终态=完成；耗尽=超时，不伪装成功
+    for (let i = 0; i < 600; i++) {  // 最长 5 分钟，与 job 超时对齐
+      await new Promise(res => setTimeout(res, RB_POLL))
+      const j = (await listJobs().catch(() => [])).find(x => x.id === r.job_id)
+      rbProg.value = j?.label ?? ''
+      if (j && j.status !== 'running') { done = true; break }
+    }
+    await load() // 超时也重拉：代答可能部分落库
+    if (!done) { toast('AI 重检超时，请稍后刷新查看结果', 'warn'); return }
+    const skipped = waiting.value.filter(c => typeOf(c) === 'confirm').length
+    rbSkip.value = skipped ? `本次跳过：${skipped} 个确认题（材料证不了「实际系统」）——待人工拍板` : ''
+    toast('AI 重检完成，代答待采纳', 'ok')
+  } catch (e) { failToast(e, 'AI 重检') } finally { rbBusy.value = false; rbProg.value = '' }
+}
 </script>
 
 <template>
@@ -142,11 +203,23 @@ async function ignore(c: Clarification) {
     <div class="modal wide clar" role="dialog" aria-modal="true">
       <div class="modal-head">
         <h3>待确认 <span class="badge b-gray">{{ items.length }} 项</span></h3>
-        <div class="msub">攒一批一次问清；答复落定后关联条目自动核过</div>
+        <div class="msub">攒一批一次问清；答复落定后按题型联动（核过 / 改写 / 入材料池）</div>
         <button class="x" type="button" aria-label="关闭" @click="$emit('close')">✕</button>
       </div>
       <div class="modal-body">
         <p v-if="err" class="err">{{ err }}</p>
+        <div class="review-bar">
+          <div class="rb-hd">✦ AI 重检 <span class="r">投材料 × 待答问题 → 后台分批代答（待采纳）；确认题不送</span></div>
+          <div class="rb-row">
+            <select v-model="rbEvs" data-test="rb-evs" multiple>
+              <option v-for="e in evidence.filter(x => x.type !== '压缩包')" :key="e.id" :value="e.id">{{ e.name }}</option>
+            </select>
+            <button class="rb-btn" data-test="rb-btn" type="button" :disabled="rbBusy" @click="runReview">
+              {{ rbBusy ? '代答中…' : '✦ 从材料找答案' }}</button>
+          </div>
+          <p v-if="rbBusy && rbProg" class="rb-prog">{{ rbProg }}</p>
+          <p v-if="rbSkip" class="rb-skip">{{ rbSkip }}</p>
+        </div>
         <div class="seg">
           <button
             v-for="t in ([['wait', `等待 ${waiting.length}`], ['done', `已答复 ${done.length}`]] as const)"
@@ -166,9 +239,7 @@ async function ignore(c: Clarification) {
           <template v-if="c.st === 'wait'">
             <div class="qc-hd">
               <span class="src">{{ c.no }}</span>
-              <span class="badge" :class="c.kind === 'open' ? 'b-open' : 'b-gray'">
-                {{ c.kind === 'open' ? '补材料' : '选择题' }}
-              </span>
+              <span class="badge" :class="TYPE_BADGE[typeOf(c)]?.[0] ?? 'b-gray'">{{ TYPE_BADGE[typeOf(c)]?.[1] ?? '自定义题' }}</span>
               <span v-if="refBadge(c.ref)" class="badge b-gray">{{ refBadge(c.ref) }}</span>
             </div>
             <p class="qc-q">{{ c.q }}</p>
@@ -204,9 +275,15 @@ async function ignore(c: Clarification) {
               >
                 <b>{{ String.fromCharCode(65 + i) }}. </b>{{ o }}
               </button>
+              <div v-if="typeOf(c) === 'confirm' && pick[c.no] === 1" class="qc-extra">
+                <div class="xlabel">实际行为是什么（必填）</div>
+                <textarea v-model="extra[c.no]" data-test="confirm-extra" rows="2"
+                          placeholder="例：文档为空时静默跳过，不报错也不生成 Run……" />
+                <div class="xhint">提交后条目文本按此答复改写并标黄（修正态），不再以原推测进画像</div>
+              </div>
               <div class="qc-foot">
-                <span class="qc-hint">点选项后记下答复，口头答案=推测级</span>
-                <button class="btn btn-sm" type="button" :aria-label="`问题 ${c.no} 提交答复`" :disabled="pick[c.no] === undefined" @click="answerChoice(c)">记下答复</button>
+                <span class="qc-hint">{{ choiceHint(c) }}</span>
+                <button class="btn btn-sm" type="button" :aria-label="`问题 ${c.no} 提交答复`" :disabled="pick[c.no] === undefined || (typeOf(c) === 'confirm' && pick[c.no] === 1 && !(extra[c.no] ?? '').trim())" @click="answerChoice(c)">记下答复</button>
               </div>
             </div>
 
@@ -245,8 +322,8 @@ async function ignore(c: Clarification) {
               <span v-if="c.ref" class="qc-from">关联 {{ c.ref }}</span>
             </div>
             <p class="qc-q">{{ c.q }}</p>
-            <div class="qc-ans">答：{{ c.answer }}</div>
-            <p v-if="c.ref" class="qc-link">答复落定，关联条目 {{ c.ref }} 已自动核过</p>
+            <div class="qc-ans">答：{{ c.answer }}<template v-if="c.ans?.extra"> —— 实际行为：{{ c.ans.extra }}</template></div>
+            <p v-if="c.ref" class="qc-link" :class="{ ok: doneFb(c).startsWith('✓') }">{{ doneFb(c) }}</p>
           </template>
         </div>
 
@@ -268,6 +345,16 @@ async function ignore(c: Clarification) {
 .tab.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 .ai-strip { background: var(--blue-bg); color: var(--primary); border-radius: 8px; padding: 8px 12px;
   font-size: 12.5px; font-weight: 600; margin-bottom: 10px; }
+
+.review-bar { border: 1px solid var(--blue-bg); background: #f8faff; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.review-bar .rb-hd { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--primary); flex-wrap: wrap; }
+.review-bar .rb-hd .r { font-weight: 400; font-size: 11.5px; color: var(--muted-fg); }
+.review-bar .rb-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.review-bar select { flex: 1; border: 1px solid var(--border2); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; min-height: 56px; background: #fff; }
+.review-bar .rb-btn { background: var(--primary); color: #fff; font-weight: 600; padding: 7px 14px; white-space: nowrap; }
+.review-bar .rb-btn:disabled { opacity: .5; cursor: not-allowed; }
+.review-bar .rb-prog { font-size: 11px; color: var(--primary); margin: 6px 0 0; }
+.review-bar .rb-skip { font-size: 11px; color: var(--muted-fg); margin: 6px 0 0; }
 
 .q-card { background: #fff; border: 1px solid var(--border2); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
 .q-card.done { background: #fafbfd; }
@@ -306,4 +393,10 @@ async function ignore(c: Clarification) {
 .qc-unv { font-style: normal; font-size: 11px; color: var(--muted-fg); margin-left: 6px; }
 
 .b-open { background: #ffedd5; color: #c2410c; }
+.b-purple { background: #f3e8ff; color: #7e22ce; }
+.qc-extra { margin-top: 8px; border: 1px solid #f5c98a; background: #fffbeb; border-radius: 8px; padding: 9px 11px; }
+.qc-extra .xlabel { font-size: 11.5px; font-weight: 700; color: var(--warn); margin-bottom: 5px; }
+.qc-extra textarea { width: 100%; border: 1px solid var(--border2); border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; resize: vertical; }
+.qc-extra .xhint { font-size: 11px; color: var(--muted-fg); margin-top: 5px; }
+.qc-link.ok { color: #166534; }
 </style>

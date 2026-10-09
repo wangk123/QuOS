@@ -155,7 +155,7 @@ async def test_review_endpoint_creates_job(client, monkeypatch):
     from app.core.models import Rule
     from app.storage import rules as rule_store
     rule_store.save(root, [Rule(id="R1", text="冷却期推测", src="s", conf="推测", verified=False)])
-    c = await cl.add(root, "冷却期多久？", ["7天", "30天"], ref="R1")
+    c = await cl.add(root, "冷却期多久？", ["7天", "30天"], ref="R1", type="custom")  # 事实题送 AI；confirm 不送
 
     from app.ai.tasks import ClarReviewOut
     async def mock(qs, ms, images=None):

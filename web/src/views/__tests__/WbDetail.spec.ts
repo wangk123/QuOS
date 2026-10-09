@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
   getRules: vi.fn(),
   getConflicts: vi.fn(),
   getGaps: vi.fn(),
+  getDoubtSummary: vi.fn(),
+  disposeGap: vi.fn(),
 }))
 vi.mock('../../api', () => api)
 
@@ -29,7 +31,10 @@ vi.mock('../../wb', () => ({
 }))
 
 describe('WbDetail', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.getDoubtSummary.mockResolvedValue(null) // 根视图默认无汇总（隐藏卡，速览列 —）
+  })
 
   it('就绪节点渲染三 tab 与概要字段', async () => {
     api.getProfile.mockResolvedValue({ node: 'X', goal: 'g', entry: 'e', flow: 'f', states: 's', boundaries: 'b', deps: 'd', rules: [], unconfirmed: [] })
@@ -70,6 +75,28 @@ describe('WbDetail', () => {
     expect(q.text()).toContain('排队中')
   })
 
+  it('存疑缺口按 node 子树过滤：本节点/子孙的进，他节点/全局/根级的不进', async () => {
+    api.getProfile.mockResolvedValue({ node: '查询', goal: 'g', entry: '', flow: '', states: '', boundaries: '', deps: '', rules: [], unconfirmed: [] })
+    api.getRules.mockResolvedValue([])
+    api.getConflicts.mockResolvedValue([])
+    api.getGaps.mockResolvedValue([
+      { id: 'G1', dim: '幂等', text: '本节点的缺口', st: 'open', node: '查询' },
+      { id: 'G2', dim: '状态', text: '子树叶子节点的缺口', st: 'open', node: '查询/子叶' },
+      { id: 'G3', dim: '状态', text: '其他节点的缺口', st: 'open', node: '登录' },
+      { id: 'G4', dim: '边界', text: '全局旧数据的缺口', st: 'open', node: '' },
+      { id: 'G5', dim: '边界', text: '根级的缺口', st: 'open', node: '__root__' },
+    ])
+    const w = mount(WbDetail, { props: { nodeFull: '查询', state: 'done' } })
+    await flushPromises()
+    await w.findAll('.tab')[2].trigger('click')
+    expect(w.text()).toContain('本节点的缺口')
+    expect(w.text()).toContain('子树叶子节点的缺口')
+    expect(w.text()).not.toContain('其他节点的缺口')
+    expect(w.text()).not.toContain('全局旧数据的缺口')
+    expect(w.text()).not.toContain('根级的缺口')
+    expect(w.text()).toContain('⚠2') // 存疑角标只计本子树 open 缺口
+  })
+
   it('根详情：wb 聚合渲染这份需求是什么+模块速览表，flow chips 可跳', async () => {
     const w = mount(WbDetail, { props: { nodeFull: '__root__', state: 'done' } })
     await flushPromises()
@@ -90,5 +117,37 @@ describe('WbDetail', () => {
     await w.findAll('.mtx tr.clickable')[1].trigger('click') // 模块速览行跳转
     expect(w.emitted('jump')![1]).toEqual(['查询'])
     expect(api.getProfile).not.toHaveBeenCalled() // 根详情不走 getProfile
+  })
+
+  it('根详情：存疑汇总卡——统计条/全局区/模块行跳转，全零模块不占行，速览表加待处置列', async () => {
+    api.getDoubtSummary.mockResolvedValue({
+      stats: { conflicts: 1, gaps: 4, clarified: 2 },
+      global: [{ id: 'G3', dim: '状态', text: '未说明根级发布状态', st: 'open' }],
+      modules: [
+        { name: '登录', rules: 3, conflicts: 1, gaps: 1, peek: '未说明幂等键' },
+        { name: '查询', rules: 4, conflicts: 0, gaps: 0, peek: '' },
+      ],
+    })
+    const w = mount(WbDetail, { props: { nodeFull: '__root__', state: 'done' } })
+    await flushPromises()
+    expect(w.text()).toContain('存疑汇总')
+    expect(w.text()).toContain('矛盾待裁决')
+    expect(w.text()).toContain('已转待确认')
+    expect(w.text()).toContain('全局')
+    expect(w.text()).toContain('未说明根级发布状态')
+    expect(w.findAll('.dsum-row')).toHaveLength(1) // 查询全零不占行
+    await w.find('.dsum-row').trigger('click')
+    expect(w.emitted('jump')![0]).toEqual(['登录', 'doubt']) // 跳转带落地 tab=存疑
+    // 速览表新列：登录有 1 矛盾 1 缺口，查询显示「清」
+    const tds = w.findAll('.mtx tr.clickable')
+    expect(tds[0].text()).toContain('1 矛盾')
+    expect(tds[1].text()).toContain('清')
+    // 全局缺口卡内处置：转澄清 → disposeGap + clar-changed
+    api.disposeGap.mockResolvedValue({ id: 'G3', dim: '状态', text: 'x', st: 'clar', node: '' })
+    api.getDoubtSummary.mockResolvedValue({ stats: { conflicts: 1, gaps: 4, clarified: 3 }, global: [], modules: [] })
+    await w.findAll('.dsum-global button')[0].trigger('click')
+    await flushPromises()
+    expect(api.disposeGap).toHaveBeenCalledWith('G3', 'clar')
+    expect(w.emitted('clar-changed')).toBeTruthy()
   })
 })

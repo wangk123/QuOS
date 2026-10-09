@@ -121,3 +121,19 @@ async def test_generate_cancel_keeps_finished(client, monkeypatch):
     j = await _wait_job_done(client, jid)
     assert j["status"] == "cancelled"
     assert (await client.get(f"{BASE}/tree")).json(), "已完成的大纲保留"
+
+
+async def test_generate_extract_all_failed_marks_failed_no_fake_done(client, monkeypatch):
+    """提取全军覆没：job 置 failed 且流水线停——不得产出「树有骨架、条目全 0」的假完成"""
+    ensure_root("生成项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "当输入企业名称时，系统应自动启动网页。"})
+    _mock_pipeline(monkeypatch)
+    async def boom(content, evidence_type, tree_text, images=None):
+        raise RuntimeError("ReadTimeout")
+    monkeypatch.setattr(tasks, "extract", boom)
+    r = await client.post(f"{BASE}/generate")
+    j = await _wait_job_done(client, r.json()["job_id"])
+    assert j["status"] == "failed" and "提取全部失败" in j["label"]
+    assert j["failed"] >= 1
+    rules = (await client.get(f"{BASE}/rules")).json()
+    assert rules == [], "失败提取不得落规则"

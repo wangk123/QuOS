@@ -55,10 +55,10 @@ def merge_conflicts(root, detected: list[Conflict]) -> list[Conflict]:
 
 def merge_gaps(root, detected: list[Gap]) -> list[Gap]:
     items = load_gaps(root)
-    seen = {(g.dim, g.text) for g in items}
+    seen = {(g.dim, g.text, g.node) for g in items}  # 含 node：同文案不同节点是两条独立缺口
     for d in detected:
-        if (d.dim, d.text) not in seen:
-            seen.add((d.dim, d.text))
+        if (d.dim, d.text, d.node) not in seen:
+            seen.add((d.dim, d.text, d.node))
             items.append(d)
     save_gaps(root, items)
     return items

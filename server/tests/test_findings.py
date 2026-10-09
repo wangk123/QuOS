@@ -22,8 +22,18 @@ def test_merge_conflicts_no_duplicate_same_pair(tmp_path):
 def test_merge_gaps_dedup_by_dim_text(tmp_path):
     findings.save_gaps(tmp_path, [Gap(id="G1", dim="状态", text="「重试中」无出口", st="ok")])
     merged = findings.merge_gaps(tmp_path, [
-        Gap(id="G1", dim="状态", text="「重试中」无出口"),  # 同 (dim,text)：不重复
+        Gap(id="G1", dim="状态", text="「重试中」无出口"),  # 同 (dim,text,node)：不重复
         Gap(id="G2", dim="边界", text="「重试中」无出口"),  # 同文本不同维度：新空白
     ])
     assert len(merged) == 2
     assert merged[0].st == "ok"  # 已处置状态保留
+
+
+def test_merge_gaps_same_text_different_node_both_kept(tmp_path):
+    # 节点绑定后，同 (dim,text) 挂在不同节点是两条独立缺口
+    findings.save_gaps(tmp_path, [Gap(id="G1", dim="状态", text="未说明状态流转", node="支付/放款")])
+    merged = findings.merge_gaps(tmp_path, [
+        Gap(id="G2", dim="状态", text="未说明状态流转", node="支付/放款"),  # 同节点：去重
+        Gap(id="G3", dim="状态", text="未说明状态流转", node="风控/额度"),  # 异节点：保留
+    ])
+    assert [g.id for g in merged] == ["G1", "G3"]

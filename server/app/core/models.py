@@ -46,6 +46,7 @@ class Gap(BaseModel):
     dim: str
     text: str
     st: str = "open"
+    node: str = ""  # 归属功能点全路径；__root__ = 根级；空 = 全局/旧数据（未绑定）
 
 
 class AiReview(BaseModel):
@@ -65,6 +66,7 @@ class ClarAnswer(BaseModel):
     kind: str  # 'opt' | 'text' | 'material'
     text: str
     ev_ids: list[str] = []
+    extra: str = ""  # confirm 选「与实际不符」时补充的实际行为
 
 
 class Clarification(BaseModel):
@@ -72,6 +74,7 @@ class Clarification(BaseModel):
     q: str
     opts: list[str] = []
     kind: str = "choice"  # choice | open（opts 为空即 open；旧数据默认 choice）
+    type: str = ""  # confirm 确认 | choose 取舍 | supply 补全 | custom 自定义；空=旧数据（读取时按 ref 推断）
     st: str = "wait"  # wait | answered | verified
     answer: Optional[str] = None
     ref: Optional[str] = None

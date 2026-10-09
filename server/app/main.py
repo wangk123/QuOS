@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.api.doubts import api_router as doubts_router
 from app.api.generate import api_router as generate_router
 from app.api.projects import projects_router
 from app.api.router import api_router
@@ -29,6 +30,7 @@ app = FastAPI(title="QuOS", lifespan=lifespan)
 app.include_router(projects_router, prefix="/api/projects")
 app.include_router(api_router, prefix="/api/projects/{proj}")
 app.include_router(generate_router, prefix="/api/projects/{proj}")
+app.include_router(doubts_router, prefix="/api/projects/{proj}")
 
 
 @app.get("/api/health")

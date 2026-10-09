@@ -78,3 +78,24 @@ async def test_call_without_images_keeps_plain_string(monkeypatch):
     monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
     await runner._call("纯文本")
     assert captured["payload"]["messages"][0]["content"] == "纯文本"
+
+
+async def test_stream_sse_chunks_assembled(monkeypatch):
+    """SSE 流式：data: 行逐 chunk 拼接、keepalive 注释行忽略、[DONE] 结束；请求带 stream=true"""
+    captured = {}
+
+    def h(request):
+        captured["payload"] = json.loads(request.content)
+        chunks = [
+            {"choices": [{"delta": {"content": '{"rules": '}}]},
+            {"choices": [{"delta": {"content": '[{"k": "v"}]}'}}]},
+            {"choices": [{"delta": {}}]},  # 空 delta（如 usage 尾包）
+        ]
+        lines = [f"data: {json.dumps(c)}" for c in chunks] + [": keepalive", "data: [DONE]"]
+        body = ("\n\n".join(lines) + "\n\n").encode()
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    monkeypatch.setattr("app.ai.runner._transport", lambda: _mock(h))
+    out = await complete("extract", {"material": "x"}, Out)
+    assert out.rules == [{"k": "v"}]
+    assert captured["payload"]["stream"] is True

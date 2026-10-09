@@ -16,6 +16,12 @@ const { wb, refreshWb, stop } = useWb()
 onUnmounted(stop)
 
 const selected = ref('__root__')
+/** 跳转落地 tab：存疑汇总行 → 'doubt'；其余路径回概要——每条选中路径都显式写，无悬挂态 */
+const selTab = ref<'overview' | 'doubt'>('overview')
+function jump(full: string, tab?: 'doubt') {
+  selected.value = full
+  selTab.value = tab ?? 'overview'
+}
 const empty = computed(() => (wb.value?.tree ?? []).length === 0)
 
 /** 右栏节点态：树行直查；根 '__root__' 永可看——仅 running job 期间给 doing 骨架，否则 done */
@@ -54,13 +60,13 @@ async function onEditRoot() {
     <div class="treezone">
       <WbTree
         :selected="selected"
-        @pick="s => (selected = s)"
+        @pick="s => { selected = s; selTab = 'overview' }"
         @refresh-root="onRefreshRoot"
         @edit-root="onEditRoot"
       />
     </div>
     <div class="detailzone">
-      <WbDetail :node-full="selected" :state="stateOf(selected)" @jump="s => (selected = s)" @clar-changed="() => void refreshClar()" />
+      <WbDetail :node-full="selected" :state="stateOf(selected)" :initial-tab="selTab" @jump="jump" @clar-changed="() => void refreshClar()" />
     </div>
   </div>
 </template>

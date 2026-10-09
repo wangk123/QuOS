@@ -1,16 +1,17 @@
 <script setup lang="ts">
 // Task 8 工作台右主区节点详情：根详情（wb 聚合，不走 getProfile——它按树节点寻址）+ 节点三态（排队/处理中骨架/就绪三 tab）。
-// 就绪态读侧：getProfile + getRules(本节点子树) + getConflicts(按 a/b 规则 node 归属过滤，查不到归属不过滤防漏) + getGaps(无 node 字段→项目级全量)。
-import { computed, ref, watch } from 'vue'
-import { getConflicts, getGaps, getProfile, getRules, type Conflict, type Gap, type Profile, type Rule } from '../api'
-import { digitPathOf, wb } from '../wb'
+// 就绪态读侧：getProfile + getRules(本节点子树) + getConflicts(按 a/b 规则 node 归属过滤，查不到归属不过滤防漏) + getGaps(按 gap.node 子树过滤；全局/根级由汇总视图承接)。
+import { computed, inject, ref, watch } from 'vue'
+import { disposeGap, getConflicts, getDoubtSummary, getGaps, getProfile, getRules, type Conflict, type DoubtGlobalGap, type DoubtSummary, type Gap, type Profile, type Rule } from '../api'
+import { digitPathOf, refreshWb, wb } from '../wb'
 import DetailDoubt from '../components/detail/DetailDoubt.vue'
 import DetailOverview from '../components/detail/DetailOverview.vue'
 import DetailRules from '../components/detail/DetailRules.vue'
 
-const props = defineProps<{ nodeFull: string; state: string }>()
-const emit = defineEmits<{ jump: [full: string]; 'clar-changed': [] }>()
+const props = defineProps<{ nodeFull: string; state: string; initialTab?: string }>()
+const emit = defineEmits<{ jump: [full: string, tab?: 'doubt']; 'clar-changed': [] }>()
 const tab = ref<'overview' | 'rules' | 'doubt'>('overview')
+const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
 // ── 根详情：wb.root + wb.tree 顶层行（与 WbTree 根卡同口径：只对顶层求和，防模块/叶双计）
 const isRoot = computed(() => props.nodeFull === '__root__')
@@ -35,7 +36,7 @@ const profile = ref<Profile | null>(null)
 const rules = ref<Rule[]>([]) // 本节点子树规则（条目 tab）
 const allRules = ref<Rule[]>([]) // 全量规则（存疑 tab 冲突 a/b 反查文本）
 const conflicts = ref<Conflict[]>([])
-const gaps = ref<Gap[]>([]) // Gap 无 node 字段：项目级全量展示（见任务报告）
+const gaps = ref<Gap[]>([]) // 本节点子树缺口（gap.node 绑定，见 load()）
 const err = ref('')
 const loading = ref(false)
 
@@ -60,15 +61,45 @@ async function load() {
       if (na === undefined && nb === undefined) return true // a/b 规则查不到归属（已删/未同步）：不过滤防漏
       return under(na) || under(nb)
     })
-    gaps.value = gs
+    gaps.value = gs.filter(g => g.node === '__root__' ? false : under(g.node)) // 缺口按 node 子树过滤（__root__/全局不在节点展示，汇总视图承接）
   } catch (e) {
     err.value = e instanceof Error ? `详情加载失败：${e.message}` : String(e)
   } finally {
     loading.value = false
   }
 }
-// 切节点/状态翻新（含 ''→done 就绪瞬间）；tab 回概要
-watch(() => [props.nodeFull, props.state], () => { tab.value = 'overview'; void load() }, { immediate: true })
+// 切节点/状态翻新（含 ''→done 就绪瞬间）；tab 回概要——除非跳转方指明落存疑 tab（存疑汇总行）
+watch(() => [props.nodeFull, props.state], () => {
+  tab.value = props.initialTab === 'doubt' ? 'doubt' : 'overview'
+  void load()
+}, { immediate: true })
+
+// ── 根详情「存疑汇总」（需求②）：进根详情拉取；全局缺口卡内直接处置
+const doubts = ref<DoubtSummary | null>(null)
+async function loadDoubts() {
+  doubts.value = await getDoubtSummary().catch(() => null)
+}
+watch(() => props.nodeFull, () => { if (props.nodeFull === '__root__') void loadDoubts() }, { immediate: true })
+/** 有待处置疑点的模块行（树序）；全零不占行 */
+const doubtRows = computed(() => (doubts.value?.modules ?? []).filter(m => m.conflicts + m.gaps > 0))
+const doubtTotal = computed(() => (doubts.value?.stats.conflicts ?? 0) + (doubts.value?.stats.gaps ?? 0))
+/** 模块速览行 = wb 顶层行 + 该模块存疑计数（doubts 未载时展示 —） */
+const topView = computed(() => topRows.value.map(r => {
+  const d = doubts.value?.modules.find(m => m.name === r.name)
+  return { r, dc: d?.conflicts ?? 0, dg: d?.gaps ?? 0 }
+}))
+
+async function disposeGlobal(g: DoubtGlobalGap, action: 'clar' | 'ok') {
+  try {
+    await disposeGap(g.id, action)
+    await loadDoubts()
+    void refreshWb()
+    if (action === 'clar') emit('clar-changed')
+    toast(action === 'clar' ? `${g.id} → 已转待确认` : '已按「设计如此」记录', 'ok')
+  } catch (e) {
+    toast(e instanceof Error ? `处置失败：${e.message}` : '处置失败', 'warn')
+  }
+}
 
 const parts = computed(() => (isRoot.value ? [] : props.nodeFull.split('/')))
 /** 就绪态右侧徽章：取 wb 行 pend（后端已含冲突数）；行缺失（如未同步）不显示 */
@@ -91,6 +122,32 @@ const doubtN = computed(
     </div>
     <div v-if="rootStat.doing" class="doing-box"><span class="spin" /><span>后台正在逐个节点完善（{{ rootStat.done }}/{{ rootStat.total }}）——已出来的部分随时可以看和改，不用等</span></div>
     <div v-if="rootStat.doing" class="card"><div class="skel w90" /><div class="skel w75" /><div class="skel w60" /><div class="skel w45" /></div>
+    <div v-if="doubts" class="card">
+      <h3>存疑汇总 <span class="sub">全项目待处置的疑点，按模块归位——点行直达节点存疑页</span></h3>
+      <div class="dsum-stat">
+        <span class="dsum-chip c-red"><b>{{ doubts.stats.conflicts }}</b>矛盾待裁决</span>
+        <span class="dsum-chip c-amber"><b>{{ doubts.stats.gaps }}</b>缺口待补</span>
+        <span v-if="doubts.stats.clarified" class="dsum-chip"><b>{{ doubts.stats.clarified }}</b>已转待确认</span>
+      </div>
+      <div v-for="g in doubts.global" :key="g.id" class="dsum-global">
+        <span class="gtag">全局</span>
+        <span class="gtext">{{ g.text }}<span class="gdim"> · {{ g.dim }}</span></span>
+        <span class="gacts">
+          <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g, 'clar')">转澄清</button>
+          <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g, 'ok')">设计如此</button>
+        </span>
+      </div>
+      <div v-for="m in doubtRows" :key="m.name" class="dsum-row" @click="emit('jump', m.name, 'doubt')">
+        <span class="dnode">{{ m.name }}<span class="sub">{{ m.rules }} 条目</span></span>
+        <span class="dcount">
+          <span v-if="m.conflicts" class="badge b-red">{{ m.conflicts }} 矛盾</span>
+          <span class="badge b-amber">{{ m.gaps }} 缺口</span>
+        </span>
+        <span class="dpeek">{{ m.peek }}</span>
+        <button class="go" type="button" @click.stop="emit('jump', m.name, 'doubt')">去处理 →</button>
+      </div>
+      <p v-if="!doubtTotal && !doubts.global.length" class="none">判断清零 ✓——没有待处置的疑点</p>
+    </div>
     <div class="card">
       <h3>这份需求是什么</h3>
       <p class="rootdesc">{{ wb?.root?.goal || '根画像未生成——生成需求后由 AI 汇总；也可在左栏根卡点 ✎ 手工补一句' }}</p>
@@ -112,13 +169,21 @@ const doubtN = computed(
       <div class="h4s">模块速览</div>
       <table class="mtx">
         <tbody>
-          <tr><th>模块</th><th>条目</th><th>状态</th></tr>
-          <tr v-for="r in topRows" :key="r.path" class="clickable" @click="emit('jump', r.full)">
+          <tr><th>模块</th><th>条目</th><th>待处置疑点</th><th>状态</th></tr>
+          <tr v-for="{ r, dc, dg } in topView" :key="r.path" class="clickable" @click="emit('jump', r.full)">
             <td>{{ r.name }}</td>
             <td class="num">{{ r.rules }}</td>
+            <td>
+              <template v-if="dc + dg">
+                <span v-if="dc" class="badge b-red">{{ dc }} 矛盾</span>
+                <span class="badge b-amber">{{ dg }} 缺口</span>
+              </template>
+              <span v-else-if="doubts" class="badge b-green">清</span>
+              <span v-else class="dim">—</span>
+            </td>
             <td><span :class="r.state === 'doing' ? 'badge b-blue' : r.pend ? 'badge b-amber' : 'badge b-green'">{{ r.state === 'doing' ? '处理中' : r.pend ? `${r.pend} 待判断` : '就绪' }}</span></td>
           </tr>
-          <tr v-if="!topRows.length"><td colspan="3" class="none">树还是空的——先在左栏加模块</td></tr>
+          <tr v-if="!topRows.length"><td colspan="4" class="none">树还是空的——先在左栏加模块</td></tr>
         </tbody>
       </table>
       <div class="h4s">待你判断</div>
@@ -202,4 +267,26 @@ const doubtN = computed(
 .tab.on { color: var(--primary); border-bottom-color: var(--primary); background: #fff; }
 .tab .c { font-size: 10.5px; font-weight: 700; border-radius: 8px; padding: 0 6px; margin-left: 5px; background: var(--muted); color: var(--muted-fg); }
 .tab .c.conf { background: var(--red-bg); color: var(--destructive); }
+.card h3 .sub { font-weight: 400; font-size: 11.5px; color: var(--muted-fg); }
+
+/* ── 存疑汇总（根详情，需求②） ── */
+.dsum-stat { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.dsum-chip { display: flex; align-items: baseline; gap: 6px; background: var(--muted); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: var(--muted-fg); }
+.dsum-chip b { font-size: 16px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.dsum-chip.c-red b { color: var(--destructive); } .dsum-chip.c-amber b { color: var(--warn); }
+.dsum-global { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px; font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
+.dsum-global .gtag { flex: none; font-weight: 700; color: var(--warn); font-size: 10.5px; padding: 1px 8px; margin-top: 1px; background: var(--amber-bg); border: 1px solid #f5d98a; border-radius: 999px; }
+.dsum-global .gtext { flex: 1; min-width: 0; }
+.dsum-global .gdim { color: var(--muted-fg); font-size: 11px; }
+.dsum-global .gacts { display: flex; gap: 6px; flex: none; }
+.dsum-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-top: 1px solid #f1f5f9; border-radius: 6px; cursor: pointer; }
+.dsum-row:first-of-type { border-top: none; }
+.dsum-row:hover { background: #f6f9ff; }
+.dsum-row .dnode { font-weight: 600; font-size: 12.5px; min-width: 110px; }
+.dsum-row .dnode .sub { display: block; font-weight: 400; font-size: 10.5px; color: var(--muted-fg); }
+.dsum-row .dcount { display: flex; gap: 5px; flex-wrap: wrap; }
+.dsum-row .dpeek { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsum-row .go { flex: none; background: #fff; color: var(--primary); border: 1px solid var(--border2); padding: 3px 10px; font-size: 11.5px; }
+.dsum-row .go:hover { background: var(--muted); }
+.dim { color: var(--muted-fg); }
 </style>

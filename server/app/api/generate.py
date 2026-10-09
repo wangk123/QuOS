@@ -67,8 +67,8 @@ async def _run_generate_inner(proj: str, jid: str) -> None:
         return
     jobs.update(jid, phase="extract", label="正在读材料提炼并核验条目…")
     await _run_extract_verify(proj, jid, ev_ids)
-    if jobs.is_cancelled(jid):
-        return
+    if jobs.is_cancelled(jid) or (jobs.get(jid) or {}).get("status") == "failed":
+        return  # 提取全败已置 failed：不再空跑组装/缺口，防「条目全 0」假完成
     # phase3 conflict（复用既有 handler，本仓库既有做法）；status 拉回 running——复用链尾部自带 finish
     jobs.update(jid, status="running", phase="conflict", label="正在核对来源与矛盾…", total=6)
     await rescan_conflicts(proj)
@@ -169,8 +169,8 @@ async def _review_material(root, ev_ids: list[str]) -> tuple[str, list[bytes], b
 
 
 async def _rescan_waits(proj, jid, root, ev_ids) -> None:
-    """对全部 wait 题 AI 代答（复用重检分批循环体；题级过滤只增复杂度且重扫无害）"""
-    waits = [c for c in await clarifications.list_all(root) if c.st == "wait"]
+    """对全部 wait 题 AI 代答（复用重检分批循环体；确认题不送 AI——材料证不了「实际系统」）"""
+    waits = [c for c in await clarifications.list_all(root) if c.st == "wait" and c.type != "confirm"]
     if not waits:
         jobs.update(jid, label="没有待问问题，无需重扫")
         return
@@ -231,8 +231,8 @@ async def _run_regen_inner(proj: str, jid: str, mode: str, ev_ids: list[str], no
     if pending:
         jobs.update(jid, phase="extract", label="正在读新材料提炼并核验条目…")
         await _run_extract_verify(proj, jid, pending)
-        if jobs.is_cancelled(jid):
-            return
+        if jobs.is_cancelled(jid) or (jobs.get(jid) or {}).get("status") == "failed":
+            return  # 新材料提取全败已置 failed：同 generate，防假完成
         jobs.update(jid, status="running")
     # ① 逐节点局部组装（assemble 输入本就不改规则 → verified 天然保留；409 细分 blocked）
     dmap = _digit_map(_load_tree(root))

@@ -12,7 +12,7 @@ const conflicts: Conflict[] = [
   { id: 'C1', a: 'R1', b: 'R2', q: '重试次数：代码 3 次 vs 文档 5 次', st: 'open', resolution: null },
 ]
 const gaps: Gap[] = [
-  { id: 'G1', dim: '幂等', text: '未说明重复提交的幂等键', st: 'open' },
+  { id: 'G1', dim: '幂等', text: '未说明重复提交的幂等键', st: 'open', node: '支付/放款重试' },
 ]
 const allRules: Rule[] = [
   { id: 'R1', text: '重试 3 次', src: 'retry.py:15', conf: '实证', st: '', verified: true, suspect: false },

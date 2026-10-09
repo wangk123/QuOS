@@ -65,6 +65,7 @@ class ClarIn(BaseModel):
     idx: Optional[int] = None
     text: Optional[str] = None
     ev_ids: Optional[list[str]] = None
+    extra: Optional[str] = None  # confirm 选「与实际不符」的实际行为补充
 
 
 class BaselineIn(BaseModel):
@@ -263,6 +264,11 @@ async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
         except Exception:
             jobs.update(jid, failed=jobs.get(jid).get("failed", 0) + 1)
     root = _root(proj)
+    # 提取全军覆没且无存量规则：置 failed 终态——不再空跑核验，产出「树有骨架、条目全 0」的假完成
+    if extracted == 0 and not rule_store.load(root) and (jobs.get(jid) or {}).get("failed"):
+        jobs.update(jid, status="failed",
+                    label=f"材料提取全部失败（{jobs.get(jid)['failed']} 份）——AI 调用超时或输出异常，请重试")
+        return
     ids = [a.id for a in rule_store.load(root) if not a.verified]
     if not ids:
         jobs.update(jid, extracted=extracted)
@@ -397,7 +403,7 @@ async def confirm_rule(proj: str, rid: str):
 
 @api_router.post("/rules/{rid}/ask", status_code=204)
 async def ask_rule(proj: str, rid: str, body: AskIn | None = None):
-    """转问人：推测/无依据规则进「问人」清单，答案确认后自动核过；body.q 非空时替代默认问法"""
+    """转问人：推测/无依据规则进「问人」清单，答案按题型联动：一致核过、不符改写标黄、不清楚不动；body.q 非空时替代默认问法"""
     root = _root(proj)
     rmap = _rule_map(root)
     if rid not in rmap:
@@ -405,8 +411,12 @@ async def ask_rule(proj: str, rid: str, body: AskIn | None = None):
     a = rmap[rid]
     if a.clar:
         raise HTTPException(status_code=409, detail=f"{rid} 已转问人（问#{a.clar}）")
-    q = (body.q.strip() if body else "") or (a.text + "——该推测与实际系统一致吗？")
-    c = await clarifications.add(root, q, ["确认一致", "与实际不符", "不清楚"], ref=a.id)
+    custom = (body.q.strip() if body else "") or ""
+    if custom:  # 自定义问法：问的是具体事实 → 开放题（type=custom），不再套三连选项
+        c = await clarifications.add(root, custom, [], ref=a.id, type="custom")
+    else:
+        q = a.text + "——该推测与实际系统一致吗？"
+        c = await clarifications.add(root, q, ["确认一致", "与实际不符", "不清楚"], ref=a.id, type="confirm")
     a.clar = c.no
     rule_store.save(root, list(rmap.values()))
 
@@ -454,7 +464,7 @@ async def adjudicate_conflict(proj: str, body: ConflictIn):
         c.st = "clar"
         rmap = _rule_map(root)
         opts = [rmap[c.a].text if c.a in rmap else "", rmap[c.b].text if c.b in rmap else ""]
-        await clarifications.add(root, c.q, opts, ref=c.id)
+        await clarifications.add(root, c.q, opts, ref=c.id, type="choose")
     else:
         raise HTTPException(status_code=422, detail="action 必须为 code 或 clar")
     findings.save_conflicts(root, items)
@@ -477,8 +487,8 @@ def _in_subtree(node: str, root_path: str) -> bool:
 async def rescan_gaps(proj: str, node_path: str = ""):
     root = _root(proj)
     dim_list = dims.get_dims(root)
+    nodes = _load_tree(root)
     if node_path:
-        nodes = _load_tree(root)
         node, full = _resolve(nodes, node_path)
         if node is None:
             raise HTTPException(status_code=404, detail=f"节点不存在: {node_path}")
@@ -490,6 +500,10 @@ async def rescan_gaps(proj: str, node_path: str = ""):
         summary = "\n".join(_profile_summary(c) for c in profiles.load_all(root)) or "（暂无用户画像）"
     detected = await _ai(tasks.gaps, summary, dim_list)
     detected = [g for g in detected if g.dim in dim_list]  # 防 AI 自造维度
+    valid_nodes = set(tree.paths(nodes)) | {profiles.ROOT_NODE}
+    for g in detected:  # 防 AI 编造节点路径：白名单外置空（=全局）
+        if g.node not in valid_nodes:
+            g.node = ""
     items = findings.merge_gaps(root, detected)
     return [g.model_dump() for g in items]
 
@@ -508,7 +522,7 @@ async def adjudicate_gap(proj: str, body: GapIn):
         raise HTTPException(status_code=404, detail=f"空白不存在: {body.id}")
     if body.action == "clar":
         g.st = "clar"
-        await clarifications.add(root, g.text + "？", ["支持/是", "不支持/否", "不清楚"], ref=g.id)
+        await clarifications.add(root, g.text + "？", [], ref=g.id, type="supply")
     elif body.action == "ok":
         g.st = "ok"
     else:
@@ -803,7 +817,7 @@ async def resolve_clarification(proj: str, body: ClarIn):
     try:
         if body.action == "answer":
             cl = await clarifications.answer(root, body.no, idx=body.idx, text=body.text,
-                                             ev_ids=body.ev_ids or [])
+                                             ev_ids=body.ev_ids or [], extra=body.extra)
         elif body.action == "adopt":
             cl = await clarifications.clar_adopt(root, body.no)
         elif body.action == "ignore":
@@ -815,10 +829,17 @@ async def resolve_clarification(proj: str, body: ClarIn):
             raise HTTPException(status_code=422, detail="action 必须为 answer/adopt/ignore/verify")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    # 闭环联动：ref 指向规则（① 转来的推测）时，人工确认答案 = 规则核过
+    # 闭环联动：按题型×答案分流——只有 confirm 动规则；choose 走下方矛盾裁决块
     rmap = _rule_map(root)
-    if cl.ref in rmap:
-        rmap[cl.ref].verified, rmap[cl.ref].nb, rmap[cl.ref].clar = True, "", None
+    a = rmap.get(cl.ref)
+    if a is not None:
+        extra = (cl.ans.extra if cl.ans else "").strip()
+        if cl.type == "confirm" and cl.answer == "与实际不符" and extra:
+            a.text, a.suspect, a.verified, a.nb, a.clar = extra, True, True, "", None
+        elif cl.type == "confirm" and cl.answer == "确认一致":
+            a.verified, a.nb, a.clar = True, "", None
+        else:
+            a.clar = None  # 不清楚 / custom：不核过不改动，仅解除转问占用（可重新转问）
         rule_store.save(root, list(rmap.values()))
     # 闭环联动二：ref 指向矛盾（① 裁决转澄清）时，人工答案 = 代码侧裁决——
     # 胜方写 resolution（opts 构造序 [a 规则文本, b 规则文本]：idx 0→a、1→b），败方由 _void_ids 自动作废
@@ -830,6 +851,12 @@ async def resolve_clarification(proj: str, body: ClarIn):
             if idx in (0, 1):
                 c.st, c.resolution = "code", c.a if idx == 0 else c.b
                 findings.save_conflicts(root, confs)
+    # supply 答复自动入材料池（source=clar）：补全的事实进证据链，可走受影响重生成；
+    # 入池失败不吞（答案已落盘，重提交幂等）
+    if body.action in ("answer", "adopt") and cl.type == "supply" and cl.answer:
+        payload = classify_text(cl.answer)
+        payload["source"] = "clar"
+        await evidence.add(root, payload, content=cl.answer.encode("utf-8"))
     return cl.model_dump()
 
 
@@ -871,9 +898,11 @@ async def review_clarifications(proj: str, body: ReviewIn):
     if jobs.running():
         r = jobs.running()
         raise HTTPException(status_code=409, detail=f"已有任务进行中（{r['label']}，{r['cur']}/{r['total']}）")
-    waits = [c for c in await clarifications.list_all(root) if c.st == "wait"]
+    all_wait = [c for c in await clarifications.list_all(root) if c.st == "wait"]
+    waits = [c for c in all_wait if c.type != "confirm"]  # 确认题不送 AI：材料证不了「实际系统」
     if not waits:
-        raise HTTPException(status_code=422, detail="没有待问问题，无需重检")
+        detail = "没有可代答的问题（确认题不送 AI——待人工拍板）" if all_wait else "没有待问问题，无需重检"
+        raise HTTPException(422, detail)
     evs = []
     for eid in body.ev_ids:
         ev = await evidence.get(root, eid)

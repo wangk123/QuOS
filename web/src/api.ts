@@ -65,6 +65,8 @@ export interface Gap {
   dim: string
   text: string
   st: string
+  /** 归属功能点全路径；__root__ = 根级；空 = 全局/旧数据（未绑定） */
+  node: string
 }
 
 /** 澄清重检 AI 代答结果（待人工采纳） */
@@ -76,11 +78,12 @@ export interface AiReview {
   quote_ok: boolean
 }
 
-/** open 题人工作答内容 */
 export interface ClarAnswer {
-  kind: 'opt' | 'text' | 'material'
+  kind: string
   text: string
   ev_ids: string[]
+  /** confirm 选「与实际不符」时补充的实际行为 */
+  extra?: string
 }
 
 export interface Clarification {
@@ -88,6 +91,8 @@ export interface Clarification {
   q: string
   /** choice=选择题 open=开放题；旧数据无此字段按 choice 兼容 */
   kind?: 'choice' | 'open'
+  /** confirm 确认 | choose 取舍 | supply 补全 | custom 自定义（后端读侧恒非空） */
+  type: string
   opts: string[]
   st: string
   answer: string | null
@@ -212,6 +217,31 @@ export const getGaps = () => req<Gap[]>('/gaps')
 
 export const disposeGap = (id: string, action: 'clar' | 'ok') => req<Gap>('/gaps', json('POST', { id, action }))
 
+// ---------- 存疑汇总（根详情「存疑汇总」卡） ----------
+
+export interface DoubtGlobalGap {
+  id: string
+  dim: string
+  text: string
+  st: string
+}
+
+export interface DoubtModule {
+  name: string
+  rules: number
+  conflicts: number
+  gaps: number
+  peek: string
+}
+
+export interface DoubtSummary {
+  stats: { conflicts: number; gaps: number; clarified: number }
+  global: DoubtGlobalGap[]
+  modules: DoubtModule[]
+}
+
+export const getDoubtSummary = () => req<DoubtSummary>('/doubts/summary')
+
 // ---------- 维度 ----------
 
 export const getDims = () => req<string[]>('/dims')
@@ -267,8 +297,8 @@ export const getDoc = () => req<string>('/doc')
 
 export const getClarifications = () => req<Clarification[]>('/clarifications')
 
-export const answerClar = (no: number, idx: number) =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'answer', idx }))
+export const answerClar = (no: number, idx: number, extra = '') =>
+  req<Clarification>('/clarifications', json('POST', { no, action: 'answer', idx, extra }))
 
 export const verifyClar = (no: number) =>
   req<Clarification>('/clarifications', json('POST', { no, action: 'verify' }))

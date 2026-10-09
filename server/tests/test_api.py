@@ -146,7 +146,7 @@ async def test_end_to_end(client, monkeypatch):
     r = await client.get(f"{BASE}/clarifications")
     assert len(r.json()) == 1
     no = r.json()[0]["no"]
-    r = await client.post(f"{BASE}/clarifications", json={"no": no, "action": "answer", "idx": 0})
+    r = await client.post(f"{BASE}/clarifications", json={"no": no, "action": "answer", "text": "幂等键为订单号"})
     assert r.json()["st"] == "answered"
     r = await client.post(f"{BASE}/clarifications", json={"no": no, "action": "verify"})
     assert r.json()["st"] == "verified"
@@ -409,6 +409,30 @@ async def test_gaps_scan_scoped_to_node(client, monkeypatch):
 
     await client.post(f"{BASE}/gaps/rescan")  # 不带参：旧行为全部用户画像
     assert "额度不超限" in seen["summary"]
+
+
+async def test_gaps_rescan_binds_node_with_whitelist(client, monkeypatch):
+    """缺口 node 绑定：树内全路径与 __root__ 放行，编造路径置空（=全局）"""
+    from app.storage import profiles as profile_store
+    from app.storage.profiles import Profile
+    root = ensure_root("演示项目")
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    profile_store.save_profile(root, "支付/放款重试", Profile(node="支付/放款重试", goal="不重复放款"))
+
+    async def mock_gaps(summary, dims):
+        assert "支付/放款重试：" in summary  # 摘要行带节点前缀，AI 据此归属
+        return [Gap(id="G1", dim="幂等", text="未说明幂等键", node="支付/放款重试"),
+                Gap(id="G2", dim="状态", text="未说明根级发布状态", node="__root__"),
+                Gap(id="G3", dim="边界", text="编造路径应置空", node="不存在的模块/叶")]
+
+    monkeypatch.setattr(tasks, "gaps", mock_gaps)
+    r = await client.post(f"{BASE}/gaps/rescan")
+    assert r.status_code == 200
+    by_id = {g["id"]: g for g in r.json()}
+    assert by_id["G1"]["node"] == "支付/放款重试"
+    assert by_id["G2"]["node"] == "__root__"
+    assert by_id["G3"]["node"] == ""
 
 
 async def test_extract_binds_node_and_sanitizes(client, monkeypatch):
