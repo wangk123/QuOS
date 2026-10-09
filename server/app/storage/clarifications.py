@@ -27,6 +27,8 @@ def _load(root) -> list[dict]:
     for r in rows:
         if not r.get("type"):
             r["type"] = _infer_type(r.get("ref"))
+        if r["type"] == "supply" and r.get("kind") != "open":  # 缺口旧三连假选项 → 开放题（唯一真实存量形态）
+            r["kind"], r["opts"] = "open", []
     return rows
 
 

@@ -92,11 +92,11 @@ describe('ClarModal（待确认弹窗·分段）', () => {
 })
 
 describe('ClarModal（记下答复）', () => {
-  it('open 题材料佐证：文本+佐证材料一并提交 answerClarOpen 并 emit changed', async () => {
+  it('open 题材料佐证：文本+佐证材料 chips 点选一并提交 answerClarOpen 并 emit changed', async () => {
     const w = await mountModal()
     await w.find('textarea[aria-label="问题 2 记下答复"]').setValue('1 万元以下主管审批')
     await w.find('input[type="radio"][value="material"]').setValue()
-    await w.find('select[aria-label="问题 2 佐证材料"]').setValue(['E1'])
+    await w.find('[aria-label="问题 2 佐证材料"] .evchip').trigger('click') // 点「退款制度.pdf」chip 选中 E1
     await w.find('button[aria-label="问题 2 提交答复"]').trigger('click')
     await flushPromises()
     expect(answerClarOpen).toHaveBeenCalledWith(2, '1 万元以下主管审批', ['E1'])
@@ -105,7 +105,7 @@ describe('ClarModal（记下答复）', () => {
 
   it('open 题口头确认为默认来源：ev_ids 空提交', async () => {
     const w = await mountModal()
-    expect(w.find('select[aria-label="问题 2 佐证材料"]').exists()).toBe(false) // 默认口头：不渲染材料选择器
+    expect(w.find('[aria-label="问题 2 佐证材料"]').exists()).toBe(false) // 默认口头：不渲染材料选择器
     await w.find('textarea[aria-label="问题 2 记下答复"]').setValue('口头说 7 天')
     await w.find('button[aria-label="问题 2 提交答复"]').trigger('click')
     await flushPromises()
@@ -222,7 +222,7 @@ describe('ClarModal（✦ AI 重检投递条）', () => {
     vi.mocked(listJobs).mockResolvedValue([{ id: 'J9', status: 'done' } as never])
     vi.mocked(getClarifications).mockResolvedValueOnce([]) // 初始
     const w = await mountModal(vi.fn())
-    await w.find('select[data-test="rb-evs"]').setValue(EV.id)
+    await w.find('[data-test="rb-evs"] .evchip').trigger('click') // 点材料 chip 选中 EV（退款制度.pdf）
     await w.find('button[data-test="rb-btn"]').trigger('click')
     await flushPromises()
     await new Promise(r => setTimeout(r, 700)) // 轮询间隔 500ms

@@ -244,7 +244,8 @@ async def test_answer_text_for_open(tmp_path):
 @pytest.mark.asyncio
 async def test_answer_choice_requires_idx(tmp_path):
     from app.storage import clarifications as cl
-    await cl.add(tmp_path, "冷却期？", ["7天"])
+    # 显式 choose：读侧归一化会把 supply/custom 强制开放题，choice 语义须显式声明
+    await cl.add(tmp_path, "冷却期？", ["7天"], type="choose")
     with pytest.raises(ValueError):
         await cl.answer(tmp_path, 1, text="文字")  # choice 题不接受 text
     c = await cl.answer(tmp_path, 1, idx=0)

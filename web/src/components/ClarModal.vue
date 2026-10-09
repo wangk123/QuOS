@@ -2,6 +2,7 @@
 // 待确认弹窗（T13）：分段（等待/已答复）/ 记下答复（口头/材料佐证）/ AI 代答卡（采纳/忽略）。
 // 弹窗三段结构同 EvPoolModal（.mask/.modal 全局样式）；卡片流样式沿旧澄清抽屉（T19 已删）。
 import { computed, inject, ref, watch } from 'vue'
+import EvPick from './EvPick.vue'
 import {
   ApiError, adoptClar, answerClar, answerClarOpen, getClarifications, ignoreClar, listJobs, reviewClars,
   type Clarification, type EvidenceItem,
@@ -211,9 +212,7 @@ async function runReview() {
         <div class="review-bar">
           <div class="rb-hd">✦ AI 重检 <span class="r">投材料 × 待答问题 → 后台分批代答（待采纳）；确认题不送</span></div>
           <div class="rb-row">
-            <select v-model="rbEvs" data-test="rb-evs" multiple>
-              <option v-for="e in evidence.filter(x => x.type !== '压缩包')" :key="e.id" :value="e.id">{{ e.name }}</option>
-            </select>
+            <EvPick v-model="rbEvs" :evidence="evidence" exclude-zip class="rb-evs" data-test="rb-evs" />
             <button class="rb-btn" data-test="rb-btn" type="button" :disabled="rbBusy" @click="runReview">
               {{ rbBusy ? '代答中…' : '✦ 从材料找答案' }}</button>
           </div>
@@ -299,15 +298,12 @@ async function runReview() {
                 <label><input v-model="src[c.no]" type="radio" value="oral" />口头确认</label>
                 <label><input v-model="src[c.no]" type="radio" value="material" />材料佐证</label>
               </div>
-              <select
+              <EvPick
                 v-if="src[c.no] === 'material'"
                 v-model="evPick[c.no]"
-                class="qc-select"
+                :evidence="evidence"
                 :aria-label="`问题 ${c.no} 佐证材料`"
-                multiple
-              >
-                <option v-for="e in evidence" :key="e.id" :value="e.id">{{ e.name }}</option>
-              </select>
+              />
               <div class="qc-foot">
                 <span class="qc-hint">答复=推测级，拿到书面依据后再实证</span>
                 <button class="btn btn-sm" type="button" :aria-label="`问题 ${c.no} 提交答复`" :disabled="!draft[c.no]?.trim()" @click="answerOpen(c)">记下答复</button>
@@ -374,8 +370,7 @@ async function runReview() {
 .qc-input:focus { border-color: var(--secondary); }
 .src-row { display: flex; gap: 14px; margin-top: 8px; font-size: 12.5px; }
 .src-row label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--fg); }
-.qc-select { width: 100%; margin-top: 8px; border: 1px solid var(--border2); border-radius: 8px;
-  padding: 6px 9px; font-size: 12.5px; min-height: 60px; }
+.rb-evs { flex: 1; min-width: 0; margin-top: 0; } /* 投递条里的 EvPick 占满剩余宽（覆写组件默认 margin-top） */
 .qc-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .qc-foot .btn, .qc-foot .btn-ghost { margin-left: auto; }
 .qc-hint { font-size: 11.5px; color: var(--muted-fg); }

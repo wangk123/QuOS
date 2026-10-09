@@ -812,3 +812,17 @@ async def test_verify_job_only_doc_skips_guesses(client, monkeypatch):
     assert seen == ["R1"], "推测级未送 AI"
     rows = {a["id"]: a for a in (await client.get(f"{BASE}/rules")).json()}
     assert rows["R1"]["verified"] and not rows["R2"]["verified"]
+
+
+async def test_tree_add_depth_limit(client):
+    """树深度上限 5 级：第 5 层下再加子节点 422，1-5 层正常"""
+    ensure_root("演示项目")
+    p = None
+    for i in range(5):  # 逐级加到第 5 层
+        r = await client.post(f"{BASE}/tree", json={"op": "add", "path": p, "name": f"L{i + 1}"})
+        assert r.status_code == 200
+        p = "0" if p is None else f"{p},0"
+    r = await client.post(f"{BASE}/tree", json={"op": "add", "path": "0,0,0,0,0", "name": "L6"})
+    assert r.status_code == 422 and "5 级" in r.json()["detail"]
+    r = await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "顶层OK"})
+    assert r.status_code == 200  # 顶层不受影响

@@ -6,7 +6,7 @@ import { computed, inject, ref } from 'vue'
 import { patchProfileGoal, treeOp, type WbNodeRow } from '../api'
 import { refreshWb, wb } from '../wb'
 
-defineProps<{ selected: string }>()
+const props = defineProps<{ selected: string }>()
 const emit = defineEmits<{ pick: [full: string]; 'edit-root': []; 'refresh-root': [] }>()
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -59,36 +59,60 @@ function toggle(path: string) {
   closed.value = next
 }
 
-async function onRename(row: WbNodeRow) {
-  const name = prompt('新名称', row.name)
-  if (!name?.trim() || name.trim() === row.name) return
+// ── 编辑弹窗：add=加节点（parent 空=顶层模块）/ edit=改名+概要；path 均为数字路径 ──
+const MAX_DEPTH = 5
+const canAdd = (r: WbNodeRow) => r.path.split(',').length < MAX_DEPTH
+
+const dlg = ref<null | { mode: 'add' | 'edit'; parent: WbNodeRow | null; row: WbNodeRow | null; name: string; goal: string }>(null)
+function openAdd(parent: WbNodeRow | null) {
+  dlg.value = { mode: 'add', parent, row: null, name: '', goal: '' }
+}
+function openEdit(row: WbNodeRow) {
+  dlg.value = { mode: 'edit', parent: null, row, name: row.name, goal: row.goal }
+}
+
+/** 新节点数字路径 = 父节点现有直接子数（顶层则顶层节点数）——add 后按此寻址补概要 */
+function childPath(parent: WbNodeRow | null): string {
+  const rows = wb.value?.tree ?? []
+  const n = parent
+    ? rows.filter(r => r.path.startsWith(parent.path + ',')
+      && r.path.split(',').length === parent.path.split(',').length + 1).length
+    : rows.filter(r => !r.path.includes(',')).length
+  return parent ? `${parent.path},${n}` : `${n}`
+}
+
+async function saveDlg() {
+  const d = dlg.value
+  if (!d || !d.name.trim()) return
   try {
-    await treeOp('rename', row.path, name.trim())
+    if (d.mode === 'add') {
+      await treeOp('add', d.parent?.path, d.name.trim())
+      if (d.goal.trim()) await patchProfileGoal(childPath(d.parent), d.goal.trim())
+    } else if (d.row) {
+      if (d.name.trim() !== d.row.name) await treeOp('rename', d.row.path, d.name.trim())
+      if (d.goal !== d.row.goal) await patchProfileGoal(d.row.path, d.goal)
+    }
+    dlg.value = null
     await refreshWb()
   } catch (e) {
-    toast(`改名失败：${e instanceof Error ? e.message : e}`)
+    toast(`保存失败：${e instanceof Error ? e.message : e}`)
   }
 }
 
-async function onAdd(row: WbNodeRow) {
-  const name = prompt(`加子节点 · ${row.name}`)
-  if (!name?.trim()) return
+async function onDelete(row: WbNodeRow) {
+  const rows = wb.value?.tree ?? []
+  const kids = rows.filter(r => r.path.startsWith(row.path + ',')).length
+  const rules = rows.find(r => r.path === row.path)?.rules ?? 0
+  const msg = `删除「${row.name}」${kids ? `及其 ${kids} 个子节点` : ''}？` +
+    `${rules ? `挂载的 ${rules} 条条目将失去归属（可在①重新挂载）；` : ''}不可恢复。`
+  if (!confirm(msg)) return
   try {
-    await treeOp('add', row.path, name.trim())
+    await treeOp('del', row.path)
+    // 选中行落在被删子树内 → 回根详情，防右栏悬空
+    if (props.selected === row.full || props.selected.startsWith(row.full + '/')) emit('pick', '__root__')
     await refreshWb()
   } catch (e) {
-    toast(`加节点失败：${e instanceof Error ? e.message : e}`)
-  }
-}
-
-async function onGoal(row: WbNodeRow) {
-  const goal = prompt(`「${row.name}」目标（一句话）`, row.goal)
-  if (goal === null || goal === row.goal) return
-  try {
-    await patchProfileGoal(row.path, goal)
-    await refreshWb()
-  } catch (e) {
-    toast(`目标保存失败：${e instanceof Error ? e.message : e}`)
+    toast(`删除失败：${e instanceof Error ? e.message : e}`)
   }
 }
 </script>
@@ -122,12 +146,13 @@ async function onGoal(row: WbNodeRow) {
               <div class="modhead" @click="toggle(m.row.path)">
                 <span class="chev" />
                 <span class="mname">{{ m.row.name }}</span>
-                <span class="mdesc" title="点击编辑目标" @click.stop="onGoal(m.row)">{{ m.row.goal }}</span>
+                <span class="mdesc">{{ m.row.goal }}</span>
                 <span class="mb">
                   <span v-for="b in badges(m.row)" :key="b.cls + b.text" class="nbadge" :class="b.cls">{{ b.text }}</span>
                   <span class="editops">
-                    <button title="改名" type="button" @click.stop="onRename(m.row)">✎</button>
-                    <button title="加子节点" type="button" @click.stop="onAdd(m.row)">＋</button>
+                    <button title="编辑（名称/概要）" type="button" @click.stop="openEdit(m.row)">✎</button>
+                    <button v-if="canAdd(m.row)" title="加子节点" type="button" @click.stop="openAdd(m.row)">＋</button>
+                    <button title="删除节点" type="button" @click.stop="onDelete(m.row)">✕</button>
                   </span>
                 </span>
               </div>
@@ -141,12 +166,13 @@ async function onGoal(row: WbNodeRow) {
                   @click="emit('pick', f.r.full)"
                 >
                   <span class="lname">{{ f.r.name }}</span>
-                  <span v-if="f.r.goal" class="ldesc" title="点击编辑目标" @click.stop="onGoal(f.r)">{{ f.r.goal }}</span>
+                  <span v-if="f.r.goal" class="ldesc">{{ f.r.goal }}</span>
                   <span class="lb">
                     <span v-for="b in badges(f.r)" :key="b.cls + b.text" class="nbadge" :class="b.cls">{{ b.text }}</span>
                     <span class="editops">
-                      <button title="改名" type="button" @click.stop="onRename(f.r)">✎</button>
-                      <button title="加子节点" type="button" @click.stop="onAdd(f.r)">＋</button>
+                      <button title="编辑（名称/概要）" type="button" @click.stop="openEdit(f.r)">✎</button>
+                      <button v-if="canAdd(f.r)" title="加子节点" type="button" @click.stop="openAdd(f.r)">＋</button>
+                      <button title="删除节点" type="button" @click.stop="onDelete(f.r)">✕</button>
                     </span>
                   </span>
                 </div>
@@ -161,19 +187,41 @@ async function onGoal(row: WbNodeRow) {
             @click="emit('pick', m.row.full)"
           >
             <span class="lname">{{ m.row.name }}</span>
-            <span v-if="m.row.goal" class="ldesc" title="点击编辑目标" @click.stop="onGoal(m.row)">{{ m.row.goal }}</span>
+            <span v-if="m.row.goal" class="ldesc">{{ m.row.goal }}</span>
             <span class="lb">
               <span v-for="b in badges(m.row)" :key="b.cls + b.text" class="nbadge" :class="b.cls">{{ b.text }}</span>
               <span class="editops">
-                <button title="改名" type="button" @click.stop="onRename(m.row)">✎</button>
-                <button title="加子节点" type="button" @click.stop="onAdd(m.row)">＋</button>
+                <button title="编辑（名称/概要）" type="button" @click.stop="openEdit(m.row)">✎</button>
+                <button v-if="canAdd(m.row)" title="加子节点" type="button" @click.stop="openAdd(m.row)">＋</button>
+                <button title="删除节点" type="button" @click.stop="onDelete(m.row)">✕</button>
               </span>
             </span>
           </div>
         </template>
       </div>
+      <button class="add-root" type="button" @click="openAdd(null)">＋ 加模块</button>
     </div>
-    <p class="hint">这棵树就是需求文档本身——节点、目标随时可改（hover 出现 ✎ ＋），改动即时生效。</p>
+    <p class="hint">这棵树就是需求文档本身——hover 行内 ✎ 编辑（名称+概要）、＋ 加子（最深 5 级）、✕ 删除（概要编辑也走 ✎）。</p>
+
+    <!-- 编辑弹窗：加节点（可带概要）/ 改名+概要 -->
+    <div v-if="dlg" class="mask open" @click.self="dlg = null">
+      <div class="modal tdlg" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <h3>{{ dlg.mode === 'add' ? (dlg.parent ? `加子节点 · ${dlg.parent.name}` : '加顶层模块') : `编辑 · ${dlg.row?.name}` }}</h3>
+          <button class="x" type="button" aria-label="关闭" @click="dlg = null">✕</button>
+        </div>
+        <div class="modal-body">
+          <label>名称</label>
+          <input v-model="dlg.name" type="text" data-test="dlg-name" placeholder="名词短语，2-8 字" @keyup.enter="saveDlg" />
+          <label>概要（这个节点要达成什么，一句话，可后补）</label>
+          <textarea v-model="dlg.goal" data-test="dlg-goal" rows="2" placeholder="例：验证用户输入企业名称后系统自动开网页" />
+        </div>
+        <div class="modal-foot">
+          <span class="fnote">{{ dlg.mode === 'add' ? '名称必填；概要留空可稍后在行内 ✎ 补' : '名称与概要可同时改' }}</span>
+          <button class="btn" type="button" data-test="dlg-save" :disabled="!dlg.name.trim()" @click="saveDlg">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -190,8 +238,7 @@ async function onGoal(row: WbNodeRow) {
 .modhead .chev { width: 0; height: 0; border-left: 5px solid var(--muted-fg); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform 0.15s; flex: none; }
 .mod.open .modhead .chev { transform: rotate(90deg); }
 .modhead .mname { font-weight: 700; font-size: 13.5px; color: var(--primary); white-space: nowrap; }
-.modhead .mdesc { color: var(--muted-fg); font-size: 12px; flex: 1; min-width: 120px; cursor: pointer; }
-.modhead .mdesc:hover { color: var(--primary); }
+.modhead .mdesc { color: var(--muted-fg); font-size: 12px; flex: 1; min-width: 120px; }
 .modhead .mb { display: flex; gap: 5px; flex: none; align-items: center; }
 .leaves { display: none; border-top: 1px dashed var(--border); background: #fbfdff; padding: 7px 12px 9px 28px; }
 .mod.open .leaves { display: block; }
@@ -200,8 +247,7 @@ async function onGoal(row: WbNodeRow) {
 .leaf:hover { background: var(--blue-bg); }
 .leaf.sel { background: var(--blue-bg); outline: 1.5px solid var(--secondary); }
 .leaf .lname { font-weight: 600; white-space: nowrap; }
-.leaf .ldesc { color: var(--muted-fg); font-size: 11.5px; flex: 1; min-width: 80px; cursor: pointer; }
-.leaf .ldesc:hover { color: var(--primary); }
+.leaf .ldesc { color: var(--muted-fg); font-size: 11.5px; flex: 1; min-width: 80px; }
 .leaf .lb { display: flex; gap: 4px; flex: none; align-items: center; }
 .top-leaf { background: #fff; border: 1px solid var(--border2); border-radius: var(--radius); padding: 7px 12px; }
 .nbadge { font-size: 10px; font-weight: 700; border-radius: 8px; padding: 0 6px; display: inline-flex; align-items: center; gap: 3px; }
@@ -230,4 +276,10 @@ async function onGoal(row: WbNodeRow) {
 .rootcard .corner button { background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 11px; padding: 3px 9px; font-weight: 600; border: none; cursor: pointer; border-radius: 6px; }
 .rootcard .corner button:hover { background: rgba(255, 255, 255, 0.3); }
 .hint { color: var(--muted-fg); font-size: 11.5px; margin-top: 12px; }
+.add-root { width: 100%; margin-top: 9px; background: none; border: 1.5px dashed var(--border2); border-radius: var(--radius);
+  color: var(--muted-fg); font-size: 12px; font-weight: 600; padding: 7px 0; cursor: pointer; }
+.add-root:hover { border-color: var(--secondary); color: var(--primary); background: #f8faff; }
+.tdlg { width: 400px; }
+.tdlg textarea { width: 100%; border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px;
+  font-family: inherit; font-size: 12.5px; resize: vertical; }
 </style>

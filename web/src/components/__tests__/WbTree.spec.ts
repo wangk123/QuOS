@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import WbTree from '../WbTree.vue'
@@ -35,13 +35,87 @@ describe('WbTree', () => {
     expect(w.emitted('pick')![0]).toEqual(['工具模块/工商信息查询'])
   })
 
-  it('goal 点击编辑按数字路径调 patchProfileGoal（非含 / 的 full）', async () => {
+  it('概要文本纯展示：点击不弹编辑窗、不触发选中（编辑只走 ✎）', async () => {
     api.patchProfileGoal.mockResolvedValue({})
-    vi.spyOn(window, 'prompt').mockReturnValue('新目标')
+    api.treeOp.mockResolvedValue([])
     const w = mount(WbTree, { props: { selected: '' } })
     await w.find('.leaf .ldesc').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="dlg-name"]').exists()).toBe(false) // 不弹窗
+    expect(api.patchProfileGoal).not.toHaveBeenCalled()
+    // ✎ 是唯一编辑入口：数字路径 PATCH 由该入口覆盖（见下一用例）
+    const btns = w.find('.leaf').findAll('.editops button')
+    await btns[0].trigger('click')
+    await w.find('[data-test="dlg-goal"]').setValue('新目标')
+    await w.find('[data-test="dlg-save"]').trigger('click')
+    await flushPromises()
     expect(api.patchProfileGoal).toHaveBeenCalledWith('0,0', '新目标')
     expect(api.patchProfileGoal).not.toHaveBeenCalledWith('工具模块/工商信息查询', '新目标')
+  })
+
+  it('✎ 编辑弹窗：名称+概要一并保存（rename + patchProfileGoal，未改项不重复提交）', async () => {
+    api.patchProfileGoal.mockResolvedValue({})
+    api.treeOp.mockResolvedValue([])
+    const w = mount(WbTree, { props: { selected: '' } })
+    await w.find('.modhead .editops button').trigger('click') // 模块 ✎
+    await w.find('[data-test="dlg-name"]').setValue('工具模块2')
+    await w.find('[data-test="dlg-goal"]').setValue('新概要')
+    await w.find('[data-test="dlg-save"]').trigger('click')
+    await flushPromises()
+    expect(api.treeOp).toHaveBeenCalledWith('rename', '0', '工具模块2')
+    expect(api.patchProfileGoal).toHaveBeenCalledWith('0', '新概要')
+  })
+
+  it('＋ 加子：弹窗名称+概要 → treeOp add + patchProfileGoal 按新数字路径补概要', async () => {
+    api.patchProfileGoal.mockResolvedValue({})
+    api.treeOp.mockResolvedValue([])
+    const w = mount(WbTree, { props: { selected: '' } })
+    await w.findAll('.modhead .editops button')[1].trigger('click') // 模块 ＋
+    await w.find('[data-test="dlg-name"]').setValue('新叶')
+    await w.find('[data-test="dlg-goal"]').setValue('新叶目标')
+    await w.find('[data-test="dlg-save"]').trigger('click')
+    await flushPromises()
+    expect(api.treeOp).toHaveBeenCalledWith('add', '0', '新叶')
+    expect(api.patchProfileGoal).toHaveBeenCalledWith('0,1', '新叶目标') // 现有子 0,0 → 新路径 0,1
+  })
+
+  it('树尾「＋ 加模块」：顶层新增（无 path），概要留空不补', async () => {
+    api.patchProfileGoal.mockResolvedValue({})
+    api.treeOp.mockResolvedValue([])
+    const w = mount(WbTree, { props: { selected: '' } })
+    await w.find('.add-root').trigger('click')
+    await w.find('[data-test="dlg-name"]').setValue('风控')
+    await w.find('[data-test="dlg-save"]').trigger('click')
+    await flushPromises()
+    expect(api.treeOp).toHaveBeenCalledWith('add', undefined, '风控')
+    expect(api.patchProfileGoal).not.toHaveBeenCalled()
+  })
+
+  it('✕ 删除：confirm 后 treeOp del；选中行在被删子树内时回根详情', async () => {
+    api.treeOp.mockResolvedValue([])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const w = mount(WbTree, { props: { selected: '工具模块/工商信息查询' } })
+    const btns = w.find('.leaf').findAll('.editops button') // ✎ ＋ ✕
+    await btns[2].trigger('click')
+    await flushPromises()
+    expect(api.treeOp).toHaveBeenCalledWith('del', '0,0')
+    expect(w.emitted('pick')![0]).toEqual(['__root__'])
+    confirmSpy.mockRestore()
+  })
+
+  it('第 5 层节点不渲染 ＋（canAdd 深度闸门）', () => {
+    wbSummary.tree = [
+      { path: '0', name: 'L1', full: 'L1', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0', name: 'L2', full: 'L1/L2', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0', name: 'L3', full: 'L1/L2/L3', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0,0', name: 'L4', full: 'L1/L2/L3/L4', goal: '', kind: 'leaf', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0,0,0', name: 'L5', full: 'L1/L2/L3/L4/L5', goal: '', kind: 'leaf', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+    ]
+    const w = mount(WbTree, { props: { selected: '' } })
+    const leaves = w.findAll('.leaf') // L2..L5（L1 是模块头）
+    expect(leaves[2].findAll('.editops button')).toHaveLength(3) // L4（第 4 层）：✎ ＋ ✕
+    expect(leaves[3].findAll('.editops button')).toHaveLength(2) // L5（第 5 层）：✎ ✕，＋ 被闸门隐藏
+    wbSummary.tree = DEFAULT_TREE
   })
 
   it('点击根卡片 emit pick __root__，角标按钮 emit refresh-root/edit-root', async () => {

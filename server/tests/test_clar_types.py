@@ -21,15 +21,15 @@ async def client(tmp_path, monkeypatch):
 
 
 def _seed_legacy(root):
-    """旧数据无 type 字段：手写落盘（模拟存量项目）"""
+    """旧数据无 type 字段：手写落盘（模拟存量项目；G 行带旧三连假选项）"""
     rows = [
         {"no": 1, "q": "推测1一致吗？", "opts": ["确认一致", "与实际不符", "不清楚"], "kind": "choice",
          "st": "wait", "answer": None, "ref": "R1", "ai": None, "ans": None},
         {"no": 2, "q": "重试几次？", "opts": ["a文", "b文"], "kind": "choice",
          "st": "wait", "answer": None, "ref": "C1", "ai": None, "ans": None},
-        {"no": 3, "q": "未说明幂等键？", "opts": [], "kind": "open",
+        {"no": 3, "q": "未说明幂等键？", "opts": ["支持/是", "不支持/否", "不清楚"], "kind": "choice",
          "st": "wait", "answer": None, "ref": "G1", "ai": None, "ans": None},
-        {"no": 4, "q": "自己问的", "opts": [], "kind": "open",
+        {"no": 4, "q": "自己问的", "opts": ["支持/是", "不支持/否", "不清楚"], "kind": "choice",
          "st": "wait", "answer": None, "ref": None, "ai": None, "ans": None},
     ]
     (root / "clarifications.json").write_text(json.dumps(rows, ensure_ascii=False), "utf-8")
@@ -40,6 +40,11 @@ async def test_legacy_type_inferred_from_ref(client):
     _seed_legacy(root)
     rows = await clarifications.list_all(root)
     assert [c.type for c in rows] == ["confirm", "choose", "supply", "custom"]
+    # 旧缺口行带三连假选项 → supply 归一化为开放题（防「补全题」配选择题表单）
+    supply = next(c for c in rows if c.type == "supply")
+    assert supply.kind == "open" and supply.opts == []
+    assert rows[0].opts == ["确认一致", "与实际不符", "不清楚"]  # confirm 三连保留
+    assert rows[1].opts == ["a文", "b文"]  # choose 两侧原文保留
 
 
 async def test_confirm_mismatch_requires_extra(client):
@@ -158,6 +163,22 @@ async def test_supply_answer_saved_as_clar_evidence(client):
     await client.post(f"{BASE}/clarifications", json={"no": 2, "action": "answer", "text": "口头答案"})
     evs = await evidence.list_all(root)
     assert len(evs) == 1  # custom 不入池
+
+
+async def test_supply_option_echo_not_saved_as_evidence(client):
+    """旧三连 supply 行读侧已归一化为开放题：选项回声（「不支持/否」类）无从产生；
+    真实文本答复才入池——router 侧 ans.kind in (text,material) 为纵深防御"""
+    root = ensure_root(PROJ)
+    from app.storage import evidence
+    rows = [{"no": 1, "q": "未说明幂等键？", "opts": ["支持/是", "不支持/否", "不清楚"], "kind": "choice",
+             "type": "supply", "st": "wait", "answer": None, "ref": "G1", "ai": None, "ans": None}]
+    (root / "clarifications.json").write_text(json.dumps(rows, ensure_ascii=False), "utf-8")
+    r = await client.post(f"{BASE}/clarifications", json={"no": 1, "action": "answer", "idx": 1})
+    assert r.status_code == 422  # 归一化为开放题：选项作答被拒，回声不可能落库
+    r = await client.post(f"{BASE}/clarifications", json={"no": 1, "action": "answer", "text": "幂等键为受理单号+文档指纹"})
+    assert r.status_code == 200 and r.json()["ans"]["kind"] == "text"
+    evs = await evidence.list_all(root)
+    assert len(evs) == 1 and evs[0].source == "clar"  # 真答复正常入池
 
 
 async def test_review_skips_confirm_questions(client, monkeypatch):

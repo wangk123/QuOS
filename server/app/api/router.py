@@ -565,6 +565,8 @@ async def mutate_tree(proj: str, body: TreeIn):
             raise HTTPException(status_code=422, detail="name 不允许换行")
     try:
         if body.op == "add":
+            if body.path and len(body.path.split(",")) >= 5:
+                raise HTTPException(422, detail="节点最多 5 级——过深结构请在既有层级内整理")
             tree.add_node(nodes, body.path or None, body.name)
         elif body.op == "rename":
             if body.path is None:
@@ -852,8 +854,10 @@ async def resolve_clarification(proj: str, body: ClarIn):
                 c.st, c.resolution = "code", c.a if idx == 0 else c.b
                 findings.save_conflicts(root, confs)
     # supply 答复自动入材料池（source=clar）：补全的事实进证据链，可走受影响重生成；
+    # 只收真实文本/材料答复（ans.kind text|material）——选项回声（opt，如旧三连的「不支持/否」）不是事实描述，不入池；
     # 入池失败不吞（答案已落盘，重提交幂等）
-    if body.action in ("answer", "adopt") and cl.type == "supply" and cl.answer:
+    if (body.action in ("answer", "adopt") and cl.type == "supply" and cl.ans
+            and cl.ans.kind in ("text", "material") and cl.answer):
         payload = classify_text(cl.answer)
         payload["source"] = "clar"
         await evidence.add(root, payload, content=cl.answer.encode("utf-8"))
