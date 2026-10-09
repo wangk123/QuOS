@@ -54,3 +54,12 @@ async def test_stderr_to_runlog(tmp_path):
     d = await _mk_dir(tmp_path)
     await run_agent(d)
     assert (d / "run.log").exists()
+
+
+async def test_prompt_uses_absolute_task_dir(tmp_path):
+    """任务文本必须带任务目录绝对路径——QUOS_DSH_CMD 可含 cd（dsh cwd≠任务目录），agent 靠绝对路径寻址"""
+    d = await _mk_dir(tmp_path)
+    await run_agent(d)
+    stdin_text = (d / "out" / "stdin.txt").read_text("utf-8")
+    assert str(d.resolve()) in stdin_text
+    assert "TASK.md" in stdin_text and "out/result.json" in stdin_text

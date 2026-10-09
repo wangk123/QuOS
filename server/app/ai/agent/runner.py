@@ -10,7 +10,9 @@ from app.ai.runner import _strip_fence  # 围栏剥离复用现有实现
 _ENV_OK = ("PATH", "HOME", "LANG", "DSH_HOME",
            "http_proxy", "https_proxy", "no_proxy",
            "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")
-_PROMPT = "先读当前目录的 TASK.md 与 RULES.md，严格按规则处理 materials/ 清单，产物只写 out/result.json 与 out/report.md。"
+# 任务接线文本：注入任务目录绝对路径——QUOS_DSH_CMD 可含 cd（dsh workspace 在别处），agent 经绝对路径读材料
+_PROMPT = ("先读 {base}/TASK.md 与 {base}/RULES.md，严格按规则处理 {base}/materials/ 清单，"
+           "产物只写 {base}/out/result.json 与 {base}/out/report.md。")
 
 
 class AgentRunError(Exception):
@@ -34,7 +36,7 @@ def _label(ev: dict) -> str | None:
 async def _pump(proc, dir_path: Path, on_event) -> bool:
     """启动后立即注入 stdin 任务文本并关闭；两路持续读防 pipe 满：
     stdout 逐行解析 NDJSON 事件（on_event 回调），stderr 追写 run.log；返回是否见到 final"""
-    proc.stdin.write(_PROMPT.encode("utf-8"))
+    proc.stdin.write(_PROMPT.format(base=dir_path.resolve()).encode("utf-8"))
     await proc.stdin.drain()
     proc.stdin.close()
     saw_final = False

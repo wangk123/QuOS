@@ -47,7 +47,7 @@ understand / extract / verify / clar-review 四个大输入任务可切内嵌 ag
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `QUOS_AGENT_ENGINE` | `dsh` | `dsh` \| `off`（off = 完全回退上方 LLM API 链路） |
-| `QUOS_DSH_CMD` | 无 | 启动命令；**未配置时引擎自动回落 off**。例：`cd ~/Documents/Git/deepseek-harness && pnpm dsh --profile headless --json` |
+| `QUOS_DSH_CMD` | 无 | 启动命令；**未配置时引擎自动回落 off**。例：`cd ~/Documents/Git/deepseek-harness && pnpm dsh --profile headless --json`。命令可含 cd（dsh workspace 在 harness）——runner 发给 agent 的任务文本带任务目录**绝对路径**，材料/产物寻址不受 cwd 影响 |
 | `QUOS_AGENT_TIMEOUT` | `1200` | 单次 agent 运行上限（秒），超时 kill 进程组 |
 
 冒烟验收基准（多模态项目全量重生成）：树覆盖 11 个功能域、61 条未归类规则获得模块归属。

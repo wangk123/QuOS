@@ -10,9 +10,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.stdin.read()  # 任务文本（本替身不解析）
+task_text = sys.stdin.read()  # 任务文本（本替身不解析，转存供测试断言）
 cwd = Path.cwd()
 ctrl = json.loads((cwd / "FAKE.json").read_text("utf-8")) if (cwd / "FAKE.json").exists() else {}
+(cwd / "out").mkdir(exist_ok=True)
+(cwd / "out" / "stdin.txt").write_text(task_text, "utf-8")
 task = (cwd / "RULES.md").stem if (cwd / "RULES.md").exists() else ""
 for e in ({"type": "session", "id": "session-fake"},
           {"type": "text", "text": f"正在处理 {task}"},
