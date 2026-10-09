@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 from app.ai import tasks
 from app.ai.runner import AITaskError
+from app.ai.agent import engine_on
+from app.ai.agent import flow as agent_flow
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
 from app.core.models import AiReview
@@ -201,7 +203,10 @@ async def add_evidence(proj: str, request: Request):
 
 
 async def _extract_one(root, ev) -> int:
-    """提取单份证据并落盘（重提替换、白名单归属）；返回新增条数"""
+    """提取单份证据并落盘（重提替换、白名单归属）；返回新增条数。
+    agent 引擎启用时整段走 flow（提取+自核验一体）"""
+    if engine_on():
+        return await agent_flow.extract_one(root, ev)
     nodes = _load_tree(root)
     paths_list = tree.paths(nodes)
     valid = set(paths_list)
@@ -281,7 +286,14 @@ async def _run_extract_verify(proj: str, jid: str, ev_ids: list[str]) -> None:
 
 async def _run_verify_phase(proj: str, jid: str, ids: list[str], only_doc: bool = False) -> None:
     """分批核验落盘并累计三路计数（verify-job 与 extract-verify 阶段二共用）；
-    only_doc=跳过推测级规则（推测无材料依据，核验必然落「无依据」——只核文档/实证级）"""
+    only_doc=跳过推测级规则（推测无材料依据，核验必然落「无依据」——只核文档/实证级）。
+    agent 引擎启用时一次运行不分批（flow 自带失败兜底与 finish）"""
+    if engine_on():
+        try:
+            await agent_flow.verify_all(_root(proj), ids, only_doc, jid)
+        except Exception:
+            pass  # flow 内部已置 job failed——吞掉防 create_task 裸跑告警
+        return
     root = _root(proj)
     material = "\n\n".join(t for t, _ in await _evidence_texts(root))
     for i in range(0, len(ids), VERIFY_BATCH):
@@ -384,7 +396,8 @@ async def verify_job(proj: str, body: VerifyJobIn | None = None):
 
 
 async def _run_verify(proj: str, jid: str, ids: list[str], only_doc: bool = False) -> None:
-    """verify-job 入口：初始化计数后复用分批公共体"""
+    """verify-job 入口：初始化计数后复用分批公共体（agent 分流在 _run_verify_phase 入口——
+    verify-job 与 extract-verify 链尾共用同一段）"""
     jobs.update(jid, ok=0, corrected=0, nobasis=0, failed=0)
     await _run_verify_phase(proj, jid, ids, only_doc)
 
@@ -913,6 +926,17 @@ async def review_clarifications(proj: str, body: ReviewIn):
         if ev is None:
             raise HTTPException(status_code=404, detail=f"证据不存在: {eid}")
         evs.append(ev)
+    if engine_on():
+        # agent 引擎：一次运行全部 wait 题，不截断不分批不限图片（flow 自带失败兜底与 finish）
+        async def _run_review_agent():
+            try:
+                await agent_flow.clar_review_all(root, waits, body.ev_ids, jid)
+            except Exception:
+                pass  # flow 内部已置 job failed——吞掉防 create_task 裸跑告警
+
+        jid = jobs.create("clar-review", "澄清重检", 1)
+        asyncio.create_task(_run_review_agent())
+        return {"job_id": jid, "total": 1, "questions": len(waits)}
     parts = [_evidence_parts(root, e) for e in evs]
     images = [b for _, imgs in parts for (_, b) in imgs]
     if len(images) > REVIEW_IMG_CAP:

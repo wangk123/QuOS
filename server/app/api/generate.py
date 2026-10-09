@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.ai import tasks
+from app.ai.agent import engine_on
+from app.ai.agent import flow as agent_flow
 from app.api.router import (AssembleIn, CLAR_BATCH, REVIEW_IMG_CAP, REVIEW_TEXT_CAP, ReviewIn, _ai,
                             _evidence_parts, _evidence_texts, _load_tree, _review_batches, _root,
                             _run_extract_verify, _to_tree_nodes, assemble_profile, rescan_conflicts,
@@ -42,24 +44,30 @@ async def _run_generate(proj: str, jid: str) -> None:
 
 async def _run_generate_inner(proj: str, jid: str) -> None:
     root = _root(proj)
-    # phase1 outline：树空时 understand 落树+根画像草稿（全部推测级）
+    # phase1 outline：树空时落树+根画像草稿（agent 引擎走 flow；旧链路 understand 全部推测级）
     if not _load_tree(root):
-        jobs.update(jid, phase="outline", label="正在梳理需求大纲…", cur=1, total=6)
-        parts = await _evidence_texts(root)
-        material = "\n\n".join(t[:8000] for t, _ in parts)[:60000]
-        images = [b for _, imgs in parts for (_, b) in imgs][:5]
-        out = await tasks.understand(material, images=images)
-        if not out.nodes:  # 空骨架：不落树不留脏数据，直接判失败
-            if jobs.is_cancelled(jid):
+        if engine_on():
+            jobs.update(jid, phase="outline", label="AI 引擎正在梳理需求大纲…", cur=1, total=6)
+            warns = await agent_flow.gen_tree(proj, root, jid)
+            if warns:
+                jobs.update(jid, label=f"大纲已生成（{'; '.join(warns)}）")
+        else:
+            jobs.update(jid, phase="outline", label="正在梳理需求大纲…", cur=1, total=6)
+            parts = await _evidence_texts(root)
+            material = "\n\n".join(t[:8000] for t, _ in parts)[:60000]
+            images = [b for _, imgs in parts for (_, b) in imgs][:5]
+            out = await tasks.understand(material, images=images)
+            if not out.nodes:  # 空骨架：不落树不留脏数据，直接判失败
+                if jobs.is_cancelled(jid):
+                    return
+                jobs.update(jid, status="failed", label="AI 未归纳出结构，请补充材料后重试")
                 return
-            jobs.update(jid, status="failed", label="AI 未归纳出结构，请补充材料后重试")
-            return
-        tree.save(root, _to_tree_nodes(out.nodes))
-        profiles.save_profile(root, profiles.ROOT_NODE, profiles.Profile(
-            node=profiles.ROOT_NODE, kind="root", goal=out.root.goal, entry=out.root.entry,
-            flow=out.root.flow, boundaries=out.root.boundaries, note=out.root.note))
-        for full, kind, goal in _walk_initial_profiles(out.nodes):
-            profiles.save_profile(root, full, profiles.Profile(node=full, kind=kind, goal=goal))
+            tree.save(root, _to_tree_nodes(out.nodes))
+            profiles.save_profile(root, profiles.ROOT_NODE, profiles.Profile(
+                node=profiles.ROOT_NODE, kind="root", goal=out.root.goal, entry=out.root.entry,
+                flow=out.root.flow, boundaries=out.root.boundaries, note=out.root.note))
+            for full, kind, goal in _walk_initial_profiles(out.nodes):
+                profiles.save_profile(root, full, profiles.Profile(node=full, kind=kind, goal=goal))
     # phase2 extract+verify：复用既有「提取+AI 核验」一体链（跳过已提取材料：断点恢复幂等）
     ev_ids = [e.id for e in await evidence.list_all(root)
               if e.type != "压缩包" and e.state != "extracted"]
@@ -169,10 +177,14 @@ async def _review_material(root, ev_ids: list[str]) -> tuple[str, list[bytes], b
 
 
 async def _rescan_waits(proj, jid, root, ev_ids) -> None:
-    """对全部 wait 题 AI 代答（复用重检分批循环体；确认题不送 AI——材料证不了「实际系统」）"""
+    """对全部 wait 题 AI 代答（复用重检分批循环体；确认题不送 AI——材料证不了「实际系统」）。
+    agent 引擎启用时一次运行全部 wait 题（flow 内部 finish）"""
     waits = [c for c in await clarifications.list_all(root) if c.st == "wait" and c.type != "confirm"]
     if not waits:
         jobs.update(jid, label="没有待问问题，无需重扫")
+        return
+    if engine_on():
+        await agent_flow.clar_review_all(root, waits, ev_ids, jid)
         return
     text, images, truncated = await _review_material(root, ev_ids)
     answered = await _review_batches(proj, jid, root, waits, text, images, ev_ids, truncated)
