@@ -99,17 +99,26 @@ async function saveDlg() {
   }
 }
 
-async function onDelete(row: WbNodeRow) {
+// ── 删除确认弹窗（应用内，替代原生 confirm——与编辑弹窗同族，危险操作红色调） ──
+const del = ref<null | { row: WbNodeRow; kids: number; rules: number }>(null)
+
+function onDelete(row: WbNodeRow) {
   const rows = wb.value?.tree ?? []
-  const kids = rows.filter(r => r.path.startsWith(row.path + ',')).length
-  const rules = rows.find(r => r.path === row.path)?.rules ?? 0
-  const msg = `删除「${row.name}」${kids ? `及其 ${kids} 个子节点` : ''}？` +
-    `${rules ? `挂载的 ${rules} 条条目将失去归属（可在①重新挂载）；` : ''}不可恢复。`
-  if (!confirm(msg)) return
+  del.value = {
+    row,
+    kids: rows.filter(r => r.path.startsWith(row.path + ',')).length,
+    rules: rows.find(r => r.path === row.path)?.rules ?? 0,
+  }
+}
+
+async function confirmDel() {
+  const d = del.value
+  if (!d) return
   try {
-    await treeOp('del', row.path)
+    await treeOp('del', d.row.path)
     // 选中行落在被删子树内 → 回根详情，防右栏悬空
-    if (props.selected === row.full || props.selected.startsWith(row.full + '/')) emit('pick', '__root__')
+    if (props.selected === d.row.full || props.selected.startsWith(d.row.full + '/')) emit('pick', '__root__')
+    del.value = null
     await refreshWb()
   } catch (e) {
     toast(`删除失败：${e instanceof Error ? e.message : e}`)
@@ -222,6 +231,26 @@ async function onDelete(row: WbNodeRow) {
         </div>
       </div>
     </div>
+
+    <!-- 删除确认弹窗：应用内样式（替代原生 confirm），危险操作红色调 -->
+    <div v-if="del" class="mask open" @click.self="del = null">
+      <div class="modal deldlg" role="alertdialog" aria-modal="true">
+        <div class="modal-head">
+          <h3>删除节点</h3>
+          <button class="x" type="button" aria-label="关闭" @click="del = null">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="del-q">确定删除 <b>「{{ del.row.name }}」</b>{{ del.kids ? `及其 ${del.kids} 个子节点` : '' }}？</p>
+          <p v-if="del.rules" class="del-warn">该子树挂载的 {{ del.rules }} 条条目将失去归属（可在①规则页重新挂载），相关画像与缺口绑定一并失效。</p>
+          <p class="del-warn">此操作不可恢复。</p>
+          <p class="del-note">若当前选中在被删子树内，删除后自动回需求总览</p>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" type="button" data-test="del-cancel" @click="del = null">取消</button>
+          <button class="btn-danger-ghost" type="button" data-test="del-ok" @click="confirmDel">删除</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -282,4 +311,11 @@ async function onDelete(row: WbNodeRow) {
 .tdlg { width: 400px; }
 .tdlg textarea { width: 100%; border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px;
   font-family: inherit; font-size: 12.5px; resize: vertical; }
+.deldlg { width: 400px; }
+.deldlg .modal-foot { justify-content: flex-end; } /* foot 只留操作钮：右对齐一行，说明文字上移正文 */
+.deldlg .del-q { font-size: 13.5px; }
+.deldlg .del-q b { color: var(--fg); }
+.deldlg .del-warn { font-size: 12px; color: var(--warn); margin-top: 8px; background: var(--amber-bg);
+  border-radius: 6px; padding: 7px 10px; }
+.deldlg .del-note { font-size: 11.5px; color: var(--muted-fg); margin-top: 8px; }
 </style>

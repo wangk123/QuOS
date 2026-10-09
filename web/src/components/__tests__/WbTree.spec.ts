@@ -91,16 +91,20 @@ describe('WbTree', () => {
     expect(api.patchProfileGoal).not.toHaveBeenCalled()
   })
 
-  it('✕ 删除：confirm 后 treeOp del；选中行在被删子树内时回根详情', async () => {
+  it('✕ 删除：应用内确认弹窗——取消不删，确认 treeOp del；选中在被删子树内回根详情', async () => {
     api.treeOp.mockResolvedValue([])
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const w = mount(WbTree, { props: { selected: '工具模块/工商信息查询' } })
     const btns = w.find('.leaf').findAll('.editops button') // ✎ ＋ ✕
+    await btns[2].trigger('click') // ✕ → 应用内确认弹窗（非原生 confirm）
+    expect(w.find('[data-test="del-ok"]').exists()).toBe(true)
+    expect(w.text()).toContain('工商信息查询')
+    await w.find('[data-test="del-cancel"]').trigger('click') // 取消：不删
+    expect(api.treeOp).not.toHaveBeenCalled()
     await btns[2].trigger('click')
+    await w.find('[data-test="del-ok"]').trigger('click')
     await flushPromises()
     expect(api.treeOp).toHaveBeenCalledWith('del', '0,0')
     expect(w.emitted('pick')![0]).toEqual(['__root__'])
-    confirmSpy.mockRestore()
   })
 
   it('第 5 层节点不渲染 ＋（canAdd 深度闸门）', () => {
