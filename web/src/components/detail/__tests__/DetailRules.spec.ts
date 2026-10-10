@@ -7,7 +7,7 @@ import type { Conflict, Gap, Rule } from '../../../api'
 
 const api = vi.hoisted(() => ({
   confirmRule: vi.fn(), verifyJob: vi.fn(), disposeGap: vi.fn(),
-  resolveConflict: vi.fn(), correctRule: vi.fn(), addRuleManual: vi.fn(),
+  resolveConflict: vi.fn(), correctRule: vi.fn(), addRuleManual: vi.fn(), deleteRule: vi.fn(),
 }))
 vi.mock('../../../api', () => api)
 vi.mock('../../../jobs', () => ({ startJobPolling: vi.fn(), jobRunning: ref(false) }))
@@ -47,33 +47,56 @@ describe('DetailRules 折叠交互', () => {
     expect(api.confirmRule).toHaveBeenCalledWith('R3')
   })
 
-  it('规则修正：展开 → ✎ 修正 → 输入 → 确认调 correctRule', async () => {
+  it('行内 ✎ 编辑：hover 出图标 → 预填文本 → 保存调 correctRule', async () => {
     api.correctRule.mockResolvedValue({ ...rules[2], text: '改后' })
     const w = mountIt()
-    await w.findAll('.fold').find(f => f.text().includes('R3'))!.trigger('click')
-    await w.findAll('button').find(b => b.text().includes('修正实际行为'))!.trigger('click')
-    const ta = w.find('textarea')
-    expect(ta.exists()).toBe(true)
+    const row = w.findAll('.fold').find(f => f.text().includes('R3'))!
+    await row.findAll('.editops button')[0].trigger('click') // ✎（hover 显示，jsdom 不拦 display:none）
+    const ta = w.find('.editbox textarea')
+    expect((ta.element as HTMLTextAreaElement).value).toBe('普通未核条目') // 预填当前文本
     await ta.setValue('实际是重试 2 次')
-    const btn = w.findAll('button').find(b => b.text() === '确认修正')!
-    expect((btn.element as HTMLButtonElement).disabled).toBe(false)
-    await btn.trigger('click')
+    await w.findAll('button').find(b => b.text() === '保存')!.trigger('click')
     await flushPromises()
     expect(api.correctRule).toHaveBeenCalledWith('R3', '实际是重试 2 次')
   })
 
-  it('open 冲突参与规则不算已核过：R1(verified) 不进核验通过区，计数归待处理且恒等式保持', async () => {
+  it('行内 ✕ 删除：二次确认条 → 确认调 deleteRule', async () => {
+    api.deleteRule.mockResolvedValue(undefined)
     const w = mountIt()
-    // R1 verified 但参与 C1（open）→ 核验通过区不显示、无绿徽章
+    const row = w.findAll('.fold').find(f => f.text().includes('R3'))!
+    await row.findAll('.editops button')[1].trigger('click') // ✕
+    expect(w.text()).toContain('确认删除')
+    await w.findAll('button').find(b => b.text() === '删除')!.trigger('click')
+    await flushPromises()
+    expect(api.deleteRule).toHaveBeenCalledWith('R3')
+  })
+
+  it('新增规则：＋ 按钮 → 内联输入 → addRuleManual(text, nodeFull)', async () => {
+    api.addRuleManual.mockResolvedValue({ ...rules[0], id: 'R9' })
+    const w = mountIt()
+    await w.findAll('button').find(b => b.text().includes('＋ 新增规则'))!.trigger('click')
+    await w.find('.newrule textarea').setValue('回调地址支持 HTTP 与 HTTPS')
+    await w.findAll('button').find(b => b.text() === '确认新增')!.trigger('click')
+    await flushPromises()
+    expect(api.addRuleManual).toHaveBeenCalledWith('回调地址支持 HTTP 与 HTTPS', '支付')
+  })
+
+  it('open 冲突参与规则不算已核过但有行：R2 显示「冲突中」，计数恒等式保持', async () => {
+    const w = mountIt()
+    // R1/R2 参与 C1（open）：待处理区显示为冲突中行（数量与树行闭环），不显示「已核过」
+    expect(w.text()).toContain('冲突中')
+    expect(w.text()).not.toContain('已核过')
+    // R1 verified 但参与 C1 → 核验通过区（filter=ok）无任何已核行
     await w.findAll('.chip').find(c => c.text().includes('核验通过'))!.trigger('click')
     expect(w.text()).not.toContain('已核过')
-    // R2/R3 未核且 R2 参与 C1：待核规则区只显示 R3（R2 由冲突行承载，不重复设行）
-    expect(w.findAll('.fold').filter(f => f.text().includes('R2')).length).toBe(0)
+    expect(w.findAll('.fold').length).toBe(0)
     // 恒等式：全部 5 = 核验通过 0 + 待处理 5（1 冲突+1 缺口+R3 待核+R1/R2 冲突中）
     const chips = w.findAll('.chip').map(c => c.text())
     expect(chips).toContain('全部 5')
     expect(chips).toContain('⚠ 待处理 5')
     expect(chips).toContain('✅ 核验通过 0')
+    // 标题数 = 纯规则行数（3），与树行灰「N 条」同口径
+    expect(w.find('h3').text()).toContain('规则 · 3 条')
   })
 
   it('冲突：点选说法启用统一确认；未选禁用；选其他需输入', async () => {
@@ -123,16 +146,6 @@ describe('DetailRules 折叠交互', () => {
     await w.findAll('button').find(b => b.text() === '设计如此')!.trigger('click')
     await flushPromises()
     expect(api.disposeGap).toHaveBeenCalledWith('G1', 'ok', '')
-  })
-
-  it('自定义开放：展开输入 → addRuleManual(text, nodeFull)', async () => {
-    api.addRuleManual.mockResolvedValue({ ...rules[0], id: 'R9' })
-    const w = mountIt()
-    await w.findAll('.fold').find(f => f.text().includes('想核实什么'))!.trigger('click')
-    await w.find('textarea').setValue('回调地址支持 HTTP 与 HTTPS')
-    await w.findAll('button').find(b => b.text() === '确认记录')!.trigger('click')
-    await flushPromises()
-    expect(api.addRuleManual).toHaveBeenCalledWith('回调地址支持 HTTP 与 HTTPS', '支付')
   })
 
   it('AI 辅助核验：调 verifyJob({only_doc:true}) + startJobPolling', async () => {

@@ -219,7 +219,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
     <template v-else>
       <div class="tabbar">
         <button class="tab" :class="{ on: tab === 'overview' }" @click="tab = 'overview'">概要</button>
-        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length + conflicts.length + gaps.length }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
+        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps" :node-full="props.nodeFull"

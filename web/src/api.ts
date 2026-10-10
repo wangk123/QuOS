@@ -172,6 +172,10 @@ export const addRuleManual = (text: string, node: string) =>
 export const confirmRule = (id: string) =>
   req<void>(`/rules/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
 
+/** 删除规则（物理删） */
+export const deleteRule = (id: string) =>
+  req<void>(`/rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
 /** 转问人：进「问人」清单，答案确认后自动核过；q 为自定义问法（空 = 后端默认拼接问法） */
 
 /** 人工挂载/改归属；node 为空串 = 回未归类 */

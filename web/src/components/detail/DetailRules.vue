@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// 规则 tab（四类问题统一折叠模式）：行上只有图标+文本+徽章（空间全给内容），
-// 展开后显示动作与输入。二分恒等：全部 = 核验通过 + 待处理；
-// 待处理 = open 冲突 + open 缺口 + 待核规则；处置完即人工确认过 → 归核验通过（灰行留痕）。
+// 规则 tab：标题数=本子树规则行数（与树行灰「N 条」闭环）；chips 两分恒等
+// （全部 = 核验通过 + 待处理；行行对应：每条规则/冲突/缺口恰好一行）。
+// 冲突参与规则照常显示（「冲突中」徽章，裁决前不算已核过，处置走冲突卡）。
+// 行级 ✎ 编辑（correct 标黄留痕）/ ✕ 删除，仅 hover 当前行显示。
 import { computed, inject, ref } from 'vue'
-import { ApiError, addRuleManual, confirmRule, correctRule, disposeGap, resolveConflict,
+import { ApiError, addRuleManual, confirmRule, correctRule, deleteRule, disposeGap, resolveConflict,
          verifyJob, type Conflict, type Gap, type Rule } from '../../api'
 import { jobRunning, startJobPolling } from '../../jobs'
 import { refreshWb } from '../../wb'
@@ -18,7 +19,9 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 // ---- 折叠状态（行点击展开/收起；key=条目 id）----
 const expanded = ref(new Set<string>())
 function toggle(key: string) {
-  expanded.value.has(key) ? expanded.value.delete(key) : expanded.value.add(key)
+  const next = new Set(expanded.value)
+  next.has(key) ? next.delete(key) : next.add(key)
+  expanded.value = next
 }
 
 // ---- 写操作本地覆盖 ----
@@ -28,20 +31,19 @@ const gOver = ref(new Map<string, Gap>())
 const confList = computed(() => props.conflicts.map(c => cOver.value.get(c.id) ?? c))
 const gapList = computed(() => props.gaps.map(g => gOver.value.get(g.id) ?? g))
 const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
-// open 冲突参与规则正被质疑，不算核验通过（裁决前不得戴"已核过"绿徽章）；
-// 展示由冲突行承载（展开即各方说法原文），计数归待处理侧，不另设行防重复
+// 冲突参与规则正被质疑：不算核验过，照常显示行（数量与树行闭环），处置走冲突卡裁决
 const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
 const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
 
-// ---- 状态 chips：全部 = 核验通过 + 待处理（计数恒等：okRules+pendRules+conflicted = 全部规则）----
+// ---- 状态 chips：全部 = 核验通过 + 待处理（行行对应恒等）----
 const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
 const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
+const confRules = computed(() => props.rules.filter(r => conflictedIds.value.has(r.id)))
 const okRules = computed(() => props.rules.filter(isOk))
-const conflictedN = computed(() => props.rules.filter(r => conflictedIds.value.has(r.id)).length)
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
-const pendN = computed(() => openConfs.value.length + openGaps.value.length + pendRules.value.length + conflictedN.value)
+const pendN = computed(() => openConfs.value.length + openGaps.value.length + pendRules.value.length + confRules.value.length)
 const okN2 = computed(() => okRules.value.length + doneConfs.value.length + doneGaps.value.length)
 const allN = computed(() => props.rules.length + props.conflicts.length + props.gaps.length)
 const pct = computed(() => (allN.value ? Math.round((okN2.value / allN.value) * 100) : 0))
@@ -80,6 +82,19 @@ async function confirmResolve(c: Conflict) {
   } catch (e) { fail(e, '裁决失败') } finally { busyConf.value = '' }
 }
 
+/** 冲突中规则行 → 展开其所属冲突的裁决卡 */
+function conflictOf(id: string): Conflict | undefined {
+  return openConfs.value.find(c => c.parties.includes(id))
+}
+function gotoAdjudicate(r: Rule) {
+  const c = conflictOf(r.id)
+  if (!c) return
+  const next = new Set(expanded.value)
+  next.add(c.id)
+  expanded.value = next
+  document.getElementById(`conf-${c.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
 // ---- 缺口：补写 / 设计如此 ----
 const noteText = ref('')
 async function disposeGapAs(g: Gap, action: 'ok' | 'note') {
@@ -93,8 +108,7 @@ async function disposeGapAs(g: Gap, action: 'ok' | 'note') {
   } catch (e) { fail(e, '处置失败') }
 }
 
-// ---- 待核规则：核验 / 修正 ----
-const fixText = ref('')
+// ---- 待核规则：核验 ----
 async function onConfirm(r: Rule) {
   try {
     await confirmRule(r.id)
@@ -103,28 +117,49 @@ async function onConfirm(r: Rule) {
     toast(`${r.id} 已人工核过 ✓`, 'ok')
   } catch (e) { fail(e, '操作失败') }
 }
-async function onCorrect(r: Rule) {
+
+// ---- 行级编辑（correct：文本替换 + 标黄留痕 + 核过）与删除 ----
+const editing = ref<null | { id: string; text: string }>(null)
+function startEdit(r: Rule) {
+  deleting.value = ''
+  editing.value = { id: r.id, text: r.text }
+}
+async function saveEdit() {
+  const d = editing.value
+  if (!d || !d.text.trim()) return
   try {
-    await correctRule(r.id, fixText.value.trim())
-    okLocal.value.add(r.id)
-    fixText.value = ''
-    emit('changed')  // 文本已被修正——重载显示新文本（标黄留痕）
+    await correctRule(d.id, d.text.trim())
+    editing.value = null
+    emit('changed')
     void refreshWb()
-    toast(`${r.id} 已修正（标黄留痕）✓`, 'ok')
-  } catch (e) { fail(e, '修正失败') }
+    toast(`${d.id} 已编辑（标黄留痕）✓`, 'ok')
+  } catch (e) { fail(e, '编辑失败') }
+}
+const deleting = ref('')
+async function doDelete() {
+  const id = deleting.value
+  if (!id) return
+  try {
+    await deleteRule(id)
+    deleting.value = ''
+    emit('changed')
+    void refreshWb()
+    toast(`${id} 已删除`, 'ok')
+  } catch (e) { fail(e, '删除失败') }
 }
 
-// ---- 自定义开放：手动记规则 ----
-const openText = ref('')
-async function onRecord() {
+// ---- 新增规则（挂当前节点，人工确认级）----
+const showNew = ref(false)
+const newText = ref('')
+async function onAdd() {
   try {
-    await addRuleManual(openText.value.trim(), props.nodeFull)
-    openText.value = ''
-    expanded.value.delete('__open__')
+    await addRuleManual(newText.value.trim(), props.nodeFull)
+    newText.value = ''
+    showNew.value = false
     emit('changed')  // 新规则已落库
     void refreshWb()
-    toast('已记录：人工确认规则 ✓', 'ok')
-  } catch (e) { fail(e, '记录失败') }
+    toast('已新增规则 ✓', 'ok')
+  } catch (e) { fail(e, '新增失败') }
 }
 
 // ---- AI 辅助核验 ----
@@ -148,12 +183,21 @@ function side(id: string) {
 
 <template>
   <div class="card">
-    <h3>规则 · {{ allN }} 条
+    <h3>规则 · {{ rules.length }} 条
       <span class="badge b-gray">要么核验通过、要么待处理——没有第三种</span>
       <span class="spacer" />
+      <button class="btn-ghost btn-sm" type="button" @click="showNew = !showNew">＋ 新增规则</button>
       <button v-if="pendRules.length" class="btn-accent btn-sm" type="button" :disabled="jobRunning" @click="aiVerify">
         {{ jobRunning ? 'AI 核验中…' : '✦ AI 辅助核验（文档级）' }}</button>
     </h3>
+    <div v-if="showNew" class="newrule">
+      <textarea v-model="newText" rows="2" placeholder="想固定下来的行为要求——将落为一条人工确认级规则" />
+      <div class="confirmbar">
+        <button class="btn-primary btn-sm" type="button" :disabled="!newText.trim()" @click="onAdd">确认新增</button>
+        <button class="btn-sm" type="button" @click="showNew = false; newText = ''">取消</button>
+        <span class="hint">挂在当前节点「{{ nodeFull }}」</span>
+      </div>
+    </div>
     <div class="chips">
       <button v-for="o in ([['all', `全部 ${allN}`], ['pend', `⚠ 待处理 ${pendN}`], ['ok', `✅ 核验通过 ${okN2}`]] as const)"
               :key="o[0]" class="chip" :class="{ on: filter === o[0], warn: o[0] === 'pend' && filter === 'pend' }" type="button"
@@ -164,7 +208,7 @@ function side(id: string) {
     <template v-if="filter !== 'ok'">
       <!-- ⚠ 冲突：折叠行 → 展开选择+统一确认 -->
       <template v-for="c in openConfs" :key="c.id">
-        <div class="fold red" @click="toggle(c.id)">
+        <div :id="`conf-${c.id}`" class="fold red" @click="toggle(c.id)">
           <span class="ftag warn">⚠</span>
           <span class="ftxt">{{ c.id }} · {{ c.q }}<span class="fsub">冲突 · {{ c.parties.length }} 方说法待裁决</span></span>
           <span class="chev">{{ expanded.has(c.id) ? '▾' : '▸' }}</span>
@@ -186,6 +230,38 @@ function side(id: string) {
                     @click="confirmResolve(c)">{{ busyConf === c.id ? '裁决中…' : '确认裁决' }}</button>
             <span class="hint">选择一条说法（或其他）后启用——裁决即生效，败方作废</span>
           </div>
+        </div>
+      </template>
+
+      <!-- 冲突中规则：照常显示（数量闭环），处置走上方裁决卡 -->
+      <template v-for="r in confRules" :key="r.id">
+        <div class="fold amber" @click="toggle(r.id)">
+          <span class="ftag">{{ r.id }}</span>
+          <span class="ftxt">{{ r.text }}<span class="fsub">{{ r.id }} · {{ r.src }} · 正在冲突裁决中</span></span>
+          <span class="badge b-amber">冲突中</span>
+          <span class="editops">
+            <button title="编辑（标黄留痕）" type="button" @click.stop="startEdit(r)">✎</button>
+            <button title="删除规则" type="button" @click.stop="deleting = r.id; editing = null">✕</button>
+          </span>
+          <span class="chev">{{ expanded.has(r.id) ? '▾' : '▸' }}</span>
+        </div>
+        <div v-if="expanded.has(r.id)" class="foldbody amber">
+          <p class="cnote">该规则正参与 <b>{{ conflictOf(r.id)?.id }}</b> 的冲突裁决——以裁决结果为准（胜方保留，败方作废出列表）。</p>
+          <div class="actsbar">
+            <button class="btn-sm link" type="button" @click="gotoAdjudicate(r)">↓ 去裁决</button>
+          </div>
+        </div>
+        <div v-if="editing?.id === r.id" class="editbox">
+          <textarea v-model="editing.text" rows="2" placeholder="修改后的行为要求" />
+          <div class="confirmbar">
+            <button class="btn-primary btn-sm" type="button" :disabled="!editing.text.trim()" @click="saveEdit">保存</button>
+            <button class="btn-sm" type="button" @click="editing = null">取消</button>
+          </div>
+        </div>
+        <div v-if="deleting === r.id" class="delbar">
+          确认删除 <b>{{ r.id }}</b>？不可恢复。
+          <button class="btn-danger-ghost btn-sm" type="button" @click="doDelete">删除</button>
+          <button class="btn-sm" type="button" @click="deleting = ''">取消</button>
         </div>
       </template>
 
@@ -214,48 +290,39 @@ function side(id: string) {
         </div>
       </template>
 
-      <!-- 待核规则：折叠行 → 核验/修正（推测级带 ？ 标） -->
+      <!-- 待核规则：折叠行 → 核验（编辑/删除走行内图标） -->
       <template v-for="r in pendRules" :key="r.id">
         <div class="fold" @click="toggle(r.id)">
           <span class="ftag" :class="{ q: r.conf === '推测' }">{{ r.conf === '推测' ? '？' : r.id }}</span>
           <span class="ftxt">{{ r.text }}<span class="fsub">{{ r.id }} · {{ r.src }} · {{ r.conf === '推测' ? '推测——与实际系统一致吗？' : '待核' }}</span></span>
           <span class="badge" :class="CONF[r.conf] ?? 'b-gray'">{{ r.conf }}</span>
+          <span class="editops">
+            <button title="编辑（标黄留痕）" type="button" @click.stop="startEdit(r)">✎</button>
+            <button title="删除规则" type="button" @click.stop="deleting = r.id; editing = null">✕</button>
+          </span>
           <span class="chev">{{ expanded.has(r.id) ? '▾' : '▸' }}</span>
         </div>
         <div v-if="expanded.has(r.id)" class="foldbody">
           <div class="actsbar">
             <button class="btn-sm" type="button" @click="onConfirm(r)">核验（与实际一致 ✓）</button>
-            <button class="btn-sm" type="button" @click="toggle(r.id + '-fix')">✎ 修正实际行为</button>
           </div>
-          <template v-if="expanded.has(r.id + '-fix')">
-            <textarea v-model="fixText" rows="2"
-                      placeholder="实际行为是什么就写什么——该规则将被修正并标黄（保留追溯）" />
-            <div class="confirmbar">
-              <button class="btn-primary btn-sm" type="button" :disabled="!fixText.trim()"
-                      @click="onCorrect(r)">确认修正</button>
-            </div>
-          </template>
+        </div>
+        <div v-if="editing?.id === r.id" class="editbox">
+          <textarea v-model="editing.text" rows="2" placeholder="修改后的行为要求" />
+          <div class="confirmbar">
+            <button class="btn-primary btn-sm" type="button" :disabled="!editing.text.trim()" @click="saveEdit">保存</button>
+            <button class="btn-sm" type="button" @click="editing = null">取消</button>
+          </div>
+        </div>
+        <div v-if="deleting === r.id" class="delbar">
+          确认删除 <b>{{ r.id }}</b>？不可恢复。
+          <button class="btn-danger-ghost btn-sm" type="button" @click="doDelete">删除</button>
+          <button class="btn-sm" type="button" @click="deleting = ''">取消</button>
         </div>
       </template>
-
-      <!-- ✎ 自定义开放：折叠行 → 自由输入 -->
-      <div class="fold" @click="toggle('__open__')">
-        <span class="ftag q">✎</span>
-        <span class="ftxt" style="color: var(--muted-fg)">想核实什么就记在这里——答案直接落为规则（人工确认级）<span class="fsub">挂在当前节点</span></span>
-        <span class="chev">{{ expanded.has('__open__') ? '▾' : '▸' }}</span>
-      </div>
-      <div v-if="expanded.has('__open__')" class="foldbody">
-        <textarea v-model="openText" rows="2"
-                  placeholder="例：回调地址是否要求 HTTPS？——现场确认支持 HTTP" />
-        <div class="confirmbar">
-          <button class="btn-primary btn-sm" type="button" :disabled="!openText.trim()"
-                  @click="onRecord">确认记录</button>
-          <span class="hint">问题 + 答案一起写；答案将直接落到规则</span>
-        </div>
-      </div>
     </template>
 
-    <!-- 核验通过区：已处置留痕 + 已核规则（灰行，不折叠） -->
+    <!-- 核验通过区：已处置留痕 + 已核规则（灰行，hover 出编辑/删除） -->
     <template v-if="filter !== 'pend'">
       <div v-for="c in doneConfs" :key="c.id" class="rrow done">
         <span class="rid">✓</span>
@@ -265,14 +332,32 @@ function side(id: string) {
         <span class="rid">✓</span>
         <span class="rtxt">{{ g.text }}<span class="rsrc">缺口已处置 · {{ g.st === 'answered' ? '已补 ✓（材料或人工补写闭环）' : '设计如此' }}</span></span>
       </div>
-      <div v-for="r in okRules" :key="r.id" class="rrow">
-        <span class="rid">{{ r.id }}</span>
-        <span class="rtxt">{{ r.text }}<span class="rsrc">{{ r.src }}{{ r.suspect ? ' · 已人工修正（标黄留痕）' : '' }}</span></span>
-        <span class="acts">
-          <span class="badge" :class="CONF[r.conf] ?? 'b-gray'">{{ r.conf }}</span>
-          <span class="badge b-green">已核过</span>
-        </span>
-      </div>
+      <template v-for="r in okRules" :key="r.id">
+        <div class="rrow">
+          <span class="rid">{{ r.id }}</span>
+          <span class="rtxt">{{ r.text }}<span class="rsrc">{{ r.src }}{{ r.suspect ? ' · 已人工修正（标黄留痕）' : '' }}</span></span>
+          <span class="acts">
+            <span class="badge" :class="CONF[r.conf] ?? 'b-gray'">{{ r.conf }}</span>
+            <span class="badge b-green">已核过</span>
+            <span class="editops">
+              <button title="编辑（标黄留痕）" type="button" @click.stop="startEdit(r)">✎</button>
+              <button title="删除规则" type="button" @click.stop="deleting = r.id; editing = null">✕</button>
+            </span>
+          </span>
+        </div>
+        <div v-if="editing?.id === r.id" class="editbox">
+          <textarea v-model="editing.text" rows="2" placeholder="修改后的行为要求" />
+          <div class="confirmbar">
+            <button class="btn-primary btn-sm" type="button" :disabled="!editing.text.trim()" @click="saveEdit">保存</button>
+            <button class="btn-sm" type="button" @click="editing = null">取消</button>
+          </div>
+        </div>
+        <div v-if="deleting === r.id" class="delbar">
+          确认删除 <b>{{ r.id }}</b>？不可恢复。
+          <button class="btn-danger-ghost btn-sm" type="button" @click="doDelete">删除</button>
+          <button class="btn-sm" type="button" @click="deleting = ''">取消</button>
+        </div>
+      </template>
     </template>
     <p v-if="!allN" class="none">本节点暂无规则与疑点</p>
     <p v-if="allN && ((filter === 'pend' && !pendN) || (filter === 'ok' && !okN2))" class="none">该状态下暂无内容</p>
@@ -289,6 +374,10 @@ function side(id: string) {
 .chip.on.warn { background: #b45309; border-color: #b45309; }
 .chips .pct { font-size: 11.5px; color: var(--muted-fg); margin-left: auto; }
 
+/* 新增规则内联表单 */
+.newrule { border: 1px dashed var(--border2); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #fbfdff; }
+.newrule textarea { width: 100%; font: inherit; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--border2); border-radius: 6px; resize: vertical; margin-bottom: 8px; }
+
 /* 统一折叠行：行上只有图标+文本+徽章，空间全给内容 */
 .fold { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 8px; margin-bottom: 3px; cursor: pointer; user-select: none; background: #fff; }
 .fold:hover { border-color: #cbd5e1; }
@@ -304,8 +393,9 @@ function side(id: string) {
 .foldbody.red { border-color: #fecaca; background: #fffdfd; }
 .foldbody.amber { border-color: #fde68a; background: #fffdf5; }
 .foldbody textarea { width: 100%; font: inherit; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--border2); border-radius: 6px; resize: vertical; margin-bottom: 8px; }
+.foldbody .cnote { font-size: 12px; color: var(--muted-fg); margin-bottom: 6px; }
 .actsbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
-.confirmbar { display: flex; gap: 8px; align-items: center; }
+.confirmbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .confirmbar .hint { font-size: 11px; color: var(--muted-fg); }
 
 /* 冲突说法可选卡 */
@@ -325,6 +415,15 @@ function side(id: string) {
 .rrow .rsrc { display: block; font-size: 11px; color: var(--muted-fg); margin-top: 1px; }
 .rrow .acts { display: flex; gap: 5px; flex: none; align-items: center; }
 .rrow.done { opacity: .55; }
+
+/* 行级编辑/删除：hover 当前行才显示（同树行 editops 模式） */
+.editops { display: none; gap: 3px; flex: none; }
+.fold:hover .editops, .rrow:hover .editops { display: inline-flex; }
+.editops button { background: var(--muted); color: var(--muted-fg); width: 20px; height: 20px; border-radius: 5px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.editops button:hover { background: var(--blue-bg); color: var(--primary); }
+.editbox { border: 1px dashed var(--secondary); border-radius: 0 0 8px 8px; padding: 10px 12px; margin: -3px 0 10px; background: #f8faff; }
+.editbox textarea { width: 100%; font: inherit; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--border2); border-radius: 6px; resize: vertical; margin-bottom: 8px; }
+.delbar { display: flex; align-items: center; gap: 8px; border: 1px solid #fca5a5; border-radius: 0 0 8px 8px; padding: 8px 12px; margin: -3px 0 10px; background: var(--red-bg, #fef7f7); color: var(--destructive); font-size: 12px; }
 
 .btn-sm { font: inherit; font-weight: 600; font-size: 12px; padding: 4px 12px; border-radius: 7px; border: 1px solid var(--border2); background: #fff; cursor: pointer; }
 .btn-sm.link { color: var(--primary); border-color: #bfdbfe; }

@@ -112,3 +112,14 @@ async def test_confirm_rule_endpoint_ok(client):
     assert r.status_code == 204, r.text
     rules = {a.id: a for a in rule_store.load(root)}
     assert rules["R3"].verified is True
+
+
+async def test_delete_rule(client):
+    """删除规则（物理删）；不存在 404"""
+    root = ensure_root("多方项目")
+    _seed(root)
+    r = await client.request("DELETE", f"{BASE}/rules/R3")
+    assert r.status_code == 204, r.text
+    assert [a.id for a in rule_store.load(root)] == ["R1", "R2"]
+    r = await client.request("DELETE", f"{BASE}/rules/R999")
+    assert r.status_code == 404

@@ -429,6 +429,16 @@ async def correct_rule(proj: str, rid: str, body: CorrectIn):
     return a.model_dump()
 
 
+@api_router.delete("/rules/{rid}", status_code=204)
+async def delete_rule(proj: str, rid: str):
+    """删除规则（物理删）：参与冲突的 id 由读侧「规则已不存在」兜底，不阻塞裁决"""
+    root = _root(proj)
+    rmap = _rule_map(root)
+    if rid not in rmap:
+        raise HTTPException(404, detail=f"规则不存在: {rid}")
+    rule_store.save(root, [a for a in rmap.values() if a.id != rid])
+
+
 @api_router.post("/rules")
 async def add_rule_manual(proj: str, body: ManualRuleIn):
     """自定义开放核实记录：问题+答案文本直接落规则（人工确认级，绑指定节点）"""
