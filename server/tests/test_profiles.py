@@ -46,6 +46,17 @@ def test_export_doc_humanize(tmp_path):
     assert "验证" not in doc and "0 实证" not in doc
     assert "**异常边界**" not in doc      # 过滤后空字段整节跳过
 
+
+def test_humanize_no_tail_form(tmp_path):
+    """无「的行为」尾巴的验证句同样去壳（线上 69 处残留形态）；「验证码」名词不误伤"""
+    save_profile(tmp_path, "放款/重试", _card(goal="验证上传的 PDF 均能走 OCR 链路完成解析。"))
+    doc = export_doc(tmp_path)
+    assert "上传的 PDF 均能走 OCR 链路完成解析。" in doc
+    assert "**目标**：验证" not in doc
+    save_profile(tmp_path, "放款/风控", _card(node="放款/风控", goal="验证码为六位数字，五次失败后锁定。"))
+    doc2 = export_doc(tmp_path)
+    assert "验证码为六位数字" in doc2     # 名词「验证码」原样保留
+
 def test_export_doc_header(tmp_path):
     """文档头元信息：项目名/生成时间/范围统计；版本行接当前基线 tag，无版本则省"""
     save_profile(tmp_path, "放款/重试", _card())

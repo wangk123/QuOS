@@ -148,8 +148,13 @@ def load_all(root) -> list[Profile]:
 
 
 def _humanize(s: str) -> str:
-    """验证口径 → 需求陈述：去「验证…的行为/功能/逻辑」壳（AI 核验的 test intent 不进交付文档）"""
-    m = re.fullmatch(r"验证(.{1,120}?)的(行为|功能|逻辑)。?", s.strip())
+    """验证口径 → 需求陈述（AI 核验的 test intent 不进交付文档）：
+    「验证X的行为/功能/逻辑。」与「验证X。」两种形态去壳；「验证码」等名词不误伤"""
+    s = s.strip()
+    m = re.fullmatch(r"验证(.{1,120}?)的(行为|功能|逻辑)。?", s)
+    if m:
+        return m.group(1) + "。"
+    m = re.fullmatch(r"验证(?!码)(.{8,})。?", s)
     return m.group(1) + "。" if m else s
 
 
