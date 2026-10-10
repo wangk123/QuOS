@@ -121,6 +121,7 @@ export class ApiError extends Error {
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(base() + path, init)
   if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null))
+  if (res.status === 204) return undefined as T  // 无响应体（confirm/delete 等），跳过解析
   const ct = res.headers.get('content-type') ?? ''
   return (ct.includes('json') ? res.json() : res.text()) as Promise<T>
 }
@@ -209,6 +210,8 @@ export interface DoubtGlobalGap {
 
 export interface DoubtModule {
   name: string
+  /** 总数 = rules + open 冲突 + open 缺口（与树行同口径） */
+  total?: number
   rules: number
   conflicts: number
   gaps: number
@@ -301,6 +304,8 @@ export interface WbNodeRow {
   full: string
   goal: string
   kind: 'module' | 'leaf'
+  /** 总数 = 有效规则 + open 冲突 + open 缺口（树行/tab/chips 唯一口径） */
+  total: number
   rules: number
   unverified: number
   conf: number

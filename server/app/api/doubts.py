@@ -30,9 +30,11 @@ async def doubts_summary(proj: str):
     for n in nodes:
         mg = [g for g in g_open if _in_subtree(g_node(g), n.name)]
         mc = [c for c in c_open if _in_subtree(c_node(c), n.name)]
+        nrules = sum(1 for a in rules if a.node in valid and _in_subtree(a.node, n.name))
         rows.append({"name": n.name,
-                     # rules 与 wb 同口径：void/孤儿路径不进（wb stat 的 valid 白名单恒等）
-                     "rules": sum(1 for a in rules if a.node in valid and _in_subtree(a.node, n.name)),
+                     # rules 与 wb 同口径：void/孤儿路径不进（wb stat 的 valid 白名单恒等）；
+                     # total = rules+open冲突+open缺口（树行/tab/chips 唯一总数口径）
+                     "rules": nrules, "total": nrules + len(mc) + len(mg),
                      "conflicts": len(mc), "gaps": len(mg),
                      "peek": mg[0].text if mg else (mc[0].q if mc else "")})
     root_node = profiles.ROOT_NODE

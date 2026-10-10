@@ -32,25 +32,26 @@ const stat = computed(() => {
   const t = wb.value?.tree ?? []
   const top = mods.value.map(m => m.row)
   return {
+    total: top.reduce((s, r) => s + r.total, 0),
     rules: top.reduce((s, r) => s + r.rules, 0),
     unverified: top.reduce((s, r) => s + r.unverified, 0),
     conf: top.reduce((s, r) => s + r.conf, 0),
     gaps: top.reduce((s, r) => s + r.gaps, 0),
     done: t.filter(r => r.state === 'done').length,
     doing: t.some(r => r.state === 'doing'),
-    total: t.length,
+    totalNodes: t.length,
   }
 })
 
-/** 徽章工作清单（四原子规范，模块行=子树聚合）：
- * doing 蓝=处理中 / unverified 灰「n 待核」/ conf 红「⚠n」冲突 / gaps 琥珀「△n」缺口 / cnt 灰「n 条」/ profiled 绿 ✓ */
+/** 徽章工作清单：total 总数=规则+待处理问题（含子树，树行/tab/chips 同口径）：
+ * doing 蓝=处理中 / unverified 灰「n 待核」/ conf 红「⚠n」冲突 / gaps 琥珀「△n」缺口 / cnt 灰「n 条」总数 / profiled 绿 ✓ */
 function badges(r: WbNodeRow): { cls: string; text: string; title: string }[] {
   const b: { cls: string; text: string; title: string }[] = []
   if (r.state === 'doing') b.push({ cls: 'doing', text: '处理中', title: '后台正在完善该节点' })
   if (r.unverified > 0) b.push({ cls: 'unv', text: `${r.unverified} 待核`, title: `${r.unverified} 条未核验，条目 tab 行内核验` })
   if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}`, title: `${r.conf} 处条目冲突待裁决（存疑 tab）` })
   if (r.gaps > 0) b.push({ cls: 'doubt', text: `△${r.gaps}`, title: `${r.gaps} 条材料缺口待澄清（存疑 tab，含子树）` })
-  if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条`, title: `${r.rules} 条行为条目（含子树）` })
+  if (r.total > 0) b.push({ cls: 'cnt', text: `${r.total} 条`, title: `${r.total} 条 = 已核过规则 + 待处理（含冲突中规则、待裁决冲突、待补缺口，含子树）` })
   if (r.profiled && r.unverified === 0) b.push({ cls: 'okc', text: '✓', title: '画像就绪，无待核' })
   return b
 }
@@ -138,11 +139,11 @@ async function confirmDel() {
       <div class="rmeta">
         <span v-if="stat.doing" class="badge">正在完善 {{ stat.done }}/{{ stat.total }}</span>
         <template v-else-if="stat.total">
-          <span class="badge">{{ stat.rules }} 条目</span>
+          <span class="badge">{{ stat.total }} 条目</span>
           <span v-if="stat.unverified" class="badge">{{ stat.unverified }} 待核</span>
           <span v-if="stat.conf" class="badge hot">⚠{{ stat.conf }}</span>
           <span v-if="stat.gaps" class="badge warm">△{{ stat.gaps }}</span>
-          <span v-else class="badge">判断清零 ✓</span>
+          <span v-if="!stat.unverified && !stat.conf && !stat.gaps" class="badge">判断清零 ✓</span>
         </template>
         <span v-else class="badge">大纲就绪</span>
       </div>

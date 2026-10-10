@@ -933,13 +933,15 @@ async def wb_summary(proj: str):
         return "done" if full in run.get("done_nodes", []) else ""
 
     def stat(full: str) -> dict:
-        """四原子指标（子树聚合）：rules 条目 / unverified 未核验 / conf 冲突 / gaps 缺口——
-        废除 pend 合成（待核+冲突两成分曾与「待处置=冲突+缺口」并存，成分不一不可对拍）。
+        """原子指标（子树聚合）：total 总数（有效规则+open冲突+open缺口，树行/tab/chips 唯一口径——
+        总数=已核过+待处理，待处理=待核+冲突中+open冲突+open缺口）/ rules 有效规则数 /
+        unverified 未核验 / conf 冲突 / gaps 缺口——废除 pend 合成（成分不一不可对拍）。
         三类归集同过 valid 白名单：孤儿路径/未归类不进树行（未归类在条目页可见，孤儿进汇总）"""
         rs = [a for a in rules if a.id not in void and a.node in valid and _in_subtree(a.node, full)]
         cf = [c for c in confs if c.st == "open" and _in_subtree(_conflict_node(c, rmap, valid), full)]
         gp = [g for g in gaps if g.st == "open" and _in_subtree(_gap_node(g, valid), full)]
-        return {"rules": len(rs), "unverified": sum(0 if a.verified else 1 for a in rs),
+        return {"total": len(rs) + len(cf) + len(gp), "rules": len(rs),
+                "unverified": sum(0 if a.verified else 1 for a in rs),
                 "conf": len(cf), "gaps": len(gp)}
     out: list[dict] = []
     def walk(items, prefix, name_prefix, depth):

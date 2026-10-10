@@ -35,8 +35,10 @@ const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
 const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
 const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
 
-// ---- 状态 chips：规则维度的分布（全部=规则总数，与树行灰「N 条」闭环）；
-// 冲突/缺口是叠加工件（tab 角标 ⚠/△ 表达），不进 chips 计数 ----
+// ---- 状态 chips（唯一口径：总数 = 已核过 + 待处理）：
+// 总数 = 全部规则（含冲突中）+ open 冲突 + open 缺口——与树行「N 条」/tab 数严格相等；
+// 待处理 = 待核规则 + 冲突中规则 + open 冲突 + open 缺口；已核过 = 已核规则。
+// 已处置的冲突/缺口收进底部「已处置记录」折叠区（留痕不计数的毕业区）----
 const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
 const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
@@ -44,12 +46,13 @@ const confRules = computed(() => props.rules.filter(r => conflictedIds.value.has
 const okRules = computed(() => props.rules.filter(isOk))
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
-const allN = computed(() => props.rules.length)
+const allN = computed(() => props.rules.length + openConfs.value.length + openGaps.value.length)
 const okN2 = computed(() => okRules.value.length)
-const pendN = computed(() => props.rules.length - okRules.value.length)  // 待核 + 冲突中
+const pendN = computed(() => allN.value - okN2.value)
 const pct = computed(() => (allN.value ? Math.round((okN2.value / allN.value) * 100) : 0))
 const pendEmpty = computed(() => !openConfs.value.length && !confRules.value.length && !openGaps.value.length && !pendRules.value.length)
-const okEmpty = computed(() => !doneConfs.value.length && !doneGaps.value.length && !okRules.value.length)
+const okEmpty = computed(() => !okRules.value.length)
+const showDone = ref(false)
 
 function fail(e: unknown, prefix: string) {
   toast(e instanceof ApiError ? `${prefix}：${e.message}` : prefix, 'warn')
@@ -186,8 +189,8 @@ function side(id: string) {
 
 <template>
   <div class="card">
-    <h3>规则 · {{ rules.length }} 条
-      <span class="badge b-gray">要么核验通过、要么待处理——没有第三种</span>
+    <h3>规则 · {{ allN }} 条
+      <span class="badge b-gray">总数 = 已核过 + 待处理（含待裁决冲突、待补缺口）</span>
       <span class="spacer" />
       <button class="btn-ghost btn-sm" type="button" @click="showNew = !showNew">＋ 新增规则</button>
       <button v-if="pendRules.length" class="btn-accent btn-sm" type="button" :disabled="jobRunning" @click="aiVerify">
@@ -202,10 +205,10 @@ function side(id: string) {
       </div>
     </div>
     <div class="chips">
-      <button v-for="o in ([['all', `全部 ${allN}`], ['pend', `⚠ 待处理 ${pendN}`], ['ok', `✅ 核验通过 ${okN2}`]] as const)"
+      <button v-for="o in ([['all', `全部 ${allN}`], ['pend', `⚠ 待处理 ${pendN}`], ['ok', `✅ 已核过 ${okN2}`]] as const)"
               :key="o[0]" class="chip" :class="{ on: filter === o[0], warn: o[0] === 'pend' && filter === 'pend' }" type="button"
               @click="filter = o[0]">{{ o[1] }}</button>
-      <span class="pct">{{ pct }}% 已确认</span>
+      <span class="pct">{{ pct }}% 已核过</span>
     </div>
 
     <template v-if="filter !== 'ok'">
@@ -325,16 +328,8 @@ function side(id: string) {
       </template>
     </template>
 
-    <!-- 核验通过区：已处置留痕 + 已核规则（灰行，hover 出编辑/删除） -->
+    <!-- 已核过区：只放已核规则（灰行，hover 出编辑/删除）——已处置的冲突/缺口收进底部留痕区 -->
     <template v-if="filter !== 'pend'">
-      <div v-for="c in doneConfs" :key="c.id" class="rrow done">
-        <span class="rid">✓</span>
-        <span class="rtxt">{{ c.q }}<span class="rsrc">冲突已裁决 · {{ c.resolution === 'manual' ? '其他：' + (c.manual_text ?? '') : `信 ${c.resolution}` }}</span></span>
-      </div>
-      <div v-for="g in doneGaps" :key="g.id" class="rrow done">
-        <span class="rid">✓</span>
-        <span class="rtxt">{{ g.text }}<span class="rsrc">缺口已处置 · {{ g.st === 'answered' ? '已补 ✓（材料或人工补写闭环）' : '设计如此' }}</span></span>
-      </div>
       <template v-for="r in okRules" :key="r.id">
         <div class="rrow">
           <span class="rid">{{ r.id }}</span>
@@ -361,8 +356,26 @@ function side(id: string) {
           <button class="btn-sm" type="button" @click="deleting = ''">取消</button>
         </div>
       </template>
+      <p v-if="!okRules.length" class="none">还没有已核过的条目</p>
     </template>
-    <p v-if="!allN && !props.conflicts.length && !props.gaps.length" class="none">本节点暂无规则与疑点</p>
+
+    <!-- 已处置记录：裁决/收口完的疑点留痕（毕业区，不计入任何数字） -->
+    <div v-if="doneConfs.length || doneGaps.length" class="donelog">
+      <button class="donelog-toggle" type="button" @click="showDone = !showDone">
+        已处置记录（{{ doneConfs.length + doneGaps.length }}）{{ showDone ? '▾' : '▸' }}
+      </button>
+      <template v-if="showDone">
+        <div v-for="c in doneConfs" :key="c.id" class="rrow done">
+          <span class="rid">✓</span>
+          <span class="rtxt">{{ c.q }}<span class="rsrc">冲突已裁决 · {{ c.resolution === 'manual' ? '其他：' + (c.manual_text ?? '') : `信 ${c.resolution}` }}</span></span>
+        </div>
+        <div v-for="g in doneGaps" :key="g.id" class="rrow done">
+          <span class="rid">✓</span>
+          <span class="rtxt">{{ g.text }}<span class="rsrc">缺口已处置 · {{ g.st === 'answered' ? '已补 ✓（材料或人工补写闭环）' : '设计如此' }}</span></span>
+        </div>
+      </template>
+    </div>
+    <p v-if="!allN" class="none">本节点暂无规则与疑点</p>
     <p v-if="allN && ((filter === 'pend' && pendEmpty) || (filter === 'ok' && okEmpty))" class="none">该状态下暂无内容</p>
   </div>
 </template>
@@ -427,6 +440,9 @@ function side(id: string) {
 .editbox { border: 1px dashed var(--secondary); border-radius: 0 0 8px 8px; padding: 10px 12px; margin: -3px 0 10px; background: #f8faff; }
 .editbox textarea { width: 100%; font: inherit; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--border2); border-radius: 6px; resize: vertical; margin-bottom: 8px; }
 .delbar { display: flex; align-items: center; gap: 8px; border: 1px solid #fca5a5; border-radius: 0 0 8px 8px; padding: 8px 12px; margin: -3px 0 10px; background: var(--red-bg, #fef7f7); color: var(--destructive); font-size: 12px; }
+.donelog { margin-top: 14px; border-top: 1px dashed var(--border2); padding-top: 8px; }
+.donelog-toggle { background: none; border: none; color: var(--muted-fg); font-size: 11.5px; font-weight: 600; cursor: pointer; padding: 2px 0; }
+.donelog-toggle:hover { color: var(--primary); }
 
 .btn-sm { font: inherit; font-weight: 600; font-size: 12px; padding: 4px 12px; border-radius: 7px; border: 1px solid var(--border2); background: #fff; cursor: pointer; }
 .btn-sm.link { color: var(--primary); border-color: #bfdbfe; }

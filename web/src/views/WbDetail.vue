@@ -136,7 +136,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
         <span class="gtext">{{ c.q }}<span class="gdim"> · 参与双方规则无具体节点归属（未归类/模块级歧义），待人工核对</span></span>
       </div>
       <div v-for="m in doubtRows" :key="m.name" class="dsum-row" @click="emit('jump', m.name, 'rules')">
-        <span class="dnode">{{ m.name }}<span class="sub">{{ m.rules }} 条目</span></span>
+        <span class="dnode">{{ m.name }}<span class="sub">{{ (m.total ?? m.rules) }} 条目</span></span>
         <span class="dcount">
           <span v-if="m.conflicts" class="badge b-red">{{ m.conflicts }} 矛盾</span>
           <span class="badge b-amber">{{ m.gaps }} 缺口</span>
@@ -170,7 +170,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
           <tr><th>模块</th><th>条目</th><th>待处置疑点</th><th>状态</th></tr>
           <tr v-for="{ r, dc, dg } in topView" :key="r.path" class="clickable" @click="emit('jump', r.full)">
             <td>{{ r.name }}</td>
-            <td class="num">{{ r.rules }}</td>
+            <td class="num">{{ r.total ?? r.rules }}</td>
             <td>
               <template v-if="dc + dg">
                 <span v-if="dc" class="badge b-red">{{ dc }} 矛盾</span>
@@ -219,7 +219,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
     <template v-else>
       <div class="tabbar">
         <button class="tab" :class="{ on: tab === 'overview' }" @click="tab = 'overview'">概要</button>
-        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
+        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length + confOpenN + gapOpenN }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps" :node-full="props.nodeFull"
