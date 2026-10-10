@@ -147,6 +147,41 @@ describe('VerModal（版本弹窗）', () => {
     expect(w.findAll('button').some(b => b.text() === '下载 .md')).toBe(true)
   })
 
+  it('下载文件名带版本：从文档头「- 版本：v1.0.0」解析，无版本回退通用名', async () => {
+    const urls: string[] = []
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(((b: Blob | MediaSource) => {
+      urls.push((b as Blob).type)
+      return 'blob:x'
+    }) as typeof URL.createObjectURL)
+    const click = vi.fn()
+    HTMLAnchorElement.prototype.click = click
+    vi.mocked(getDoc).mockResolvedValueOnce('# 多模态 · 需求文档\n\n- 版本：v1.0.0（当前基线）\n\n## 需求总览')
+    const w = await mountModal()
+    await w.findAll('button').find(b => b.text().includes('预览 / 导出需求文档'))!.trigger('click')
+    await flushPromises()
+    await w.findAll('button').find(b => b.text() === '下载 .md')!.trigger('click')
+    expect(click).toHaveBeenCalled()
+    const a = click.mock.instances[0] as unknown as HTMLAnchorElement  // a.click() 的 this
+    expect(a.download).toBe('需求文档-v1.0.0.md')
+  })
+
+  it('滚动后高亮按视口位置跟随（rect 口径，非 offsetTop）', async () => {
+    vi.mocked(getDoc).mockResolvedValueOnce('# 需求文档\n\n## 材料分类\n\n正文\n\n## 实时通知\n\n正文')
+    const w = await mountModal()
+    await w.findAll('button').find(b => b.text().includes('预览 / 导出需求文档'))!.trigger('click')
+    await flushPromises()
+    const heads = (w.element as HTMLElement).querySelectorAll('.md-view h2')
+    const body = w.find('.doc-body').element as HTMLElement
+    // 「材料分类」已滚过顶部（-500）、「实时通知」尚在阈值线下方（200>60）→ 高亮=最后越线者=材料分类
+    ;(heads[0] as HTMLElement).getBoundingClientRect = () => ({ top: -500 } as DOMRect)
+    ;(heads[1] as HTMLElement).getBoundingClientRect = () => ({ top: 200 } as DOMRect)
+    body.getBoundingClientRect = () => ({ top: 0 } as DOMRect)
+    await w.find('.doc-body').trigger('scroll')
+    await flushPromises()
+    const on = w.findAll('.doc-nav .nav-item').find(i => i.classes().includes('on'))
+    expect(on?.text()).toBe('材料分类')
+  })
+
   it('预览章节导航：h2/h4 入导航（h1 不入），点击按偏移手动滚动，源码模式隐藏', async () => {
     const scrollTo = vi.fn()
     Element.prototype.scrollTo = scrollTo

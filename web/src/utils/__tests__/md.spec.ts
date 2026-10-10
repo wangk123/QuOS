@@ -12,6 +12,15 @@ describe('renderMd（语法子集）', () => {
     expect(renderMd('- 目标：x\n- 入口：y')).toBe('<ul><li>目标：x</li><li>入口：y</li></ul>')
   })
 
+  it('有序列表聚组（主流程 1. 2. 3.）', () => {
+    expect(renderMd('**主流程**\n1. 用户上传\n2. 系统校验\n3. 进入解析')).toBe(
+      '<p><strong>主流程</strong></p><ol><li>用户上传</li><li>系统校验</li><li>进入解析</li></ol>')
+  })
+
+  it('行内粗体 **x** 渲染为 strong', () => {
+    expect(renderMd('**目标**：不重复放款')).toBe('<p><strong>目标</strong>：不重复放款</p>')
+  })
+
   it('表格：表头+分隔行+数据行，\\| 还原为字面竖线', () => {
     const md = '| ID | 规则 |\n|---|---|\n| R1 | 支持 a\\|b |\n| R2 | 普通规则 |'
     expect(renderMd(md)).toBe(

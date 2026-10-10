@@ -23,13 +23,46 @@ def test_duplicate_name_suffix(tmp_path):
 def test_export_doc(tmp_path):
     save_profile(tmp_path, "放款/重试", _card())
     doc = export_doc(tmp_path)
-    assert "R1" in doc and "放款/重试" in doc
+    assert "上限3次" in doc and "放款/重试" in doc
 
-def test_export_doc_rule_table_drops_src_conf(tmp_path):
-    """面向人的需求文档：规则表只留 ID/规则，来源与置信度是过程产物不进文档"""
+def test_export_doc_format(tmp_path):
+    """面向人的文档格式：粗体小节标签、规则列表化无 ID、状态机按组拆行"""
+    save_profile(tmp_path, "放款/重试", _card(states="待放款→已放款；失败→回滚"))
+    doc = export_doc(tmp_path)
+    assert "**主流程**" in doc and "**规则**" in doc and "**状态机**" in doc
+    assert "- 上限3次" in doc            # 规则列表化
+    assert "| R1 |" not in doc           # ID 列不进文档（跨模块撞号，对读者无意义）
+    assert "retry.py:42" not in doc      # src 值不进文档
+    i, j = doc.index("待放款→已放款"), doc.index("失败→回滚")
+    assert doc[i:j].count("\n") >= 1     # 状态机组各自成行
+
+def test_export_doc_humanize(tmp_path):
+    """过程性措辞规整：验证句式去壳；计数型边界（0 实证）过滤"""
+    save_profile(tmp_path, "放款/重试", _card(
+        goal="验证上传文件时三类渠道均可正常提交并进入解析链路的行为。",
+        boundaries="0 实证"))
+    doc = export_doc(tmp_path)
+    assert "上传文件时三类渠道均可正常提交并进入解析链路。" in doc
+    assert "验证" not in doc and "0 实证" not in doc
+    assert "**异常边界**" not in doc      # 过滤后空字段整节跳过
+
+def test_export_doc_header(tmp_path):
+    """文档头元信息：项目名/生成时间/范围统计；版本行接当前基线 tag，无版本则省"""
     save_profile(tmp_path, "放款/重试", _card())
     doc = export_doc(tmp_path)
-    assert "| ID | 规则 |" in doc
+    assert doc.startswith(f"# {tmp_path.name} · 需求文档")
+    assert "- 生成：" in doc and "- 范围：0 个模块 · 1 条规则" in doc  # 无树：画像进附录
+    assert "## 附录：未挂树的画像" in doc
+    assert "- 版本：" not in doc          # 无 git 基线时省版本行
+    from app.storage import gitops
+    gitops.save_baseline(tmp_path, "1.0.0", "一")
+    doc2 = export_doc(tmp_path)
+    assert "- 版本：v1.0.0（当前基线）" in doc2
+
+def test_export_doc_rule_table_drops_src_conf(tmp_path):
+    """面向人的需求文档：来源与置信度是过程产物不进文档（合并入 format 用例，保留独立防回归）"""
+    save_profile(tmp_path, "放款/重试", _card())
+    doc = export_doc(tmp_path)
     assert "来源" not in doc and "置信度" not in doc
     assert "retry.py:42" not in doc  # src 值不落文档
 

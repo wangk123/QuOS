@@ -55,12 +55,19 @@ function jumpNav(i: number) {
   body.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' })
 }
 
-function onDocScroll(e: Event) {  // 当前章节高亮：滚动位置上方最近的标题
-  const top = (e.target as HTMLElement).scrollTop + 60
+function onDocScroll() {  // 当前章节高亮：视口顶部下方最近的标题（rect 口径——offsetTop 相对 offsetParent，与滚动容器错位会高亮到前一章）
+  const body = docBodyEl.value
+  if (!body) return
+  const bodyTop = body.getBoundingClientRect().top + 60
   let cur = -1
-  docNav.value.forEach((n, i) => { if (n.el.offsetTop <= top) cur = i })
+  docNav.value.forEach((n, i) => { if (n.el.getBoundingClientRect().top <= bodyTop) cur = i })
   if (cur >= 0) activeNav.value = cur
 }
+
+const docFileName = computed(() => {
+  const m = docText.value.match(/^- 版本：(v[\d.]+)（当前基线）$/m)
+  return m ? `需求文档-${m[1]}.md` : '需求文档.md'
+})
 
 const VER_RE = /^\d+\.\d+\.\d+$/
 const isNewTag = (t: string) => /^v\d+\.\d+\.\d+$/.test(t)
@@ -176,10 +183,10 @@ function download() {
   const url = URL.createObjectURL(new Blob([docText.value], { type: 'text/markdown' }))
   const a = document.createElement('a')
   a.href = url
-  a.download = '需求文档.md'
+  a.download = docFileName.value
   a.click()
   URL.revokeObjectURL(url)
-  toast('已下载 需求文档.md', 'ok')
+  toast(`已下载 ${docFileName.value}`, 'ok')
 }
 </script>
 
@@ -289,7 +296,7 @@ function download() {
         </div>
         <button class="x" type="button" aria-label="关闭预览" @click="docOpen = false">✕</button>
       </div>
-      <div ref="docBodyEl" class="modal-body doc-body" @scroll.passive="docMode === 'md' && onDocScroll($event)">
+      <div ref="docBodyEl" class="modal-body doc-body" @scroll.passive="docMode === 'md' && onDocScroll()">
         <div class="doc-main">
           <!-- eslint-disable-next-line vue/no-v-html —— 内容经 renderMd 全量 escape -->
           <div v-if="docMode === 'md'" ref="mdViewEl" class="md-view" v-html="renderMd(docText)"></div>

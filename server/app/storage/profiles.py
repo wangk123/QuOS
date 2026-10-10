@@ -147,20 +147,36 @@ def load_all(root) -> list[Profile]:
     return [_parse(f.read_text("utf-8")) for f in sorted(d.glob("*.md"))]
 
 
+def _humanize(s: str) -> str:
+    """验证口径 → 需求陈述：去「验证…的行为/功能/逻辑」壳（AI 核验的 test intent 不进交付文档）"""
+    m = re.fullmatch(r"验证(.{1,120}?)的(行为|功能|逻辑)。?", s.strip())
+    return m.group(1) + "。" if m else s
+
+
+def _is_count_noise(s: str) -> bool:
+    """计数型边界（如「0 实证」「1 实证、2 文档」）是质检口径，不是需求内容"""
+    return bool(re.fullmatch(r"\d+\s*[实证文档推测待旧]{2,4}(、\d+\s*[实证文档推测待旧]{2,4})*。?", s.strip()))
+
+
 def _render_profile(profile: Profile, with_title: bool = True) -> list[str]:
-    out = ([f"### {profile.node}", ""] if with_title else []) + [
-        f"- 目标：{profile.goal}", f"- 入口：{profile.entry}", "",
-        "主流程：", profile.flow or "无", ""]
+    """叶子画像：粗体小节标签 + 规则列表化（无 ID/来源/置信度）+ 状态机按组拆行"""
+    out = [f"### {profile.node}", ""] if with_title else []
+    if profile.goal:
+        out += [f"**目标**：{_humanize(profile.goal)}", ""]
+    if profile.entry:
+        out += [f"**入口**：{_humanize(profile.entry)}", ""]
+    if profile.flow:
+        out += ["**主流程**", profile.flow, ""]
     if profile.rules:
-        out += ["规则：", "", "| ID | 规则 |", "|---|---|"]
-        for r in profile.rules:
-            text = r.text.replace("|", "\\|")
-            out.append(f"| {r.id} | {text} |")
-        out.append("")
+        out += ["**规则**"] + [f"- {r.text}" for r in profile.rules] + [""]
     for key, title in _SECTIONS[1:-1]:
         v = getattr(profile, key)
-        if v:
-            out += [f"{title}：", v, ""]
+        if not v or (key == "boundaries" and _is_count_noise(v)):
+            continue
+        if key == "states":
+            out += [f"**{title}**", v.replace("；", "\n"), ""]  # 每组状态一行
+        else:
+            out += [f"**{title}**", _humanize(v), ""]
     return out
 
 
@@ -168,31 +184,55 @@ def _render_overview(profile: Profile) -> list[str]:
     """根画像总览章：goal/entry/flow/boundaries/note 按 h3 小节渲染，空字段跳过；全空时整章跳过"""
     sections = [(key, title) for key, title in [("goal", "目标"), ("entry", "入口"), ("flow", "主流程"),
                                                 ("boundaries", "异常边界"), ("note", "补充说明")]
-                if getattr(profile, key)]
+                if getattr(profile, key) and not (key == "boundaries" and _is_count_noise(getattr(profile, key)))]
     if not sections:
         return []
     out = ["## 需求总览", ""]
     for key, title in sections:
-        out += [f"### {title}", getattr(profile, key), ""]
+        v = getattr(profile, key)
+        out += [f"### {title}", _humanize(v), ""]
     return out
 
 
 def _render_module(profile: Profile) -> list[str]:
-    """模块画像轻量渲染：标题+职责/边界两行（不展开全字段）；全空时整段跳过"""
+    """模块画像直接挂模块章 h2 下（不再出同名 h3，双标题冗余）；全空整段跳过"""
     if not profile.goal and not profile.boundaries:
         return []
-    out = [f"### {profile.node.rsplit('/', 1)[-1]}", ""]
+    out = []
     if profile.goal:
-        out.append(f"- 职责：{profile.goal}")
-    if profile.boundaries:
-        out.append(f"- 边界：{profile.boundaries}")
-    out.append("")
-    return out
+        out.append(f"**职责**：{_humanize(profile.goal)}")
+    if profile.boundaries and not _is_count_noise(profile.boundaries):
+        out.append(f"**边界**：{_humanize(profile.boundaries)}")
+    return out + [""] if out else []
+
+
+def _doc_version(root: Path) -> str | None:
+    """文档头版本行：当前基线（HEAD 所指 tag）；无 git / 无版本返回 None"""
+    try:
+        from app.storage import gitops
+        for item in gitops.list_baselines(root):
+            if item.get("cur"):
+                return item["tag"]
+    except Exception:
+        pass
+    return None
 
 
 def export_doc(root) -> str:
+    root = Path(root)
     profiles = _latest_profiles(root)
-    out = ["# 结果文档", ""]
+    nodes = tree.load(root)
+
+    # 文档头：项目名 / 版本（当前基线）/ 生成时间 / 范围统计
+    n_rules = sum(len(p.rules) for p in profiles.values() if p.node != ROOT_NODE)
+    out = [f"# {root.name} · 需求文档", ""]
+    ver = _doc_version(root)
+    if ver:
+        out += [f"- 版本：{ver}（当前基线）", ""]
+    from datetime import datetime
+    out += [f"- 生成：{datetime.now().strftime('%Y-%m-%d %H:%M')}", "",
+            f"- 范围：{len(nodes)} 个模块 · {n_rules} 条规则", ""]
+
     if ROOT_NODE in profiles:
         out += _render_overview(profiles[ROOT_NODE])
     used: set[str] = {ROOT_NODE}  # 根画像已入开篇总览，不进孤儿段
@@ -211,8 +251,10 @@ def export_doc(root) -> str:
                     out.extend(_render_profile(profile, with_title=False))
             walk(n.children, full, depth + 1)
 
-    walk(tree.load(root), "", 0)
-    for node, profile in profiles.items():
-        if node not in used:
+    walk(nodes, "", 0)
+    orphans = [(node, p) for node, p in profiles.items() if node not in used]
+    if orphans:
+        out += ["## 附录：未挂树的画像", "", "> 以下画像的节点不在当前大纲树中，保留全路径供追溯", ""]
+        for node, profile in orphans:
             out.extend(_render_profile(profile))
     return "\n".join(out).rstrip() + "\n"
