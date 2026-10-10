@@ -1,7 +1,10 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import WbTree from '../WbTree.vue'
+
+// 弹窗 Teleport 到 body（穿出 sticky 左栏的层叠上下文），不在组件 DOM 内——经 document 查询包 DOMWrapper
+const dlg = (sel: string) => new DOMWrapper(document.querySelector(sel) as Element)
 
 // 可变 mock 数据（vi.hoisted 保证 vi.mock 工厂执行时可引用）：根卡统计/doing 用例需换树
 const wbSummary = vi.hoisted(() => ({
@@ -41,13 +44,13 @@ describe('WbTree', () => {
     const w = mount(WbTree, { props: { selected: '' } })
     await w.find('.leaf .ldesc').trigger('click')
     await flushPromises()
-    expect(w.find('[data-test="dlg-name"]').exists()).toBe(false) // 不弹窗
+    expect(document.querySelector('[data-test="dlg-name"]')).toBe(null) // 不弹窗
     expect(api.patchProfileGoal).not.toHaveBeenCalled()
     // ✎ 是唯一编辑入口：数字路径 PATCH 由该入口覆盖（见下一用例）
     const btns = w.find('.leaf').findAll('.editops button')
     await btns[0].trigger('click')
-    await w.find('[data-test="dlg-goal"]').setValue('新目标')
-    await w.find('[data-test="dlg-save"]').trigger('click')
+    await dlg('[data-test="dlg-goal"]').setValue('新目标')
+    await dlg('[data-test="dlg-save"]').trigger('click')
     await flushPromises()
     expect(api.patchProfileGoal).toHaveBeenCalledWith('0,0', '新目标')
     expect(api.patchProfileGoal).not.toHaveBeenCalledWith('工具模块/工商信息查询', '新目标')
@@ -58,9 +61,9 @@ describe('WbTree', () => {
     api.treeOp.mockResolvedValue([])
     const w = mount(WbTree, { props: { selected: '' } })
     await w.find('.modhead .editops button').trigger('click') // 模块 ✎
-    await w.find('[data-test="dlg-name"]').setValue('工具模块2')
-    await w.find('[data-test="dlg-goal"]').setValue('新概要')
-    await w.find('[data-test="dlg-save"]').trigger('click')
+    await dlg('[data-test="dlg-name"]').setValue('工具模块2')
+    await dlg('[data-test="dlg-goal"]').setValue('新概要')
+    await dlg('[data-test="dlg-save"]').trigger('click')
     await flushPromises()
     expect(api.treeOp).toHaveBeenCalledWith('rename', '0', '工具模块2')
     expect(api.patchProfileGoal).toHaveBeenCalledWith('0', '新概要')
@@ -71,9 +74,9 @@ describe('WbTree', () => {
     api.treeOp.mockResolvedValue([])
     const w = mount(WbTree, { props: { selected: '' } })
     await w.findAll('.modhead .editops button')[1].trigger('click') // 模块 ＋
-    await w.find('[data-test="dlg-name"]').setValue('新叶')
-    await w.find('[data-test="dlg-goal"]').setValue('新叶目标')
-    await w.find('[data-test="dlg-save"]').trigger('click')
+    await dlg('[data-test="dlg-name"]').setValue('新叶')
+    await dlg('[data-test="dlg-goal"]').setValue('新叶目标')
+    await dlg('[data-test="dlg-save"]').trigger('click')
     await flushPromises()
     expect(api.treeOp).toHaveBeenCalledWith('add', '0', '新叶')
     expect(api.patchProfileGoal).toHaveBeenCalledWith('0,1', '新叶目标') // 现有子 0,0 → 新路径 0,1
@@ -84,8 +87,8 @@ describe('WbTree', () => {
     api.treeOp.mockResolvedValue([])
     const w = mount(WbTree, { props: { selected: '' } })
     await w.find('.add-root').trigger('click')
-    await w.find('[data-test="dlg-name"]').setValue('风控')
-    await w.find('[data-test="dlg-save"]').trigger('click')
+    await dlg('[data-test="dlg-name"]').setValue('风控')
+    await dlg('[data-test="dlg-save"]').trigger('click')
     await flushPromises()
     expect(api.treeOp).toHaveBeenCalledWith('add', undefined, '风控')
     expect(api.patchProfileGoal).not.toHaveBeenCalled()
@@ -96,12 +99,12 @@ describe('WbTree', () => {
     const w = mount(WbTree, { props: { selected: '工具模块/工商信息查询' } })
     const btns = w.find('.leaf').findAll('.editops button') // ✎ ＋ ✕
     await btns[2].trigger('click') // ✕ → 应用内确认弹窗（非原生 confirm）
-    expect(w.find('[data-test="del-ok"]').exists()).toBe(true)
-    expect(w.text()).toContain('工商信息查询')
-    await w.find('[data-test="del-cancel"]').trigger('click') // 取消：不删
+    expect(document.querySelector('[data-test="del-ok"]')).not.toBe(null)
+    expect(document.body.textContent).toContain('工商信息查询')
+    await dlg('[data-test="del-cancel"]').trigger('click') // 取消：不删
     expect(api.treeOp).not.toHaveBeenCalled()
     await btns[2].trigger('click')
-    await w.find('[data-test="del-ok"]').trigger('click')
+    await dlg('[data-test="del-ok"]').trigger('click')
     await flushPromises()
     expect(api.treeOp).toHaveBeenCalledWith('del', '0,0')
     expect(w.emitted('pick')![0]).toEqual(['__root__'])

@@ -218,8 +218,11 @@ async function confirmDel() {
     </div>
     <p class="hint">这棵树就是需求文档本身——hover 行内 ✎ 编辑（名称+概要）、＋ 加子（最深 5 级）、✕ 删除（概要编辑也走 ✎）。</p>
 
-    <!-- 编辑弹窗：加节点（可带概要）/ 改名+概要 -->
-    <div v-if="dlg" class="mask open" @click.self="dlg = null">
+    <!-- 编辑弹窗：加节点（可带概要）/ 改名+概要。
+      Teleport 到 body：左栏 .treezone 是 sticky（恒建层叠上下文），mask 的 fixed+z-index 被困在
+      左栏上下文里压不过右栏 .detailzone——遮罩盖不住右侧；送出后与 App 顶层弹窗同层级 -->
+    <Teleport to="body">
+      <div v-if="dlg" class="mask open" @click.self="dlg = null">
       <div class="modal tdlg" role="dialog" aria-modal="true">
         <div class="modal-head">
           <h3>{{ dlg.mode === 'add' ? (dlg.parent ? `加子节点 · ${dlg.parent.name}` : '加顶层模块') : `编辑 · ${dlg.row?.name}` }}</h3>
@@ -236,10 +239,12 @@ async function confirmDel() {
           <button class="btn" type="button" data-test="dlg-save" :disabled="!dlg.name.trim()" @click="saveDlg">保存</button>
         </div>
       </div>
-    </div>
+      </div>
+    </Teleport>
 
-    <!-- 删除确认弹窗：应用内样式（替代原生 confirm），危险操作红色调 -->
-    <div v-if="del" class="mask open" @click.self="del = null">
+    <!-- 删除确认弹窗：应用内样式（替代原生 confirm），危险操作红色调；Teleport 同上 -->
+    <Teleport to="body">
+      <div v-if="del" class="mask open" @click.self="del = null">
       <div class="modal deldlg" role="alertdialog" aria-modal="true">
         <div class="modal-head">
           <h3>删除节点</h3>
@@ -256,7 +261,8 @@ async function confirmDel() {
           <button class="btn-danger-ghost" type="button" data-test="del-ok" @click="confirmDel">删除</button>
         </div>
       </div>
-    </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
