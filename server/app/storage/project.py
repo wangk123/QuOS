@@ -78,6 +78,8 @@ def scan(status: str) -> list[dict]:
     for d in sorted(base.iterdir()):
         if not d.is_dir() or d.name.startswith("."):
             continue
+        if slugify(d.name) != d.name:
+            continue  # 含清洗字符（如备份目录的"."）的目录所有端点都寻不到，列出即成幽灵项
         rows.append(_read_meta(d, d.name))
     return rows
 

@@ -164,6 +164,13 @@ def test_scan_discovers_manual_dir(fs):
                      "description": "", "created_at": ""}]
 
 
+def test_scan_skips_unroutable_dir(fs):
+    # 含清洗字符的目录（如 "proj.bak"）所有端点寻径都会 slugify 去点后落空，列出即成不可操作的幽灵项
+    (fs / "正常项目").mkdir()
+    (fs / "proj.bak").mkdir()
+    assert [r["slug"] for r in project.scan("active")] == ["正常项目"]
+
+
 def test_create_then_scan_with_json(fs):
     row = project.create("风控云", "核心账务")
     assert (fs / "风控云" / "project.json").exists()
