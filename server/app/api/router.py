@@ -15,7 +15,7 @@ from app.ai.agent import engine_on
 from app.ai.agent import flow as agent_flow
 from app.ai.tasks import AssembleBlocked
 from app.core.classify import classify_file, classify_text
-from app.core.models import AiReview
+from app.core.models import AiReview, Gap, Rule
 from app.core.parse import pdf_text, shrink_image
 
 from app.storage import clarifications, dims, evidence, findings, gitops, jobs, profiles, project, rules as rule_store, tree
@@ -646,25 +646,68 @@ def _parent_goal(root, node_path: str) -> str:
     return parent.goal if parent else ""
 
 
+async def _merge_findings(root, full: str, node_name: str, out) -> dict:
+    """组装补充发现收编（无第三分类）：quote 在材料原文定位成功→核验通过规则（续号绑定节点）；
+    没说清/quote 编造/与现有重复→缺口（绑节点 open）。返回分流计数"""
+    stat = {"rule": 0, "gap": 0}
+    if not out.findings:
+        return stat
+    material = "\n\n".join(t for t, _ in await _evidence_texts(root))
+    items = rule_store.load(root)
+    n = max((int(a.id[1:]) for a in items if a.id.startswith("R") and a.id[1:].isdigit()), default=0)
+    seen_texts = {a.text for a in items}
+    gaps = findings.load_gaps(root)
+    seen_gaps = {(g.dim, g.text, g.node) for g in gaps}
+    for f in out.findings:
+        gap_text = None
+        if f.kind == "rule":
+            if f.text in seen_texts:
+                continue  # 与现有规则重复
+            if f.quote and f.quote in material:
+                n += 1
+                items.append(Rule(id=f"R{n}", text=f.text, src=f"画像组装·{node_name}",
+                                  conf="文档", verified=True, node=full))
+                seen_texts.add(f.text)
+                stat["rule"] += 1
+                continue
+            gap_text = f.text  # quote 缺失/编造 → 降为缺口（不信自证）
+        elif f.kind == "gap":
+            gap_text = f.text
+        if gap_text and (f.dim or "组装补充", gap_text, full) not in seen_gaps:
+            seen_gaps.add((f.dim or "组装补充", gap_text, full))
+            gno = max((int(g.id[1:]) for g in gaps if g.id.startswith("G") and g.id[1:].isdigit()),
+                      default=0) + 1
+            gaps.append(Gap(id=f"G{gno}", dim=f.dim or "组装补充", text=gap_text,
+                            node=full, st="open"))
+            stat["gap"] += 1
+    if stat["rule"]:
+        rule_store.save(root, items)
+    if stat["gap"]:
+        findings.save_gaps(root, gaps)
+    return stat
+
+
 @api_router.post("/profiles/assemble")
 async def assemble_profile(proj: str, body: AssembleIn):
     root = _root(proj)
     nodes = _load_tree(root)
     node, full = _resolve(nodes, body.node_path)
     if node is None:
-        raise HTTPException(status_code=404, detail=f"节点不存在: {body.node_path}")
+        raise HTTPException(404, detail=f"节点不存在: {body.node_path}")
     void = _void_ids(root)
     usable = [a for a in rule_store.load(root) if a.id not in void and _in_subtree(a.node, full)]
     if not usable:
         raise HTTPException(
-            status_code=409,
+            409,
             detail=f"「{full}」及其子树没有已挂载的规则——空规则集只会生成空画像。请先在①规则提取挂载归属（旧数据可在证据池重新提取自动挂载）",
         )
-    profile = await _ai(tasks.assemble, usable, node.name, body.note,
-                        _parent_goal(root, body.node_path))
+    out = await _ai(tasks.assemble, usable, node.name, body.note,
+                    _parent_goal(root, body.node_path))
+    profile = out.profile
     profile.node = full  # 存储按树全路径寻址（load/export 匹配用）
     f = profiles.save_profile(root, full, profile)
-    return {"profile": profile.model_dump(), "file": f.name}
+    added = await _merge_findings(root, full, node.name, out)
+    return {"profile": profile.model_dump(), "file": f.name, "findings": added}
 
 
 @api_router.get("/profiles")

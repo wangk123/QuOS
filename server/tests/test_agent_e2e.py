@@ -77,7 +77,7 @@ async def test_generate_full_chain(client, monkeypatch, tmp_path):
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="集成画像")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="集成画像"))
     for name, fn in (("conflict", cf), ("gaps", gp), ("assemble", asb)):
         monkeypatch.setattr(tasks, name, fn)  # 非 agent 任务照旧 mock
 

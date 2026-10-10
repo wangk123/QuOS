@@ -36,7 +36,7 @@ describe('WbDetail', () => {
     api.getDoubtSummary.mockResolvedValue(null) // 根视图默认无汇总（隐藏卡，速览列 —）
   })
 
-  it('就绪节点渲染三 tab 与概要字段', async () => {
+  it('就绪节点渲染两 tab（概要/规则）与概要字段', async () => {
     api.getProfile.mockResolvedValue({ node: 'X', goal: 'g', entry: 'e', flow: 'f', states: 's', boundaries: 'b', deps: 'd', rules: [], unconfirmed: [] })
     api.getRules.mockResolvedValue([{ id: 'R1', text: 't', src: 's', conf: '文档', verified: true, node: 'X' }])
     api.getConflicts.mockResolvedValue([])
@@ -45,7 +45,7 @@ describe('WbDetail', () => {
     await flushPromises()
     expect(w.text()).toContain('概要')
     expect(w.text()).toContain('条目')
-    expect(w.text()).toContain('存疑')
+    expect(w.text()).toContain('规则')
     expect(w.find('.spec').text()).toContain('目标') // 概要 spec 网格字段
     expect(w.find('.spec').text()).toContain('g')
     // 条目 tab：规则行 + 置信度徽章 + 已核过
@@ -88,7 +88,7 @@ describe('WbDetail', () => {
     ])
     const w = mount(WbDetail, { props: { nodeFull: '查询', state: 'done' } })
     await flushPromises()
-    await w.findAll('.tab')[2].trigger('click')
+    await w.findAll('.tab')[1].trigger('click')
     expect(w.text()).toContain('本节点的缺口')
     expect(w.text()).toContain('子树叶子节点的缺口')
     expect(w.text()).not.toContain('其他节点的缺口')
@@ -137,7 +137,7 @@ describe('WbDetail', () => {
     expect(w.text()).toContain('未说明根级发布状态')
     expect(w.findAll('.dsum-row')).toHaveLength(1) // 查询全零不占行
     await w.find('.dsum-row').trigger('click')
-    expect(w.emitted('jump')![0]).toEqual(['登录', 'doubt']) // 跳转带落地 tab=存疑
+    expect(w.emitted('jump')![0]).toEqual(['登录', 'rules']) // 跳转带落地 tab=存疑
     // 速览表新列：登录有 1 矛盾 1 缺口，查询显示「清」
     const tds = w.findAll('.mtx tr.clickable')
     expect(tds[0].text()).toContain('1 矛盾')

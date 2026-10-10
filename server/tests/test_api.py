@@ -76,9 +76,9 @@ async def test_end_to_end(client, monkeypatch):
     # ⑤ 组装成功：用户画像落盘
     async def mock_assemble(rules, node_name, note, parent_goal=""):
         assert node_name == "放款重试" and "幂等" in note
-        return Profile(node=node_name, goal="验证放款重试行为正确",
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="验证放款重试行为正确",
                     rules=[ProfileRule(id="R1", text="超时后重试3次", src="retry.py:15", conf="实证")],
-                    note=note)
+                    note=note))
 
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
     r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0,0", "note": "补充幂等"})
@@ -324,8 +324,8 @@ async def test_assemble_excludes_voided_rules(client, monkeypatch):
 
     async def mock_assemble(rules, node_name, note, parent_goal=""):
         seen["ids"] = [a.id for a in rules]
-        return Profile(node=node_name, goal="不重复放款",
-                    rules=[ProfileRule(id="R1", text="重试上限 3 次", src="retry.py:42", conf="实证")])
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="不重复放款",
+                    rules=[ProfileRule(id="R1", text="重试上限 3 次", src="retry.py:42", conf="实证")]))
 
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
     r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0", "note": ""})
@@ -347,7 +347,7 @@ async def test_assemble_filters_by_node(client, monkeypatch):
     seen = {}
     async def mock_assemble(rules, node_name, note, parent_goal=""):
         seen["ids"] = [a.id for a in rules]
-        return Profile(node=node_name, goal="g")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="g"))
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
 
     r = await client.post(f"{BASE}/profiles/assemble", json={"node_path": "0,0", "note": ""})
@@ -548,7 +548,7 @@ async def test_assemble_batch_job_lifecycle(client, monkeypatch):
     ])
 
     async def mock_assemble(rules, node_name, note, parent_goal=""):
-        return Profile(node=node_name, goal="g")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="g"))
     monkeypatch.setattr(tasks, "assemble", mock_assemble)
 
     r = await client.post(f"{BASE}/profiles/assemble-batch", json={"node_path": ""})
@@ -569,7 +569,7 @@ async def test_assemble_batch_scoped_and_conflicts(client, monkeypatch):
     async def slow_assemble(rules, node_name, note, parent_goal=""):
         import asyncio
         await asyncio.sleep(0.3)
-        return Profile(node=node_name, goal="g")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="g"))
     monkeypatch.setattr(tasks, "assemble", slow_assemble)
 
     r = await client.post(f"{BASE}/profiles/assemble-batch", json={"node_path": "0"})  # 支付子树：1 叶

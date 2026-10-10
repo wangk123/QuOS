@@ -13,7 +13,7 @@ ROOT_NODE = "__root__"  # 根画像的寻址键：不在功能树上，直接以
 CONF_MARK = {"实证": "✅", "文档": "✅"}
 
 _SECTIONS = [("flow", "主流程"), ("states", "状态机"), ("boundaries", "异常边界"),
-             ("note", "补充说明"), ("deps", "依赖"), ("unconfirmed", "未确认项")]
+             ("note", "补充说明"), ("deps", "依赖")]
 _SECTION_KEY = {"规则": "rules", **{t: k for k, t in _SECTIONS}}
 
 
@@ -35,7 +35,6 @@ class Profile(BaseModel):
     boundaries: str = ""
     note: str = ""
     deps: str = ""
-    unconfirmed: list[str] = Field(default_factory=list)
 
 
 def _dump(profile: Profile) -> str:
@@ -44,10 +43,7 @@ def _dump(profile: Profile) -> str:
              "---", "", f"# {profile.node}", ""]
     for key, title in _SECTIONS:
         lines.append(f"## {title}")
-        if key == "unconfirmed":
-            lines += [f"- {u}" for u in profile.unconfirmed]
-        else:
-            lines.append(getattr(profile, key))
+        lines.append(getattr(profile, key))
         lines.append("")
     lines += ["## 规则", ""]
     if profile.rules:
@@ -90,10 +86,8 @@ def _parse(text: str) -> Profile:
             bodies[cur].append(ln)
     kwargs: dict = {"node": meta.get("node", ""), "kind": meta.get("kind", "leaf"),
                     "goal": meta.get("goal", ""), "entry": meta.get("entry", ""),
-                    "rules": _parse_rules(bodies["rules"]),
-                    "unconfirmed": [ln.strip()[2:].strip() for ln in bodies["unconfirmed"]
-                                    if ln.strip().startswith("- ")]}
-    for key, _ in _SECTIONS[:-1]:
+                    "rules": _parse_rules(bodies["rules"])}
+    for key, _ in _SECTIONS:
         kwargs[key] = "\n".join(bodies[key]).strip()
     return Profile(**kwargs)
 
@@ -168,8 +162,6 @@ def _render_profile(profile: Profile, with_title: bool = True) -> list[str]:
         v = getattr(profile, key)
         if v:
             out += [f"{title}：", v, ""]
-    if profile.unconfirmed:
-        out += ["未确认项："] + [f"- {u}" for u in profile.unconfirmed] + [""]
     return out
 
 

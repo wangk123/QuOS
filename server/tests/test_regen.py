@@ -62,7 +62,7 @@ def _mock_pipeline(monkeypatch):  # 与 tests/test_generate.py 同款（tests �
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="假画像")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="假画像"))
 
     async def sm(parts, kind):
         return tasks.SummaryOut(goal="假聚合", entry="客户经理")
@@ -81,7 +81,7 @@ async def test_regen_partial_updates_only_listed(client, monkeypatch):
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="新画像", kind="leaf")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="新画像", kind="leaf"))
 
     monkeypatch.setattr(tasks, "assemble", asb)
     r = await client.post(f"{BASE}/regen", json={"mode": "partial", "ev_ids": [ev_id],
@@ -176,7 +176,7 @@ async def test_regen_partial_extracts_new_material(client, monkeypatch):
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="新画像", kind="leaf")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="新画像", kind="leaf"))
 
     async def sm(parts, kind):
         return tasks.SummaryOut(goal="假聚合", entry="客户经理")

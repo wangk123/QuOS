@@ -172,7 +172,7 @@ async def test_generate_verify_phase_routes_to_agent(client, monkeypatch):
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="修复画像")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="修复画像"))
 
     for name, fn in (("conflict", cf), ("gaps", gp), ("assemble", asb)):
         monkeypatch.setattr(tasks, name, fn)

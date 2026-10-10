@@ -30,6 +30,15 @@ class GapOut(BaseModel):
 
 class AssembleOut(BaseModel):
     profile: Profile
+    findings: list["Finding"] = []
+
+
+class Finding(BaseModel):
+    """组装补充发现：AI 只许经此通道补充——自证分流后要么成规则要么成缺口，无第三分类"""
+    kind: str  # 'rule'=材料有依据(须带 quote 自证) | 'gap'=材料没说清
+    text: str
+    quote: str = ""
+    dim: str = "组装补充"
 
 
 class ImpactOut(BaseModel):
@@ -124,7 +133,7 @@ async def gaps(profile_summary: str, dims: list[str]) -> list[Gap]:
 
 
 async def assemble(rules: list[Rule], node_name: str, note: str,
-                   parent_goal: str = "") -> Profile:
+                   parent_goal: str = "") -> AssembleOut:
     unqualified = [r for r in rules if not (r.verified and r.conf != "待实证")]
     if unqualified:
         raise AssembleBlocked(unqualified)
@@ -134,7 +143,7 @@ async def assemble(rules: list[Rule], node_name: str, note: str,
          "parent_goal": parent_goal},
         AssembleOut,
     )
-    return out.profile
+    return out
 
 
 async def impact_analysis(new_text: str, rules_text: str, clars_text: str) -> ImpactOut:

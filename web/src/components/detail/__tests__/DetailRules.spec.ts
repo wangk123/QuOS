@@ -3,9 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DetailRules from '../DetailRules.vue'
-import type { Rule } from '../../../api'
+import type { Conflict, Gap, Rule } from '../../../api'
 
-const api = vi.hoisted(() => ({ confirmRule: vi.fn(), askRule: vi.fn(), verifyJob: vi.fn() }))
+const api = vi.hoisted(() => ({ confirmRule: vi.fn(), askRule: vi.fn(), verifyJob: vi.fn(), disposeGap: vi.fn(), resolveConflict: vi.fn() }))
 vi.mock('../../../api', () => api)
 vi.mock('../../../jobs', () => ({ startJobPolling: vi.fn(), jobRunning: ref(false) }))
 vi.mock('../../../wb', () => ({ refreshWb: vi.fn() }))
@@ -16,8 +16,12 @@ const rules: Rule[] = [
   { id: 'R3', text: '另一个未核', src: 'c.py:3', conf: '待实证', st: '', verified: false, suspect: false },
 ]
 
+const conflicts: Conflict[] = []
+const gaps: Gap[] = []
+const allRules: Rule[] = rules
+
 function mountIt() {
-  return mount(DetailRules, { props: { rules }, global: { provide: { toast: vi.fn() } } })
+  return mount(DetailRules, { props: { rules, conflicts, gaps, allRules }, global: { provide: { toast: vi.fn() } } })
 }
 const btn = (w: ReturnType<typeof mountIt>, text: string) =>
   w.findAll('button').find(b => b.text() === text)!
@@ -28,13 +32,13 @@ describe('DetailRules 写操作', () => {
   it('核验：点击调 confirmRule → 行内变绿「已核过」+ 进度前进', async () => {
     api.confirmRule.mockResolvedValue(undefined)
     const w = mountIt()
-    expect(w.text()).toContain('核验 1/3')
+    expect(w.text()).toContain('⚠ 待处理 2')
     await btn(w, '核验').trigger('click')
     await flushPromises()
     expect(api.confirmRule).toHaveBeenCalledWith('R2')
     expect(w.text()).toContain('已核过')
-    expect(w.text()).toContain('核验 2/3')
-    expect(w.text()).toContain('67%')
+    expect(w.text()).toContain('✅ 核验通过 2') // 1 已核 + 本地核过 1
+    expect(w.text()).toContain('67% 已确认')
   })
 
   it('待确认：行内展开表单预填建议问法，改文本后投递 askRule(id, q) 并 emit clar-changed', async () => {

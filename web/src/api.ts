@@ -119,7 +119,6 @@ export interface Profile {
   boundaries: string
   note: string
   deps: string
-  unconfirmed: string[]
 }
 
 /** GET /baseline 仅含 tag/commit；v 仅 POST /baseline 创建时返回；time/note 后端补字段后时间线直接展示 */

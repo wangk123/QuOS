@@ -15,9 +15,6 @@ defineProps<{ profile: Profile }>()
       <span class="k">异常</span><span>{{ profile.boundaries || '—' }}</span>
       <span class="k">依赖</span><span>{{ profile.deps || '—' }}</span>
     </div>
-    <div v-if="profile.unconfirmed.length" class="rrow unconf">
-      <span class="rtxt">未确认 {{ profile.unconfirmed.length }} 项（已转澄清池待问人）<span class="rsrc">{{ profile.unconfirmed.join(' · ') }}</span></span>
-    </div>
   </div>
 </template>
 

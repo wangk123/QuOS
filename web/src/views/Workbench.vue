@@ -16,9 +16,9 @@ const { wb, refreshWb, stop } = useWb()
 onUnmounted(stop)
 
 const selected = ref('__root__')
-/** 跳转落地 tab：存疑汇总行 → 'doubt'；其余路径回概要——每条选中路径都显式写，无悬挂态 */
-const selTab = ref<'overview' | 'doubt'>('overview')
-function jump(full: string, tab?: 'doubt') {
+/** 跳转落地 tab：存疑汇总行 → 'rules'；其余路径回概要——每条选中路径都显式写，无悬挂态 */
+const selTab = ref<'overview' | 'rules'>('overview')
+function jump(full: string, tab?: 'rules') {
   selected.value = full
   selTab.value = tab ?? 'overview'
 }

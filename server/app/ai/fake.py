@@ -38,14 +38,14 @@ async def fake_gaps(profile_summary: str, dims: list[str]) -> list[Gap]:
 
 
 async def fake_assemble(rules: list[Rule], node_name: str, note: str,
-                        parent_goal: str = "") -> Profile:
+                        parent_goal: str = "") -> tasks.AssembleOut:
     # 与真实 assemble 相同的硬阻断：未核验/待实证规则不允许进用户画像
     unqualified = [r for r in rules if not (r.verified and r.conf != "待实证")]
     if unqualified:
         raise AssembleBlocked(unqualified)
     profile_rules = [ProfileRule(id=f"R{i + 1}", text=r.text, src=r.src, conf=r.conf)
                      for i, r in enumerate(rules)]
-    return Profile(
+    return tasks.AssembleOut(profile=Profile(
         node=node_name,
         goal="回调超时后不产生重复放款",
         entry="回调超时 30s",
@@ -55,8 +55,7 @@ async def fake_assemble(rules: list[Rule], node_name: str, note: str,
         boundaries="服务重启恢复 / 并发重试未覆盖",
         note=note,
         deps="核心账务（写）· 回调网关（读）",
-        unconfirmed=[f"{r.id} {r.text}" for r in rules if r.conf != "实证"],
-    )
+    ), findings=[])
 
 
 async def fake_impact_analysis(new_text: str, rules_text: str, clars_text: str) -> tasks.ImpactOut:

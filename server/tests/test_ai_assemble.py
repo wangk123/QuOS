@@ -34,9 +34,10 @@ async def test_assemble_success(monkeypatch):
         [Rule(id="R1", text="超时重试3次", src="retry.py:15", conf="实证", verified=True)],
         "放款重试", "补充：需覆盖幂等",
     )
-    assert isinstance(out, Profile)
-    assert out.node == "放款重试"
-    assert out.rules[0].id == "R1" and out.rules[0].conf == "实证"
+    assert isinstance(out, tasks.AssembleOut)
+    assert out.profile.node == "放款重试"
+    assert out.profile.rules[0].id == "R1" and out.profile.rules[0].conf == "实证"
+    assert out.findings == []  # 无补充发现时为空列表（不再有 unconfirmed 字段）
     assert seen["node"] == "放款重试"
     assert "幂等" in seen["note"]
     assert seen["parent_goal"] == ""  # 默认不传父职责时 prompt 变量仍齐全

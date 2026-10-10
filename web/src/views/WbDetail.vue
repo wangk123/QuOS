@@ -4,13 +4,12 @@
 import { computed, inject, ref, watch } from 'vue'
 import { disposeGap, getConflicts, getDoubtSummary, getGaps, getProfile, getRules, type Conflict, type DoubtGlobalGap, type DoubtSummary, type Gap, type Profile, type Rule } from '../api'
 import { digitPathOf, refreshWb, wb } from '../wb'
-import DetailDoubt from '../components/detail/DetailDoubt.vue'
 import DetailOverview from '../components/detail/DetailOverview.vue'
 import DetailRules from '../components/detail/DetailRules.vue'
 
 const props = defineProps<{ nodeFull: string; state: string; initialTab?: string }>()
-const emit = defineEmits<{ jump: [full: string, tab?: 'doubt']; 'clar-changed': [] }>()
-const tab = ref<'overview' | 'rules' | 'doubt'>('overview')
+const emit = defineEmits<{ jump: [full: string, tab?: 'rules']; 'clar-changed': [] }>()
+const tab = ref<'overview' | 'rules'>('overview')
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
 // ── 根详情：wb.root + wb.tree 顶层行（与 WbTree 根卡同口径：只对顶层求和，防模块/叶双计）
@@ -71,7 +70,7 @@ async function load() {
 }
 // 切节点/状态翻新（含 ''→done 就绪瞬间）；tab 回概要——除非跳转方指明落存疑 tab（存疑汇总行）
 watch(() => [props.nodeFull, props.state], () => {
-  tab.value = props.initialTab === 'doubt' ? 'doubt' : 'overview'
+  tab.value = props.initialTab === 'rules' ? 'rules' : 'overview'
   void load()
 }, { immediate: true })
 
@@ -144,14 +143,14 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
         <span class="gtag cred">全局矛盾</span>
         <span class="gtext">{{ c.q }}<span class="gdim"> · 参与双方规则无具体节点归属（未归类/模块级歧义），待人工核对</span></span>
       </div>
-      <div v-for="m in doubtRows" :key="m.name" class="dsum-row" @click="emit('jump', m.name, 'doubt')">
+      <div v-for="m in doubtRows" :key="m.name" class="dsum-row" @click="emit('jump', m.name, 'rules')">
         <span class="dnode">{{ m.name }}<span class="sub">{{ m.rules }} 条目</span></span>
         <span class="dcount">
           <span v-if="m.conflicts" class="badge b-red">{{ m.conflicts }} 矛盾</span>
           <span class="badge b-amber">{{ m.gaps }} 缺口</span>
         </span>
         <span class="dpeek">{{ m.peek }}</span>
-        <button class="go" type="button" @click.stop="emit('jump', m.name, 'doubt')">去处理 →</button>
+        <button class="go" type="button" @click.stop="emit('jump', m.name, 'rules')">去处理 →</button>
       </div>
       <p v-if="!doubtTotal && !doubts.global.length && !(doubts.globalConflicts ?? []).length" class="none">判断清零 ✓——没有待处置的疑点</p>
     </div>
@@ -228,12 +227,11 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
     <template v-else>
       <div class="tabbar">
         <button class="tab" :class="{ on: tab === 'overview' }" @click="tab = 'overview'">概要</button>
-        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">条目 <span class="c">{{ rules.length }}</span></button>
-        <button class="tab" :class="{ on: tab === 'doubt' }" @click="tab = 'doubt'">存疑 <span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="存疑缺口待澄清">△{{ gapOpenN }}</span></button>
+        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length + conflicts.length + gaps.length }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
-      <DetailRules v-else-if="tab === 'rules'" :rules="rules" @clar-changed="emit('clar-changed')" />
-      <DetailDoubt v-else :conflicts="conflicts" :gaps="gaps" :all-rules="allRules" @clar-changed="emit('clar-changed')" />
+      <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps"
+                   :all-rules="allRules" @clar-changed="emit('clar-changed')" />
     </template>
   </div>
 </template>

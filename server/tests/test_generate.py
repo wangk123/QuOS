@@ -51,7 +51,7 @@ def _mock_pipeline(monkeypatch):
 
     async def asb(rules, node_name, note, parent_goal=""):
         from app.storage.profiles import Profile
-        return Profile(node=node_name, goal="假画像")
+        return tasks.AssembleOut(profile=Profile(node=node_name, goal="假画像"))
 
     for name, fn in (("understand", u), ("extract", ex), ("verify", vf),
                      ("conflict", cf), ("gaps", gp), ("assemble", asb)):
