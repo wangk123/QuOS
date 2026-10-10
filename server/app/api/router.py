@@ -28,6 +28,15 @@ class VerifyIn(BaseModel):
     assert_id: Optional[str] = None
 
 
+class CorrectIn(BaseModel):
+    text: str
+
+
+class ManualRuleIn(BaseModel):
+    text: str
+    node: str = ""
+
+
 class ConflictIn(BaseModel):
     id: str
     action: str  # code=信某方（side=parties 索引） | manual=其他（text=手输实际行为）
@@ -37,7 +46,8 @@ class ConflictIn(BaseModel):
 
 class GapIn(BaseModel):
     id: str
-    action: str
+    action: str  # ok=设计如此 | note=人工补写说明
+    text: str = ""  # note：实际行为（生成实证规则并闭环）
 
 
 class DimsIn(BaseModel):
@@ -402,6 +412,39 @@ async def confirm_rule(proj: str, rid: str):
     rule_store.save(root, list(rmap.values()))
 
 
+@api_router.post("/rules/{rid}/correct")
+async def correct_rule(proj: str, rid: str, body: CorrectIn):
+    """人工修正：实际行为与规则不符——文本替换 + 标黄留痕（suspect）+ 核过"""
+    root = _root(proj)
+    rmap = _rule_map(root)
+    if rid not in rmap:
+        raise HTTPException(404, detail=f"规则不存在: {rid}")
+    if not (body.text or "").strip():
+        raise HTTPException(422, detail="修正文本不能为空")
+    a = rmap[rid]
+    a.text, a.suspect, a.verified, a.nb = body.text.strip(), True, True, ""
+    rule_store.save(root, list(rmap.values()))
+    return a.model_dump()
+
+
+@api_router.post("/rules")
+async def add_rule_manual(proj: str, body: ManualRuleIn):
+    """自定义开放核实记录：问题+答案文本直接落规则（人工确认级，绑指定节点）"""
+    root = _root(proj)
+    if not body.text.strip():
+        raise HTTPException(422, detail="记录文本不能为空")
+    valid = set(tree.paths(_load_tree(root)))
+    if body.node and body.node not in valid:
+        raise HTTPException(422, detail=f"节点不存在: {body.node}")
+    items = rule_store.load(root)
+    n = max((int(x.id[1:]) for x in items if x.id.startswith("R") and x.id[1:].isdigit()), default=0) + 1
+    a = Rule(id=f"R{n}", text=body.text.strip(), src="人工记录", conf="实证",
+             verified=True, node=body.node)
+    items.append(a)
+    rule_store.save(root, items)
+    return a.model_dump()
+
+
 
 @api_router.put("/rules/{rid}/node", status_code=204)
 async def set_rule_node(proj: str, rid: str, body: NodeIn):
@@ -548,8 +591,18 @@ async def adjudicate_gap(proj: str, body: GapIn):
         raise HTTPException(status_code=404, detail=f"空白不存在: {body.id}")
     if body.action == "ok":
         g.st = "ok"
+    elif body.action == "note":
+        if not body.text.strip():
+            raise HTTPException(status_code=422, detail="补写说明不能为空")
+        g.st = "answered"  # 人工补写闭环（与材料自动闭环同终态）
+        items = rule_store.load(root)
+        n = max((int(x.id[1:]) for x in items
+                 if x.id.startswith("R") and x.id[1:].isdigit()), default=0) + 1
+        items.append(Rule(id=f"R{n}", text=body.text.strip(), src="人工补写",
+                          conf="实证", verified=True, node=g.node))
+        rule_store.save(root, items)
     else:
-        raise HTTPException(status_code=422, detail="action 必须为 ok（转澄清已随问人体系退役）")
+        raise HTTPException(status_code=422, detail="action 必须为 ok 或 note")
     findings.save_gaps(root, items)
     return g.model_dump()
 

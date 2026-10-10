@@ -160,6 +160,14 @@ export const verifyJob = (opts?: { only_doc?: boolean }) =>
   req<{ job_id: string; total: number; rules: number }>(
     '/rules/verify-job', opts?.only_doc ? json('POST', { only_doc: true }) : { method: 'POST' })
 
+/** 人工修正：实际行为与规则不符——文本替换+标黄留痕+核过 */
+export const correctRule = (id: string, text: string) =>
+  req<Rule>(`/rules/${encodeURIComponent(id)}/correct`, json('POST', { text }))
+
+/** 自定义开放核实记录：问题+答案直接落规则（人工确认级，绑节点） */
+export const addRuleManual = (text: string, node: string) =>
+  req<Rule>('/rules', json('POST', { text, node }))
+
 /** 人工核过：不经 AI 直接确认 */
 export const confirmRule = (id: string) =>
   req<void>(`/rules/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
@@ -182,7 +190,9 @@ export const resolveConflict = (id: string, action: 'code' | 'manual', side?: nu
 
 export const getGaps = () => req<Gap[]>('/gaps')
 
-export const disposeGap = (id: string) => req<Gap>('/gaps', json('POST', { id, action: 'ok' }))
+/** 缺口处置：ok=设计如此 | note=人工补写说明（text 生成实证规则并闭环） */
+export const disposeGap = (id: string, action: 'ok' | 'note' = 'ok', text = '') =>
+  req<Gap>('/gaps', json('POST', { id, action, text }))
 
 // ---------- 存疑汇总（根详情「存疑汇总」卡） ----------
 
