@@ -40,15 +40,16 @@ const stat = computed(() => {
   }
 })
 
-/** 徽章工作清单：行数据直出（doing 蓝 / pend 琥珀 / conf 红 / gaps 存疑红△ / rules 灰 / profiled 清零绿） */
-function badges(r: WbNodeRow): { cls: string; text: string }[] {
-  const b: { cls: string; text: string }[] = []
-  if (r.state === 'doing') b.push({ cls: 'doing', text: '处理中' })
-  if (r.pend > 0) b.push({ cls: 'warn', text: `${r.pend} 待判断` })
-  if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}` })
-  if (r.gaps > 0) b.push({ cls: 'conf', text: `△${r.gaps}` })
-  if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条` })
-  if (r.profiled && r.pend === 0) b.push({ cls: 'okc', text: '✓' })
+/** 徽章工作清单：行数据直出（doing 蓝 / pend 琥珀 / conf 冲突红⚠ / gaps 存疑琥珀△ / rules 灰 / profiled 清零绿）；
+ * title=hover 说明——⚠与△小字号下难分辨，颜色+悬停双通道区分 */
+function badges(r: WbNodeRow): { cls: string; text: string; title: string }[] {
+  const b: { cls: string; text: string; title: string }[] = []
+  if (r.state === 'doing') b.push({ cls: 'doing', text: '处理中', title: '后台正在完善该节点' })
+  if (r.pend > 0) b.push({ cls: 'warn', text: `${r.pend} 待判断`, title: '未核验条目 + 冲突，待人工判断' })
+  if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}`, title: `${r.conf} 处条目冲突，待裁决（条目 tab）` })
+  if (r.gaps > 0) b.push({ cls: 'doubt', text: `△${r.gaps}`, title: `${r.gaps} 条存疑待澄清（含子树，存疑 tab）` })
+  if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条`, title: `${r.rules} 条行为条目` })
+  if (r.profiled && r.pend === 0) b.push({ cls: 'okc', text: '✓', title: '画像就绪，无待判断' })
   return b
 }
 
@@ -285,6 +286,7 @@ async function confirmDel() {
 .nbadge.warn { background: var(--amber-bg); color: var(--warn); }
 .nbadge.cnt { background: var(--muted); color: var(--muted-fg); }
 .nbadge.conf { background: var(--red-bg); color: var(--destructive); }
+.nbadge.doubt { background: var(--amber-bg); color: var(--warn); }
 .nbadge.doing { background: var(--blue-bg); color: var(--primary); }
 .nbadge.doing::before { content: ''; width: 7px; height: 7px; border: 1.8px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
 .editops { display: none; gap: 3px; margin-left: 4px; }

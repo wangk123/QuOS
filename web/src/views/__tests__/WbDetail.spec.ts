@@ -94,7 +94,7 @@ describe('WbDetail', () => {
     expect(w.text()).not.toContain('其他节点的缺口')
     expect(w.text()).not.toContain('全局旧数据的缺口')
     expect(w.text()).not.toContain('根级的缺口')
-    expect(w.text()).toContain('⚠2') // 存疑角标只计本子树 open 缺口
+    expect(w.text()).toContain('△2') // 存疑角标只计本子树 open 缺口（琥珀△=缺口；⚠红只留给冲突）
   })
 
   it('根详情：wb 聚合渲染这份需求是什么+模块速览表，flow chips 可跳', async () => {

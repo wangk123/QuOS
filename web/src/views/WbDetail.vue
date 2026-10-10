@@ -104,10 +104,10 @@ async function disposeGlobal(g: DoubtGlobalGap, action: 'clar' | 'ok') {
 const parts = computed(() => (isRoot.value ? [] : props.nodeFull.split('/')))
 /** 就绪态右侧徽章：取 wb 行 pend（后端已含冲突数）；行缺失（如未同步）不显示 */
 const rowPend = computed(() => (wb.value?.tree ?? []).find(r => r.full === props.nodeFull)?.pend ?? -1)
-/** 存疑 tab 徽章：只计 open 冲突 + 未处置缺口（已裁决/已处置不占角标） */
-const doubtN = computed(
-  () => conflicts.value.filter(c => c.st === 'open').length + gaps.value.filter(g => g.st === 'open').length,
-)
+/** 存疑 tab 角标：open 冲突与未处置缺口分开计、分色显示（⚠红=冲突 / △琥珀=缺口）——
+ * 与树行徽章同口径同色，杜绝同一符号两处计数不同的混淆 */
+const confOpenN = computed(() => conflicts.value.filter(c => c.st === 'open').length)
+const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
 </script>
 
 <template>
@@ -222,7 +222,7 @@ const doubtN = computed(
       <div class="tabbar">
         <button class="tab" :class="{ on: tab === 'overview' }" @click="tab = 'overview'">概要</button>
         <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">条目 <span class="c">{{ rules.length }}</span></button>
-        <button class="tab" :class="{ on: tab === 'doubt' }" @click="tab = 'doubt'">存疑 <span v-if="doubtN" class="c conf">⚠{{ doubtN }}</span></button>
+        <button class="tab" :class="{ on: tab === 'doubt' }" @click="tab = 'doubt'">存疑 <span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="存疑缺口待澄清">△{{ gapOpenN }}</span></button>
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else-if="tab === 'rules'" :rules="rules" @clar-changed="emit('clar-changed')" />
@@ -267,6 +267,7 @@ const doubtN = computed(
 .tab.on { color: var(--primary); border-bottom-color: var(--primary); background: #fff; }
 .tab .c { font-size: 10.5px; font-weight: 700; border-radius: 8px; padding: 0 6px; margin-left: 5px; background: var(--muted); color: var(--muted-fg); }
 .tab .c.conf { background: var(--red-bg); color: var(--destructive); }
+.tab .c.doubt { background: var(--amber-bg); color: var(--warn); }
 .card h3 .sub { font-weight: 400; font-size: 11.5px; color: var(--muted-fg); }
 
 /* ── 存疑汇总（根详情，需求②） ── */
