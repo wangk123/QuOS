@@ -10,11 +10,10 @@ import { jobRunning, startJobPolling } from '../../jobs'
 import { refreshWb } from '../../wb'
 
 const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; nodeFull: string; total: number }>()
-const emit = defineEmits<{ 'clar-changed': []; changed: [] }>()
+const emit = defineEmits<{ 'clar-changed': []; changed: []; jump: [full: string, tab?: 'rules'] }>()
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
 const CONF: Record<string, string> = { 实证: 'b-green', 文档: 'b-blue', 推测: 'b-amber', 待实证: 'b-red', 旧文档: 'b-gray' }
-const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
 // ---- 折叠状态（行点击展开/收起；key=条目 id）----
 const expanded = ref(new Set<string>())
@@ -42,8 +41,8 @@ const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflicted
 const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
 const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
-// 冲突中行 = 本节点 open 冲突的全部参与方（从全量规则反查，跨节点的也在此显示——冲突卡在哪参与方就在哪）
-const confRules = computed(() => props.allRules.filter(r => conflictedIds.value.has(r.id)))
+// 冲突中行 = 本节点参与 open 冲突的规则（跨节点参与方不硬挪，由冲突卡选项的编号+跳转承接）
+const confRules = computed(() => props.rules.filter(r => conflictedIds.value.has(r.id)))
 const okRules = computed(() => props.rules.filter(isOk))
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
@@ -186,6 +185,11 @@ function side(id: string) {
   const r = byId.value.get(id)
   return { src: r?.src ?? id, text: r?.text ?? '（规则已不存在）' }
 }
+/** 冲突选项跳转：直达该规则所在节点（未归属/规则已删不跳） */
+function gotoRule(id: string) {
+  const r = byId.value.get(id)
+  if (r?.node) emit('jump', r.node, 'rules')
+}
 </script>
 
 <template>
@@ -223,8 +227,13 @@ function side(id: string) {
         <div v-if="expanded.has(c.id)" class="foldbody red">
           <div v-for="(pid, i) in c.parties" :key="pid" class="opt"
                :class="{ sel: picked.get(c.id) === i }" @click="pickConf(c, i)">
-            <span class="tag">{{ LETTERS[i] ?? i + 1 }}</span>
-            <div class="obody"><span class="osrc">{{ side(pid).src }}</span>{{ side(pid).text }}</div>
+            <span class="tag rid">{{ pid }}</span>
+            <div class="obody">
+              <span class="osrc">{{ side(pid).src }}
+                <button v-if="byId.get(pid)?.node" class="jump" type="button" title="跳转到该规则所在节点"
+                        @click.stop="gotoRule(pid)">↗ 跳转</button>
+              </span>{{ side(pid).text }}
+            </div>
           </div>
           <div class="opt" :class="{ sel: picked.get(c.id) === 'other' }" @click="pickConf(c, 'other')">
             <span class="tag">其</span>
@@ -420,10 +429,15 @@ function side(id: string) {
 .opt:hover { border-color: #93c5fd; }
 .opt.sel { border-color: var(--primary); background: #eff6ff; }
 .opt.sel::after { content: '✓ 已选'; position: absolute; top: 7px; right: 10px; font-size: 10.5px; font-weight: 700; color: var(--primary); }
-.opt .tag { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--muted-fg); color: var(--muted-fg); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.opt .tag { flex: none; border-radius: 999px; border: 1.5px solid var(--muted-fg); color: var(--muted-fg);
+  font-size: 11px; font-weight: 700; padding: 0 8px; height: 20px; display: inline-flex; align-items: center; align-self: center; }
+.opt .tag.rid { font-family: var(--mono); }
 .opt.sel .tag { border-color: var(--primary); background: var(--primary); color: #fff; }
 .opt .obody { flex: 1; min-width: 0; font-size: 12px; }
 .opt .osrc { display: block; font-size: 11px; color: var(--muted-fg); margin-bottom: 2px; }
+.opt .osrc .jump { background: none; border: 1px solid #bfdbfe; color: var(--primary); font-size: 10.5px; font-weight: 600;
+  padding: 1px 8px; border-radius: 999px; cursor: pointer; margin-left: 6px; }
+.opt .osrc .jump:hover { background: var(--blue-bg); }
 
 /* 已处置/已核灰行 */
 .rrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 2px; border-top: 1px solid #f1f5f9; font-size: 12.5px; }

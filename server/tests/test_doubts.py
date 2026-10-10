@@ -50,7 +50,7 @@ async def test_doubts_summary_groups_global_and_stats(client):
     assert d["stats"] == {"conflicts": 1, "gaps": 4}  # open 计数（clarified 已随问人体系退役）
     assert [g["id"] for g in d["global"]] == ["G3", "G4"]  # __root__ 与未绑定 → 全局区
     by_name = {m["name"]: m for m in d["modules"]}
-    # total=rules+open冲突+open缺口+跨节点参与方：C1 的 R2 在风控，冲突卡归属支付 → R2 计入支付 total
-    assert by_name["支付"] == {"name": "支付", "rules": 2, "total": 5, "conflicts": 1, "gaps": 1, "peek": "未说明幂等键"}
+    # total=rules+open冲突+open缺口（跨节点参与方 R2 不计入——由冲突卡选项编号+跳转承接）
+    assert by_name["支付"] == {"name": "支付", "rules": 2, "total": 4, "conflicts": 1, "gaps": 1, "peek": "未说明幂等键"}
     assert by_name["风控"] == {"name": "风控", "rules": 1, "total": 2, "conflicts": 0, "gaps": 1, "peek": "未说明风控状态流转"}
     assert [m["name"] for m in d["modules"]] == ["支付", "风控"]  # 行序=树序

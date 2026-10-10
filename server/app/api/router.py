@@ -910,8 +910,8 @@ def _gap_node(g, valid: set[str]) -> str:
 
 
 def _conflict_parties_extra(cf: list, full: str, rmap: dict, void: set, valid: set) -> int:
-    """本节点 open 冲突中不属于本子树的参与方数——冲突卡显示在此，跨节点参与规则必须同页可见可数
-    （如 R247 在配置迁移、R251 在向量域治理：冲突归属配置迁移，R251 行也计入配置迁移 total）"""
+    """本节点 open 冲突中不属于本子树的参与方数（留作对拍调试；不进 total——跨节点参与方
+    不在冲突卡所在节点显示行，由冲突卡选项的规则编号+跳转按钮承接，用户裁定 2026-10-10）"""
     n = 0
     for c in cf:
         for pid in c.parties:
@@ -945,16 +945,14 @@ async def wb_summary(proj: str):
         return "done" if full in run.get("done_nodes", []) else ""
 
     def stat(full: str) -> dict:
-        """原子指标（子树聚合）：total 总数（有效规则+open冲突+open缺口+跨节点冲突参与方，
-        树行/tab/chips 唯一口径——总数=已核过+待处理，待处理=待核+冲突中+open冲突+open缺口）/
+        """原子指标（子树聚合）：total 总数（有效规则+open冲突+open缺口，树行/tab/chips 唯一口径——
+        总数=已核过+待处理；跨节点冲突参与方不在此计，由冲突卡选项编号+跳转承接）/
         rules 有效规则数 / unverified 未核验 / conf 冲突 / gaps 缺口——废除 pend 合成（成分不一不可对拍）。
-        规则与缺口同过 valid 白名单：孤儿路径/未归类不进树行（未归类在条目页可见，孤儿进汇总）；
-        冲突参与方例外跟随冲突卡（跨子树也计），保证冲突卡所在页行数=total"""
+        规则与缺口同过 valid 白名单：孤儿路径/未归类不进树行（未归类在条目页可见，孤儿进汇总）"""
         rs = [a for a in rules if a.id not in void and a.node in valid and _in_subtree(a.node, full)]
         cf = [c for c in confs if c.st == "open" and _in_subtree(_conflict_node(c, rmap, valid), full)]
         gp = [g for g in gaps if g.st == "open" and _in_subtree(_gap_node(g, valid), full)]
-        return {"total": len(rs) + len(cf) + len(gp) + _conflict_parties_extra(cf, full, rmap, void, valid),
-                "rules": len(rs),
+        return {"total": len(rs) + len(cf) + len(gp), "rules": len(rs),
                 "unverified": sum(0 if a.verified else 1 for a in rs),
                 "conf": len(cf), "gaps": len(gp)}
     out: list[dict] = []

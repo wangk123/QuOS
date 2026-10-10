@@ -14,9 +14,9 @@ vi.mock('../../../jobs', () => ({ startJobPolling: vi.fn(), jobRunning: ref(fals
 vi.mock('../../../wb', () => ({ refreshWb: vi.fn() }))
 
 const rules: Rule[] = [
-  { id: 'R1', text: '已核条目', src: 'a.py:1', conf: '实证', st: '', verified: true, suspect: false },
-  { id: 'R2', text: '未核条目', src: 'b.py:2', conf: '文档', st: '', verified: false, suspect: false },
-  { id: 'R3', text: '普通未核条目', src: 'c.py:3', conf: '文档', st: '', verified: false, suspect: false },
+  { id: 'R1', text: '已核条目', src: 'a.py:1', conf: '实证', st: '', verified: true, suspect: false, node: '支付' },
+  { id: 'R2', text: '未核条目', src: 'b.py:2', conf: '文档', st: '', verified: false, suspect: false, node: '风控/额度' },
+  { id: 'R3', text: '普通未核条目', src: 'c.py:3', conf: '文档', st: '', verified: false, suspect: false, node: '支付' },
 ]
 const conflicts: Conflict[] = [
   { id: 'C1', parties: ['R1', 'R2'], q: '重试几次？', st: 'open', resolution: null },
@@ -106,11 +106,24 @@ describe('DetailRules 折叠交互', () => {
     await w.findAll('.fold').find(f => f.text().includes('C1'))!.trigger('click')
     const btn = w.findAll('button').find(b => b.text() === '确认裁决')!
     expect((btn.element as HTMLButtonElement).disabled).toBe(true) // 未选禁用
-    await w.findAll('.opt')[1].trigger('click') // 选 B
+    // 选项 tag 是规则编号（R1/R2），非 A/B/C
+    const tags = w.findAll('.opt .tag').map(t => t.text())
+    expect(tags).toContain('R1')
+    expect(tags).toContain('R2')
+    await w.findAll('.opt')[1].trigger('click') // 选 R2
     expect((btn.element as HTMLButtonElement).disabled).toBe(false)
     await btn.trigger('click')
     await flushPromises()
     expect(api.resolveConflict).toHaveBeenCalledWith('C1', 'code', 1)
+  })
+
+  it('冲突选项 ↗ 跳转：emit jump 到该规则所在节点（rules tab）', async () => {
+    const w = mountIt()
+    await w.findAll('.fold').find(f => f.text().includes('C1'))!.trigger('click')
+    const jumps = w.findAll('.opt .jump')
+    expect(jumps.length).toBe(2)  // R1/R2 均有归属节点
+    await jumps[1].trigger('click')  // R2 在「风控/额度」（跨节点）——跳过去看
+    expect(w.emitted('jump')![0]).toEqual(['风控/额度', 'rules'])
   })
 
   it('冲突其他：选其他 → 输入 → manual 裁决', async () => {

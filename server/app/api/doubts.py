@@ -2,8 +2,8 @@
 # 归属与 wb_summary 同源（router._conflict_node/_gap_node 唯一实现，见 tests/test_badge_consistency.py 恒等式）。
 from fastapi import APIRouter
 
-from app.api.router import (_conflict_node, _conflict_parties_extra, _gap_node, _in_subtree,
-                            _load_tree, _root, _rule_map, _void_ids)
+from app.api.router import (_conflict_node, _gap_node, _in_subtree, _load_tree, _root,
+                            _rule_map, _void_ids)
 from app.storage import findings, profiles, rules as rule_store, tree
 
 api_router = APIRouter()
@@ -33,10 +33,8 @@ async def doubts_summary(proj: str):
         nrules = sum(1 for a in rules if a.node in valid and _in_subtree(a.node, n.name))
         rows.append({"name": n.name,
                      # rules 与 wb 同口径：void/孤儿路径不进（wb stat 的 valid 白名单恒等）；
-                     # total = rules+open冲突+open缺口+跨节点冲突参与方（与树行 total 唯一口径）
-                     "rules": nrules,
-                     "total": nrules + len(mc) + len(mg)
-                              + _conflict_parties_extra(mc, n.name, rmap, void, valid),
+                     # total = rules+open冲突+open缺口（与树行 total 唯一口径，跨节点参与方不计）
+                     "rules": nrules, "total": nrules + len(mc) + len(mg),
                      "conflicts": len(mc), "gaps": len(mg),
                      "peek": mg[0].text if mg else (mc[0].q if mc else "")})
     root_node = profiles.ROOT_NODE
