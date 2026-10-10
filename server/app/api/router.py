@@ -792,10 +792,15 @@ async def wb_summary(proj: str):
             return "done"
         return "done" if full in run.get("done_nodes", []) else ""
 
+    def conf_node(c) -> str:
+        """冲突归属 = 参与规则中最深的具体节点（模块级/未归类不吞冲突——落不到叶上的冲突无处裁决）；
+        双方都无具体节点时返回 ''（不计入任何节点行，只进根详情存疑汇总的冲突统计）"""
+        nodes = [rmap[x].node for x in (c.a, c.b) if x in rmap and rmap[x].node]
+        return max(nodes, key=lambda p: p.count("/")) if nodes else ""
+
     def stat(full: str) -> dict:
         rs = [a for a in rules if a.id not in void and _in_subtree(a.node, full)]
-        cf = [c for c in confs if c.st == "open" and _in_subtree(
-            next((rmap[x].node for x in (c.a, c.b) if x in rmap), ""), full)]  # 冲突按其规则归属计
+        cf = [c for c in confs if c.st == "open" and _in_subtree(conf_node(c), full)]  # 冲突按最深规则节点归属计
         gp = [g for g in gaps if g.st == "open" and _in_subtree(g.node, full)]  # 存疑按绑定节点计（根级/全局不进节点行）
         return {"rules": len(rs), "pend": sum(0 if a.verified else 1 for a in rs) + len(cf),
                 "conf": len(cf), "gaps": len(gp)}

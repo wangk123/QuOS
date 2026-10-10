@@ -660,12 +660,19 @@ async def test_wb_summary(client):
     root = ensure_root("演示项目")
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "支付"})
     await client.post(f"{BASE}/tree", json={"op": "add", "path": "0", "name": "放款重试"})
+    await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "风控"})
     rule_store.save(root, [
         Rule(id="R1", text="重试3次", src="r.py:1", conf="实证", verified=True, node="支付/放款重试"),
         Rule(id="R2", text="超时30s", src="r.py:2", conf="实证", verified=False, node="支付/放款重试"),
         Rule(id="R3", text="风控拦截", src="r.py:3", conf="实证", verified=True, node="风控"),
+        Rule(id="R4", text="模块级全局规则", src="r.py:4", conf="文档", verified=True, node="支付"),
+        Rule(id="R5", text="未归类规则", src="r.py:5", conf="文档", verified=True, node=""),
     ])
-    finding_store.save_conflicts(root, [Conflict(id="C1", a="R1", b="R2", q="重试几次？")])
+    finding_store.save_conflicts(root, [
+        Conflict(id="C1", a="R1", b="R2", q="重试几次？"),
+        Conflict(id="C2", a="R4", b="R1", q="模块级规则与叶规则冲突——应归属最深的叶，不得只在模块行可见"),
+        Conflict(id="C3", a="R5", b="R3", q="一方未归类——应归属另一方的具体节点，不得全项目不可见"),
+    ])
     finding_store.save_gaps(root, [
         Gap(id="G1", dim="边界", text="重试上限后行为未说明", node="支付/放款重试"),
         Gap(id="G2", dim="状态", text="拦截后单据状态未说明", node="风控", st="answered"),
@@ -680,12 +687,16 @@ async def test_wb_summary(client):
     rows = {n["full"]: n for n in r.json()["tree"]}
     pay = rows["支付"]
     assert pay["kind"] == "module" and pay["path"] == "0" and not pay["profiled"]
-    assert pay["rules"] == 2 and pay["pend"] == 2 and pay["conf"] == 1  # 模块聚合子树：R1+R2、未核1+冲突1、open 冲突 1
+    assert pay["rules"] == 3  # 子树 R1+R2 + 模块自身规则 R4（模块级规则计入模块行，模块详情条目可见）
+    assert pay["conf"] == 2 and pay["pend"] == 3  # C1+C2 都经最深叶聚合上来；pend=未核1+冲突2（C3 归属风控不在此）
     assert pay["gaps"] == 1  # 子树聚合：G1（G2 已 answered、G3 根级不计入节点）
     leaf = rows["支付/放款重试"]
     assert leaf["kind"] == "leaf" and leaf["path"] == "0,0" and leaf["profiled"]
     assert leaf["goal"] == "不重复放款" and leaf["state"] == "done"  # 无 running job：日常态全部就绪
     assert leaf["gaps"] == 1
+    assert leaf["conf"] == 2  # C1（双叶）+ C2（模块级×叶）都归属最深叶——叶子可见可下钻，模块行不再吞冲突
+    assert leaf["pend"] == 3  # 未核1 + 冲突2
+    assert rows["风控"]["conf"] == 1  # C3：一方未归类 → 归属另一方的具体节点
     root_seg = r.json()["root"]
     assert root_seg["kind"] == "root" and root_seg["goal"] == "全树总览"
 

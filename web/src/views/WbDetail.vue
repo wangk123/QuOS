@@ -56,10 +56,13 @@ async function load() {
     allRules.value = rs
     rules.value = rs.filter(r => under(r.node))
     const nodeOf = new Map(rs.map(r => [r.id, r.node ?? '']))
+    // 冲突归属与后端徽章同口径：最深具体节点（模块级/未归类不吞冲突）——tab 角标与树行 ⚠ 计数一致
+    const deepest = (na?: string, nb?: string) =>
+      [na, nb].filter((n): n is string => !!n).sort((x, y) => y.split('/').length - x.split('/').length)[0] ?? ''
     conflicts.value = cs.filter(c => {
       const na = nodeOf.get(c.a), nb = nodeOf.get(c.b)
       if (na === undefined && nb === undefined) return true // a/b 规则查不到归属（已删/未同步）：不过滤防漏
-      return under(na) || under(nb)
+      return under(deepest(na, nb))
     })
     gaps.value = gs.filter(g => g.node === '__root__' ? false : under(g.node)) // 缺口按 node 子树过滤（__root__/全局不在节点展示，汇总视图承接）
   } catch (e) {
