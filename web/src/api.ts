@@ -89,13 +89,14 @@ export interface Profile {
   deps: string
 }
 
-/** GET /baseline 仅含 tag/commit；v 仅 POST /baseline 创建时返回；time/note 后端补字段后时间线直接展示 */
+/** 版本基线（git tag）：cur=「当前」徽章依据（HEAD 所指）；time 为 unix 秒，前端格式化 */
 export interface Baseline {
   commit: string
   tag: string
-  v?: number
-  time?: string
+  version?: string
+  time?: number
   note?: string
+  cur?: boolean
 }
 
 export type TreeOpName = 'add' | 'rename' | 'del' | 'prio'
@@ -289,10 +290,16 @@ export const getDoc = () => req<string>('/doc')
 
 // ---------- 基线 ----------
 
-export const createBaseline = (note = '基线存档') =>
-  req<Baseline>('/baseline', json('POST', { note }))
+export const createBaseline = (version: string, note = '基线存档') =>
+  req<Baseline>('/baseline', json('POST', { version, note }))
 
 export const listBaselines = () => req<Baseline[]>('/baseline')
+
+export const restoreBaseline = (tag: string) =>
+  req<{ ok: boolean }>(`/baseline/restore?tag=${encodeURIComponent(tag)}`, json('POST', {}))
+
+export const deprecateBaseline = (tag: string) =>
+  req<{ ok: boolean }>(`/baseline?tag=${encodeURIComponent(tag)}`, json('DELETE', ''))
 
 // ---------- 工作台（总表 / 一键生成 / 重生成；对应 server/app/api/generate.py、router.py 工作台段） ----------
 

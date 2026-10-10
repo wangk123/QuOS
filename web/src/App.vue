@@ -72,6 +72,13 @@ function onSaved() {
   void refreshBaselines().catch(() => {})
 }
 
+// 回滚后工作区内容整体回到旧版——wb/证据池/基线全链重拉，父级不再持有回滚前陈旧数据
+function onRestored() {
+  void refreshWb().catch(() => {})
+  void refreshBaselines().catch(() => {})
+  void refreshEv().catch(() => {})
+}
+
 async function boot() {
   err.value = ''
   try {
@@ -137,7 +144,7 @@ watch([top, curSlug], ([t]) => {
     </header>
 
     <EvPoolModal :open="evOpen" :evidence="evidence" @close="evOpen = false" @changed="onEvChanged" @regen="onRegen" />
-    <VerModal :open="verOpen" @close="verOpen = false" @saved="onSaved" />
+    <VerModal :open="verOpen" @close="verOpen = false" @saved="onSaved" @restored="onRestored" />
 
     <p v-if="err" class="err">{{ err }}</p>
 

@@ -171,3 +171,40 @@ tbody tr:hover td { background: #f1f5fd; }
 .doc-outline { font-family: var(--mono); font-size: 12px; line-height: 2; white-space: pre-wrap; overflow-wrap: anywhere;
   background: #fbfdff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin: 0; }
 
+
+/* ---------- 版本弹窗（手动版本号 / 回滚废弃 / md 预览） ---------- */
+.btn-danger { background: var(--destructive); color: #fff; padding: 7px 14px; font-weight: 600; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.vitem h4 .vno { font-family: var(--mono); font-weight: 700; letter-spacing: .2px; }
+.vitem.legacy h4 .vno { color: var(--muted-fg); }
+.vitem .vnote { font-size: 12px; color: var(--fg); margin-top: 4px; white-space: pre-wrap; } /* 纯文本说明，不渲染 markdown */
+.vitem .vacts { display: none; gap: 6px; margin-left: auto; }
+.vitem:hover .vacts { display: inline-flex; }
+.vact { font-size: 11px; padding: 2px 8px; border-radius: 5px; background: var(--muted); color: var(--muted-fg); }
+.vact:hover { background: var(--blue-bg); color: var(--primary); }
+.vact.depr:hover { background: var(--red-bg); color: var(--destructive); }
+.ver-form { width: 480px; }
+.ver-form input[type='text'] { font-family: var(--mono); }
+.err-in { border-color: var(--destructive) !important; }
+.ferr { font-size: 11.5px; color: var(--destructive); margin-top: 4px; }
+.fhint { font-size: 11.5px; color: var(--muted-fg); margin-top: 4px; }
+.confirm-modal { width: 480px; }
+.confirm-body { display: flex; gap: 14px; padding: 18px 22px; }
+.confirm-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0; background: var(--red-bg); color: var(--destructive); }
+.confirm-body .ctext { font-size: 12.5px; color: var(--muted-fg); }
+.confirm-body .ctext b { color: var(--fg); font-family: var(--mono); }
+.confirm-body .warn-line { color: var(--destructive); font-weight: 600; margin-top: 8px; }
+.confirm-body .keep-line { margin-top: 8px; }
+.mode-switch { display: inline-flex; gap: 2px; background: var(--muted); border-radius: 7px; padding: 2px; margin-left: auto; }
+.mode-switch button { font-size: 11.5px; padding: 3px 10px; border-radius: 5px; color: var(--muted-fg); }
+.mode-switch button.on { background: #fff; color: var(--primary); font-weight: 600; }
+.md-view { font-size: 13px; line-height: 1.7; }
+.md-view h1 { font-size: 18px; margin: 18px 0 8px; }
+.md-view h2 { font-size: 16px; margin: 16px 0 6px; }
+.md-view h3, .md-view h4 { font-size: 14px; margin: 12px 0 4px; }
+.md-view table { border-collapse: collapse; margin: 8px 0; }
+.md-view th, .md-view td { border: 1px solid var(--border2); padding: 5px 10px; font-size: 12.5px; text-align: left; }
+.md-view th { background: var(--muted); }
+.md-view ul { padding-left: 20px; margin: 6px 0; }
+.md-view p { margin: 6px 0; }

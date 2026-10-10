@@ -73,6 +73,7 @@ class GoalIn(BaseModel):
 
 
 class BaselineIn(BaseModel):
+    version: str
     note: str = "基线存档"
 
 
@@ -980,7 +981,9 @@ async def wb_summary(proj: str):
 @api_router.post("/baseline")
 async def create_baseline(proj: str, body: BaselineIn):
     try:
-        return gitops.save_baseline(_root(proj), body.note)
+        return gitops.save_baseline(_root(proj), body.version, body.note)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -988,3 +991,23 @@ async def create_baseline(proj: str, body: BaselineIn):
 @api_router.get("/baseline")
 async def list_baselines_route(proj: str):
     return gitops.list_baselines(_root(proj))
+
+
+@api_router.post("/baseline/restore")
+async def restore_baseline_route(proj: str, tag: str):
+    try:
+        gitops.restore_baseline(_root(proj), tag)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"版本不存在: {tag}")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"ok": True}
+
+
+@api_router.delete("/baseline")
+async def delete_baseline_route(proj: str, tag: str):
+    try:
+        gitops.delete_baseline(_root(proj), tag)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"ok": True}

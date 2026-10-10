@@ -95,14 +95,15 @@ async def test_end_to_end(client, monkeypatch):
     r = await client.get(f"{BASE}/doc")
     assert r.status_code == 200 and "R1" in r.text and "放款/放款重试" in r.text
 
-    # ⑦ 基线：tag v1 + 独立 git 仓库
-    r = await client.post(f"{BASE}/baseline", json={"note": "首个基线"})
+    # ⑦ 基线：手动版本号 + 独立 git 仓库
+    r = await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "首个基线"})
     assert r.status_code == 200
     first = r.json()
-    assert first["tag"] == "v1" and first["v"] == 1 and len(first["commit"]) >= 7
+    assert first["tag"] == "v1.0.0" and first["version"] == "1.0.0" and len(first["commit"]) >= 7
     assert (root / ".git").is_dir()
     r = await client.get(f"{BASE}/baseline")
-    assert r.json() == [{"tag": "v1", "commit": first["commit"]}]
+    item = r.json()[0]
+    assert item["tag"] == "v1.0.0" and item["note"] == "首个基线" and item["cur"] is True
 
     # ⑧ 树操作：add / rename / del
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "额度"})
@@ -233,11 +234,11 @@ async def test_node_addressing_errors(client):
 async def test_baseline_without_changes(client):
     ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
-    b1 = (await client.post(f"{BASE}/baseline", json={"note": "一"})).json()
-    b2 = (await client.post(f"{BASE}/baseline", json={"note": "二"})).json()
-    assert b2["tag"] == "v2" and b2["v"] == 2 and b2["commit"] == b1["commit"]  # 无变更跳过 commit
+    b1 = (await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "一"})).json()
+    b2 = (await client.post(f"{BASE}/baseline", json={"version": "1.0.1", "note": "二"})).json()
+    assert b2["tag"] == "v1.0.1" and b2["commit"] == b1["commit"]  # 无变更跳过 commit，tag 指向当前 commit
     tags = (await client.get(f"{BASE}/baseline")).json()
-    assert [t["tag"] for t in tags] == ["v1", "v2"]
+    assert [t["tag"] for t in tags] == ["v1.0.0", "v1.0.1"]
 
 
 async def test_ai_error_maps_to_502(client, monkeypatch):
@@ -443,16 +444,43 @@ async def test_legacy_rules_without_node_load(client):
     assert rows[0]["node"] == ""
 
 
-async def test_baseline_tag_after_deletion(client):
-    import subprocess
-
-    root = ensure_root("演示项目")
+async def test_baseline_delete_then_recreate(client):
+    ensure_root("演示项目")
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
-    await client.post(f"{BASE}/baseline", json={"note": "一"})
-    await client.post(f"{BASE}/baseline", json={"note": "二"})
-    subprocess.run(["git", "tag", "-d", "v1"], cwd=root, check=True, capture_output=True)
-    b3 = (await client.post(f"{BASE}/baseline", json={"note": "三"})).json()
-    assert b3["tag"] == "v3" and b3["v"] == 3  # max+1，不与残留 v2 撞号
+    await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "一"})
+    await client.post(f"{BASE}/baseline", json={"version": "1.1.0", "note": "二"})
+    r = await client.delete(f"{BASE}/baseline", params={"tag": "v1.1.0"})
+    assert r.status_code == 200
+    tags = (await client.get(f"{BASE}/baseline")).json()
+    assert [t["tag"] for t in tags] == ["v1.0.0"]  # 废弃=时间线彻底隐藏
+    b3 = (await client.post(f"{BASE}/baseline", json={"version": "1.1.0", "note": "重来"})).json()
+    assert b3["tag"] == "v1.1.0"  # 删除后版本号可复用（1.1.0 > 现存最大 1.0.0，不撞倒挂）
+
+
+async def test_baseline_validation_422(client):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "一"})
+    r = await client.post(f"{BASE}/baseline", json={"version": "v1.2.3"})
+    assert r.status_code == 422 and "格式" in r.json()["detail"]
+    r = await client.post(f"{BASE}/baseline", json={"version": "1.0.0"})
+    assert r.status_code == 422 and "已存在" in r.json()["detail"]
+    r = await client.post(f"{BASE}/baseline", json={"version": "0.9.0"})
+    assert r.status_code == 422 and "不得低于" in r.json()["detail"]
+    r = await client.post(f"{BASE}/baseline", json={"note": "缺版本号"})
+    assert r.status_code == 422  # version 必填
+
+
+async def test_baseline_restore(client):
+    ensure_root("演示项目")
+    await client.post(f"{BASE}/evidence", json={"raw": "x"})
+    await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "一"})
+    await client.post(f"{BASE}/evidence", json={"raw": "y"})
+    r = await client.post(f"{BASE}/baseline/restore", params={"tag": "v1.0.0"})
+    assert r.status_code == 200
+    items = (await client.get(f"{BASE}/baseline")).json()
+    assert items[0]["tag"] == "v1.0.0" and items[0]["cur"] is True
+    r = await client.post(f"{BASE}/baseline/restore", params={"tag": "v9.9.9"})
+    assert r.status_code == 404
 
 
 async def test_set_assertion_node(client):
