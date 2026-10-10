@@ -9,7 +9,7 @@ import { jobRunning, startJobPolling } from '../../jobs'
 import { refreshWb } from '../../wb'
 
 const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; nodeFull: string }>()
-const emit = defineEmits<{ 'clar-changed': [] }>()
+const emit = defineEmits<{ 'clar-changed': []; changed: [] }>()
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
 const CONF: Record<string, string> = { 实证: 'b-green', 文档: 'b-blue', 推测: 'b-amber', 待实证: 'b-red', 旧文档: 'b-gray' }
@@ -25,19 +25,23 @@ function toggle(key: string) {
 const okLocal = ref(new Set<string>())
 const cOver = ref(new Map<string, Conflict>())
 const gOver = ref(new Map<string, Gap>())
-const isOk = (r: Rule) => r.verified || okLocal.value.has(r.id)
 const confList = computed(() => props.conflicts.map(c => cOver.value.get(c.id) ?? c))
 const gapList = computed(() => props.gaps.map(g => gOver.value.get(g.id) ?? g))
-
-// ---- 状态 chips：全部 = 核验通过 + 待处理（计数恒等）----
-const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
+// open 冲突参与规则正被质疑，不算核验通过（裁决前不得戴"已核过"绿徽章）；
+// 展示由冲突行承载（展开即各方说法原文），计数归待处理侧，不另设行防重复
+const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
+const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
+
+// ---- 状态 chips：全部 = 核验通过 + 待处理（计数恒等：okRules+pendRules+conflicted = 全部规则）----
+const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
-const pendRules = computed(() => props.rules.filter(r => !isOk(r)))
+const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
 const okRules = computed(() => props.rules.filter(isOk))
+const conflictedN = computed(() => props.rules.filter(r => conflictedIds.value.has(r.id)).length)
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
-const pendN = computed(() => openConfs.value.length + openGaps.value.length + pendRules.value.length)
+const pendN = computed(() => openConfs.value.length + openGaps.value.length + pendRules.value.length + conflictedN.value)
 const okN2 = computed(() => okRules.value.length + doneConfs.value.length + doneGaps.value.length)
 const allN = computed(() => props.rules.length + props.conflicts.length + props.gaps.length)
 const pct = computed(() => (allN.value ? Math.round((okN2.value / allN.value) * 100) : 0))
@@ -70,6 +74,7 @@ async function confirmResolve(c: Conflict) {
     cOver.value.set(c.id, updated)
     picked.value.delete(c.id)
     manualText.value = ''
+    emit('changed')  // 败方规则已作废出列表——重载详情（rules/conflicts 同步）
     void refreshWb()
     toast(p === 'other' ? `${c.id} 已按「其他」落实证规则` : `${c.id} 已裁定`, 'ok')
   } catch (e) { fail(e, '裁决失败') } finally { busyConf.value = '' }
@@ -82,6 +87,7 @@ async function disposeGapAs(g: Gap, action: 'ok' | 'note') {
     const updated = await disposeGap(g.id, action, noteText.value.trim())
     gOver.value.set(g.id, updated)
     noteText.value = ''
+    if (action === 'note') emit('changed')  // 补写生成了新规则
     void refreshWb()
     toast(action === 'note' ? '已补写：生成实证规则，缺口闭环 ✓' : '已按「设计如此」记录 ✓', 'ok')
   } catch (e) { fail(e, '处置失败') }
@@ -102,6 +108,7 @@ async function onCorrect(r: Rule) {
     await correctRule(r.id, fixText.value.trim())
     okLocal.value.add(r.id)
     fixText.value = ''
+    emit('changed')  // 文本已被修正——重载显示新文本（标黄留痕）
     void refreshWb()
     toast(`${r.id} 已修正（标黄留痕）✓`, 'ok')
   } catch (e) { fail(e, '修正失败') }
@@ -114,6 +121,7 @@ async function onRecord() {
     await addRuleManual(openText.value.trim(), props.nodeFull)
     openText.value = ''
     expanded.value.delete('__open__')
+    emit('changed')  // 新规则已落库
     void refreshWb()
     toast('已记录：人工确认规则 ✓', 'ok')
   } catch (e) { fail(e, '记录失败') }

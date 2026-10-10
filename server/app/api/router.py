@@ -328,7 +328,9 @@ async def delete_evidence(proj: str, ev_id: str):
 
 @api_router.get("/rules")
 async def list_rules(proj: str):
-    return [a.model_dump() for a in rule_store.load(_root(proj))]
+    # 裁决败方（_void_ids 同口径）不进规则列表——与 wb/组装/画像/存疑一致，防规则 tab 三方全留
+    void = _void_ids(_root(proj))
+    return [a.model_dump() for a in rule_store.load(_root(proj)) if a.id not in void]
 
 
 def _apply_verify_results(items, results) -> dict:

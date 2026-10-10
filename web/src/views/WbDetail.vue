@@ -223,7 +223,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps" :node-full="props.nodeFull"
-                   :all-rules="allRules" @clar-changed="emit('clar-changed')" />
+                   :all-rules="allRules" @clar-changed="emit('clar-changed')" @changed="load" />
     </template>
   </div>
 </template>

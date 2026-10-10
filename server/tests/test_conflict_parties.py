@@ -49,6 +49,9 @@ async def test_code_side_multi(client):
     assert out["st"] == "done" and out["resolution"] == "R2"
     from app.api.router import _void_ids
     assert _void_ids(root) == {"R1", "R3"}
+    # 规则列表同口径过滤：规则 tab 只剩胜方（未裁决前 open 冲突各方仍在列表，由前端归待处理）
+    ids = [a["id"] for a in (await client.get(f"{BASE}/rules")).json()]
+    assert ids == ["R2"]
 
 
 async def test_code_bad_side_422(client):
@@ -74,6 +77,9 @@ async def test_manual_resolve_creates_rule(client):
     assert "人工确认" in added[0].src
     from app.api.router import _void_ids
     assert _void_ids(root) == {"R1", "R2", "R3"}
+    # 规则列表只剩新增的实证规则——互斥三选一，不是三方全留
+    ids = [a["id"] for a in (await client.get(f"{BASE}/rules")).json()]
+    assert ids == ["R4"]
 
 
 async def test_manual_empty_text_422(client):

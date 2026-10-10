@@ -16,6 +16,7 @@ vi.mock('../../../wb', () => ({ refreshWb: vi.fn() }))
 const rules: Rule[] = [
   { id: 'R1', text: '已核条目', src: 'a.py:1', conf: '实证', st: '', verified: true, suspect: false },
   { id: 'R2', text: '未核条目', src: 'b.py:2', conf: '文档', st: '', verified: false, suspect: false },
+  { id: 'R3', text: '普通未核条目', src: 'c.py:3', conf: '文档', st: '', verified: false, suspect: false },
 ]
 const conflicts: Conflict[] = [
   { id: 'C1', parties: ['R1', 'R2'], q: '重试几次？', st: 'open', resolution: null },
@@ -39,17 +40,17 @@ describe('DetailRules 折叠交互', () => {
     api.confirmRule.mockResolvedValue(undefined)
     const w = mountIt()
     expect(w.text()).not.toContain('核验（与实际一致') // 未展开无按钮
-    await w.findAll('.fold').find(f => f.text().includes('R2'))!.trigger('click')
+    await w.findAll('.fold').find(f => f.text().includes('R3'))!.trigger('click')
     expect(w.text()).toContain('核验（与实际一致')
     await w.findAll('button').find(b => b.text().includes('核验（与实际一致'))!.trigger('click')
     await flushPromises()
-    expect(api.confirmRule).toHaveBeenCalledWith('R2')
+    expect(api.confirmRule).toHaveBeenCalledWith('R3')
   })
 
   it('规则修正：展开 → ✎ 修正 → 输入 → 确认调 correctRule', async () => {
-    api.correctRule.mockResolvedValue({ ...rules[1], text: '改后' })
+    api.correctRule.mockResolvedValue({ ...rules[2], text: '改后' })
     const w = mountIt()
-    await w.findAll('.fold').find(f => f.text().includes('R2'))!.trigger('click')
+    await w.findAll('.fold').find(f => f.text().includes('R3'))!.trigger('click')
     await w.findAll('button').find(b => b.text().includes('修正实际行为'))!.trigger('click')
     const ta = w.find('textarea')
     expect(ta.exists()).toBe(true)
@@ -58,7 +59,21 @@ describe('DetailRules 折叠交互', () => {
     expect((btn.element as HTMLButtonElement).disabled).toBe(false)
     await btn.trigger('click')
     await flushPromises()
-    expect(api.correctRule).toHaveBeenCalledWith('R2', '实际是重试 2 次')
+    expect(api.correctRule).toHaveBeenCalledWith('R3', '实际是重试 2 次')
+  })
+
+  it('open 冲突参与规则不算已核过：R1(verified) 不进核验通过区，计数归待处理且恒等式保持', async () => {
+    const w = mountIt()
+    // R1 verified 但参与 C1（open）→ 核验通过区不显示、无绿徽章
+    await w.findAll('.chip').find(c => c.text().includes('核验通过'))!.trigger('click')
+    expect(w.text()).not.toContain('已核过')
+    // R2/R3 未核且 R2 参与 C1：待核规则区只显示 R3（R2 由冲突行承载，不重复设行）
+    expect(w.findAll('.fold').filter(f => f.text().includes('R2')).length).toBe(0)
+    // 恒等式：全部 5 = 核验通过 0 + 待处理 5（1 冲突+1 缺口+R3 待核+R1/R2 冲突中）
+    const chips = w.findAll('.chip').map(c => c.text())
+    expect(chips).toContain('全部 5')
+    expect(chips).toContain('⚠ 待处理 5')
+    expect(chips).toContain('✅ 核验通过 0')
   })
 
   it('冲突：点选说法启用统一确认；未选禁用；选其他需输入', async () => {
