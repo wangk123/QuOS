@@ -666,6 +666,11 @@ async def test_wb_summary(client):
         Rule(id="R3", text="风控拦截", src="r.py:3", conf="实证", verified=True, node="风控"),
     ])
     finding_store.save_conflicts(root, [Conflict(id="C1", a="R1", b="R2", q="重试几次？")])
+    finding_store.save_gaps(root, [
+        Gap(id="G1", dim="边界", text="重试上限后行为未说明", node="支付/放款重试"),
+        Gap(id="G2", dim="状态", text="拦截后单据状态未说明", node="风控", st="answered"),
+        Gap(id="G3", dim="流程", text="全局流程缺口", node="__root__"),
+    ])
     profile_store.save_profile(root, "支付/放款重试", Profile(node="支付/放款重试", goal="不重复放款"))
     profile_store.save_profile(root, profile_store.ROOT_NODE,
                                Profile(node=profile_store.ROOT_NODE, kind="root", goal="全树总览"))
@@ -676,9 +681,11 @@ async def test_wb_summary(client):
     pay = rows["支付"]
     assert pay["kind"] == "module" and pay["path"] == "0" and not pay["profiled"]
     assert pay["rules"] == 2 and pay["pend"] == 2 and pay["conf"] == 1  # 模块聚合子树：R1+R2、未核1+冲突1、open 冲突 1
+    assert pay["gaps"] == 1  # 子树聚合：G1（G2 已 answered、G3 根级不计入节点）
     leaf = rows["支付/放款重试"]
     assert leaf["kind"] == "leaf" and leaf["path"] == "0,0" and leaf["profiled"]
     assert leaf["goal"] == "不重复放款" and leaf["state"] == "done"  # 无 running job：日常态全部就绪
+    assert leaf["gaps"] == 1
     root_seg = r.json()["root"]
     assert root_seg["kind"] == "root" and root_seg["goal"] == "全树总览"
 

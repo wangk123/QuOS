@@ -328,7 +328,7 @@ export const listBaselines = () => req<Baseline[]>('/baseline')
 
 // ---------- 工作台（总表 / 一键生成 / 重生成；对应 server/app/api/generate.py、router.py 工作台段） ----------
 
-/** 总表行（server WbNode 十字段）：path=数字路径，full=全路径，state=''|'done'|'doing' */
+/** 总表行（server WbNode 十一字段）：path=数字路径，full=全路径，state=''|'done'|'doing' */
 export interface WbNodeRow {
   path: string
   name: string
@@ -338,6 +338,7 @@ export interface WbNodeRow {
   rules: number
   pend: number
   conf: number
+  gaps: number
   profiled: boolean
   state: '' | 'done' | 'doing'
 }

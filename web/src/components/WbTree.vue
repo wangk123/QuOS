@@ -40,12 +40,13 @@ const stat = computed(() => {
   }
 })
 
-/** 徽章工作清单：行数据直出（doing 蓝 / pend 琥珀 / conf 红 / rules 灰 / profiled 清零绿） */
+/** 徽章工作清单：行数据直出（doing 蓝 / pend 琥珀 / conf 红 / gaps 存疑红△ / rules 灰 / profiled 清零绿） */
 function badges(r: WbNodeRow): { cls: string; text: string }[] {
   const b: { cls: string; text: string }[] = []
   if (r.state === 'doing') b.push({ cls: 'doing', text: '处理中' })
   if (r.pend > 0) b.push({ cls: 'warn', text: `${r.pend} 待判断` })
   if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}` })
+  if (r.gaps > 0) b.push({ cls: 'conf', text: `△${r.gaps}` })
   if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条` })
   if (r.profiled && r.pend === 0) b.push({ cls: 'okc', text: '✓' })
   return b

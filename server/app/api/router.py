@@ -766,7 +766,7 @@ async def list_jobs(proj: str):
 
 class WbNode(BaseModel):
     path: str; name: str; full: str; goal: str = ""
-    kind: str = "leaf"; rules: int = 0; pend: int = 0; conf: int = 0
+    kind: str = "leaf"; rules: int = 0; pend: int = 0; conf: int = 0; gaps: int = 0
     profiled: bool = False; state: str = ""
 
 
@@ -776,6 +776,7 @@ async def wb_summary(proj: str):
     profs = profiles._latest_profiles(root)
     rules = rule_store.load(root); void = _void_ids(root)
     confs = findings.load_conflicts(root)
+    gaps = findings.load_gaps(root)
     rmap = _rule_map(root)
     run = jobs.running() or {}
     jobless = not run or run.get("kind") not in ("generate", "regen")  # 其他 job（核验/重检等）不动树：日常态全部就绪
@@ -795,7 +796,9 @@ async def wb_summary(proj: str):
         rs = [a for a in rules if a.id not in void and _in_subtree(a.node, full)]
         cf = [c for c in confs if c.st == "open" and _in_subtree(
             next((rmap[x].node for x in (c.a, c.b) if x in rmap), ""), full)]  # 冲突按其规则归属计
-        return {"rules": len(rs), "pend": sum(0 if a.verified else 1 for a in rs) + len(cf), "conf": len(cf)}
+        gp = [g for g in gaps if g.st == "open" and _in_subtree(g.node, full)]  # 存疑按绑定节点计（根级/全局不进节点行）
+        return {"rules": len(rs), "pend": sum(0 if a.verified else 1 for a in rs) + len(cf),
+                "conf": len(cf), "gaps": len(gp)}
     out: list[dict] = []
     def walk(items, prefix, name_prefix, depth):
         for i, n in enumerate(items):
