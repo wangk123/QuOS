@@ -26,6 +26,7 @@ defineProps<{ profile: Profile }>()
 .card h3 { font-size: 14px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
 .spec { display: grid; grid-template-columns: 76px 1fr; gap: 4px 12px; font-size: 12.5px; }
 .spec .k { color: var(--muted-fg); }
+.spec span:not(.k) { white-space: pre-wrap; overflow-wrap: anywhere; }  /* 多行字段（主流程/状态机等）按原换行渲染 */
 .rrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 2px 0; margin-top: 10px; border-top: 1px solid #f1f5f9; font-size: 12.5px; }
 .rrow .rtxt { flex: 1; min-width: 0; }
 .rrow .rsrc { display: block; font-size: 11px; color: var(--muted-fg); margin-top: 1px; }
