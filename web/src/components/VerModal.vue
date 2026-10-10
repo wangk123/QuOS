@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 版本弹窗：时间线 / 新增版本表单 / 回滚废弃确认 / 预览 markdown 渲染模式。
 // 版本 = git tag（手动 x.x.x）；「当前」徽章按 cur 字段（HEAD 所指），非列表末位。
-import { computed, inject, ref, watch } from 'vue'
+import { computed, inject, nextTick, ref, watch } from 'vue'
 import { ApiError, createBaseline, deprecateBaseline, getDoc, listBaselines, restoreBaseline, type Baseline } from '../api'
 import { renderMd } from '../utils/md'
 
@@ -30,6 +30,30 @@ const note = ref('')
 
 // 回滚 / 废弃确认
 const confirmBox = ref<null | { kind: 'restore' | 'deprecate'; b: Baseline }>(null)
+
+// 预览章节导航：渲染后从 DOM 提取 h2-h4（h1 为文档唯一标题不入导航）
+const mdViewEl = ref<HTMLElement | null>(null)
+const docNav = ref<{ level: number; text: string; el: HTMLElement }[]>([])
+const activeNav = ref(-1)
+
+function scanNav() {
+  docNav.value = mdViewEl.value
+    ? [...mdViewEl.value.querySelectorAll('h2,h3,h4')]
+        .map(h => ({ level: +h.tagName[1], text: h.textContent?.trim() ?? '', el: h as HTMLElement }))
+    : []
+  activeNav.value = docNav.value.length ? 0 : -1
+}
+
+function jumpNav(i: number) {
+  docNav.value[i]?.el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onDocScroll(e: Event) {  // 当前章节高亮：滚动位置上方最近的标题
+  const top = (e.target as HTMLElement).scrollTop + 60
+  let cur = -1
+  docNav.value.forEach((n, i) => { if (n.el.offsetTop <= top) cur = i })
+  if (cur >= 0) activeNav.value = cur
+}
 
 const VER_RE = /^\d+\.\d+\.\d+$/
 const isNewTag = (t: string) => /^v\d+\.\d+\.\d+$/.test(t)
@@ -134,6 +158,8 @@ async function preview() {
     docText.value = await getDoc()
     docMode.value = 'md'
     docOpen.value = true
+    await nextTick()
+    scanNav()  // v-html 渲染落 DOM 后提取标题
   } catch (e) {
     toast(e instanceof ApiError ? `导出失败：${e.message}` : '导出失败', 'warn')
   }
@@ -244,9 +270,9 @@ function download() {
     </div>
   </div>
 
-  <!-- 导出预览：渲染 / 源码双模式 -->
+  <!-- 导出预览：渲染 / 源码双模式 + 右侧章节导航 -->
   <div v-if="docOpen" class="mask open" @click.self="docOpen = false">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal doc-preview" role="dialog" aria-modal="true">
       <div class="modal-head">
         <h3>需求文档 · 导出预览</h3>
         <div class="msub">总览开篇 + 按树分层——整份需求一份文档，给评审/开发直接看</div>
@@ -256,10 +282,16 @@ function download() {
         </div>
         <button class="x" type="button" aria-label="关闭预览" @click="docOpen = false">✕</button>
       </div>
-      <div class="modal-body">
-        <!-- eslint-disable-next-line vue/no-v-html —— 内容经 renderMd 全量 escape -->
-        <div v-if="docMode === 'md'" class="md-view" v-html="renderMd(docText)"></div>
-        <pre v-else class="doc-outline">{{ docText }}</pre>
+      <div class="modal-body doc-body" @scroll.passive="docMode === 'md' && onDocScroll($event)">
+        <div class="doc-main">
+          <!-- eslint-disable-next-line vue/no-v-html —— 内容经 renderMd 全量 escape -->
+          <div v-if="docMode === 'md'" ref="mdViewEl" class="md-view" v-html="renderMd(docText)"></div>
+          <pre v-else class="doc-outline">{{ docText }}</pre>
+        </div>
+        <nav v-if="docMode === 'md' && docNav.length" class="doc-nav" aria-label="章节导航">
+          <div v-for="(n, i) in docNav" :key="i" class="nav-item"
+               :class="[`lv${n.level}`, { on: i === activeNav }]" @click="jumpNav(i)">{{ n.text }}</div>
+        </nav>
       </div>
       <div class="modal-foot">
         <span class="fnote">下载始终为 .md 源码</span>

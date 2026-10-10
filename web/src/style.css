@@ -208,3 +208,15 @@ tbody tr:hover td { background: #f1f5fd; }
 .md-view th { background: var(--muted); }
 .md-view ul { padding-left: 20px; margin: 6px 0; }
 .md-view p { margin: 6px 0; }
+/* 导出预览：宽弹窗 + 右侧章节导航 */
+.modal.doc-preview { width: min(1040px, 92vw); }
+.doc-body { display: flex; gap: 18px; align-items: flex-start; }
+.doc-main { flex: 1; min-width: 0; }
+.doc-nav { width: 208px; flex-shrink: 0; position: sticky; top: 0; max-height: 64vh; overflow-y: auto;
+  border-left: 1px solid var(--border); padding-left: 6px; font-size: 12px; }
+.doc-nav .nav-item { padding: 4px 10px; color: var(--muted-fg); cursor: pointer; border-radius: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-nav .nav-item:hover { color: var(--primary); background: var(--blue-bg); }
+.doc-nav .nav-item.on { color: var(--primary); font-weight: 600; background: var(--blue-bg); }
+.doc-nav .nav-item.lv3 { padding-left: 22px; }
+.doc-nav .nav-item.lv4 { padding-left: 34px; }

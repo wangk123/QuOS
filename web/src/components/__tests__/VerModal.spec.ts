@@ -147,6 +147,25 @@ describe('VerModal（版本弹窗）', () => {
     expect(w.findAll('button').some(b => b.text() === '下载 .md')).toBe(true)
   })
 
+  it('预览章节导航：h2/h4 入导航（h1 不入），点击滚动到对应标题，源码模式隐藏', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const w = await mountModal()
+    await w.findAll('button').find(b => b.text().includes('预览 / 导出需求文档'))!.trigger('click')
+    await flushPromises()
+    const nav = w.find('.doc-nav')
+    expect(nav.exists()).toBe(true)
+    const items = w.findAll('.doc-nav .nav-item')
+    expect(items.some(i => i.text() === '需求总览')).toBe(true)   // h2 入导航
+    expect(items.some(i => i.text() === '需求文档')).toBe(false)  // h1（文档唯一标题）不入导航
+    const idx = items.findIndex(i => i.text() === '需求总览')
+    await items[idx].trigger('click')
+    expect(scrollIntoView).toHaveBeenCalled()
+    // 源码模式无标题结构，导航隐藏
+    await w.findAll('button').find(b => b.text() === '源码')!.trigger('click')
+    expect(w.find('.doc-nav').exists()).toBe(false)
+  })
+
   it('同 commit 多 tag（无变更连续存版）：仅一行标当前，各行仍有废弃入口', async () => {
     vi.mocked(listBaselines).mockResolvedValue([
       { tag: 'v1.0.0', commit: 'aaaa1111bbbb2222', version: '1.0.0', time: 1760000000, note: '一', cur: false },
