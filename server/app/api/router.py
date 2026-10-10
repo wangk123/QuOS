@@ -607,12 +607,12 @@ async def adjudicate_gap(proj: str, body: GapIn):
         if not body.text.strip():
             raise HTTPException(status_code=422, detail="补写说明不能为空")
         g.st = "answered"  # 人工补写闭环（与材料自动闭环同终态）
-        items = rule_store.load(root)
-        n = max((int(x.id[1:]) for x in items
+        rules = rule_store.load(root)  # 独立变量：items 始终是 gaps，防规则列表覆盖写进 gaps.json
+        n = max((int(x.id[1:]) for x in rules
                  if x.id.startswith("R") and x.id[1:].isdigit()), default=0) + 1
-        items.append(Rule(id=f"R{n}", text=body.text.strip(), src="人工补写",
+        rules.append(Rule(id=f"R{n}", text=body.text.strip(), src="人工补写",
                           conf="实证", verified=True, node=g.node))
-        rule_store.save(root, items)
+        rule_store.save(root, rules)
     else:
         raise HTTPException(status_code=422, detail="action 必须为 ok 或 note")
     findings.save_gaps(root, items)

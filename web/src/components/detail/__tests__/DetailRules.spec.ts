@@ -81,7 +81,7 @@ describe('DetailRules 折叠交互', () => {
     expect(api.addRuleManual).toHaveBeenCalledWith('回调地址支持 HTTP 与 HTTPS', '支付')
   })
 
-  it('open 冲突参与规则不算已核过但有行：R2 显示「冲突中」，计数恒等式保持', async () => {
+  it('open 冲突参与规则不算已核过但有行：R2 显示「冲突中」，chips=纯规则维度', async () => {
     const w = mountIt()
     // R1/R2 参与 C1（open）：待处理区显示为冲突中行（数量与树行闭环），不显示「已核过」
     expect(w.text()).toContain('冲突中')
@@ -90,10 +90,10 @@ describe('DetailRules 折叠交互', () => {
     await w.findAll('.chip').find(c => c.text().includes('核验通过'))!.trigger('click')
     expect(w.text()).not.toContain('已核过')
     expect(w.findAll('.fold').length).toBe(0)
-    // 恒等式：全部 5 = 核验通过 0 + 待处理 5（1 冲突+1 缺口+R3 待核+R1/R2 冲突中）
+    // chips 是规则维度分布：全部=规则总数 3（与树行闭环，冲突/缺口不混入），全=ok+pend 恒等
     const chips = w.findAll('.chip').map(c => c.text())
-    expect(chips).toContain('全部 5')
-    expect(chips).toContain('⚠ 待处理 5')
+    expect(chips).toContain('全部 3')
+    expect(chips).toContain('⚠ 待处理 3')  // R1/R2 冲突中 + R3 待核
     expect(chips).toContain('✅ 核验通过 0')
     // 标题数 = 纯规则行数（3），与树行灰「N 条」同口径
     expect(w.find('h3').text()).toContain('规则 · 3 条')

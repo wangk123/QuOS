@@ -35,7 +35,8 @@ const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
 const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
 const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
 
-// ---- 状态 chips：全部 = 核验通过 + 待处理（行行对应恒等）----
+// ---- 状态 chips：规则维度的分布（全部=规则总数，与树行灰「N 条」闭环）；
+// 冲突/缺口是叠加工件（tab 角标 ⚠/△ 表达），不进 chips 计数 ----
 const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
 const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
@@ -43,10 +44,12 @@ const confRules = computed(() => props.rules.filter(r => conflictedIds.value.has
 const okRules = computed(() => props.rules.filter(isOk))
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
-const pendN = computed(() => openConfs.value.length + openGaps.value.length + pendRules.value.length + confRules.value.length)
-const okN2 = computed(() => okRules.value.length + doneConfs.value.length + doneGaps.value.length)
-const allN = computed(() => props.rules.length + props.conflicts.length + props.gaps.length)
+const allN = computed(() => props.rules.length)
+const okN2 = computed(() => okRules.value.length)
+const pendN = computed(() => props.rules.length - okRules.value.length)  // 待核 + 冲突中
 const pct = computed(() => (allN.value ? Math.round((okN2.value / allN.value) * 100) : 0))
+const pendEmpty = computed(() => !openConfs.value.length && !confRules.value.length && !openGaps.value.length && !pendRules.value.length)
+const okEmpty = computed(() => !doneConfs.value.length && !doneGaps.value.length && !okRules.value.length)
 
 function fail(e: unknown, prefix: string) {
   toast(e instanceof ApiError ? `${prefix}：${e.message}` : prefix, 'warn')
@@ -359,8 +362,8 @@ function side(id: string) {
         </div>
       </template>
     </template>
-    <p v-if="!allN" class="none">本节点暂无规则与疑点</p>
-    <p v-if="allN && ((filter === 'pend' && !pendN) || (filter === 'ok' && !okN2))" class="none">该状态下暂无内容</p>
+    <p v-if="!allN && !props.conflicts.length && !props.gaps.length" class="none">本节点暂无规则与疑点</p>
+    <p v-if="allN && ((filter === 'pend' && pendEmpty) || (filter === 'ok' && okEmpty))" class="none">该状态下暂无内容</p>
   </div>
 </template>
 

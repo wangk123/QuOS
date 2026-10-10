@@ -38,6 +38,9 @@ async def test_gap_note_creates_rule_and_closes(client):
     assert added and added[0].id == "R2" and added[0].conf == "实证"
     assert added[0].verified is True and added[0].node == "支付/放款重试"
     assert "人工补写" in added[0].src
+    # 回归：补写后 gaps.json 仍是缺口列表（曾因 items 变量复用被规则列表覆盖，load 即 ValidationError）
+    gs = findings.load_gaps(root)
+    assert len(gs) == 1 and gs[0].id == "G1" and gs[0].st == "answered"
 
 
 async def test_gap_note_empty_422(client):
