@@ -7,8 +7,8 @@ import WbTree from '../WbTree.vue'
 const wbSummary = vi.hoisted(() => ({
   root: { goal: '总览' },
   tree: [
-    { path: '0', name: '工具模块', full: '工具模块', goal: '五技能', kind: 'module', rules: 73, pend: 3, conf: 1, profiled: true, state: 'done' },
-    { path: '0,0', name: '工商信息查询', full: '工具模块/工商信息查询', goal: '注册登录→查询', kind: 'leaf', rules: 39, pend: 2, conf: 1, profiled: true, state: '' },
+    { path: '0', name: '工具模块', full: '工具模块', goal: '五技能', kind: 'module', rules: 73, unverified: 3, conf: 1, profiled: true, state: 'done' },
+    { path: '0,0', name: '工商信息查询', full: '工具模块/工商信息查询', goal: '注册登录→查询', kind: 'leaf', rules: 39, unverified: 2, conf: 1, profiled: true, state: '' },
   ],
 }))
 vi.mock('../../wb', () => ({ wb: ref(wbSummary), refreshWb: vi.fn() }))
@@ -24,7 +24,7 @@ describe('WbTree', () => {
     expect(w.text()).toContain('工具模块')
     expect(w.text()).toContain('工商信息查询')
     expect(w.text()).toContain('39 条') // .nbadge.cnt
-    expect(w.text()).toContain('3 待判断') // .nbadge.warn
+    expect(w.text()).toContain('2 待核') // .nbadge.unv（模块行 0+叶行 2，子树聚合）
     expect(w.find('.nbadge.conf').text()).toBe('⚠1')
     expect(w.findAll('.modhead').length).toBe(1)
   })
@@ -109,11 +109,11 @@ describe('WbTree', () => {
 
   it('第 5 层节点不渲染 ＋（canAdd 深度闸门）', () => {
     wbSummary.tree = [
-      { path: '0', name: 'L1', full: 'L1', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
-      { path: '0,0', name: 'L2', full: 'L1/L2', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
-      { path: '0,0,0', name: 'L3', full: 'L1/L2/L3', goal: '', kind: 'module', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
-      { path: '0,0,0,0', name: 'L4', full: 'L1/L2/L3/L4', goal: '', kind: 'leaf', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
-      { path: '0,0,0,0,0', name: 'L5', full: 'L1/L2/L3/L4/L5', goal: '', kind: 'leaf', rules: 0, pend: 0, conf: 0, profiled: false, state: '' },
+      { path: '0', name: 'L1', full: 'L1', goal: '', kind: 'module', rules: 0, unverified: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0', name: 'L2', full: 'L1/L2', goal: '', kind: 'module', rules: 0, unverified: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0', name: 'L3', full: 'L1/L2/L3', goal: '', kind: 'module', rules: 0, unverified: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0,0', name: 'L4', full: 'L1/L2/L3/L4', goal: '', kind: 'leaf', rules: 0, unverified: 0, conf: 0, profiled: false, state: '' },
+      { path: '0,0,0,0,0', name: 'L5', full: 'L1/L2/L3/L4/L5', goal: '', kind: 'leaf', rules: 0, unverified: 0, conf: 0, profiled: false, state: '' },
     ]
     const w = mount(WbTree, { props: { selected: '' } })
     const leaves = w.findAll('.leaf') // L2..L5（L1 是模块头）
@@ -136,22 +136,22 @@ describe('WbTree', () => {
 
   it('根卡统计只计顶层行——模块聚合不与叶行双计', () => {
     wbSummary.tree = [
-      { path: '0', name: '模块A', full: '模块A', goal: '', kind: 'module', rules: 73, pend: 3, conf: 1, profiled: true, state: '' },
-      { path: '0,0', name: '叶A', full: '模块A/叶A', goal: '', kind: 'leaf', rules: 39, pend: 2, conf: 1, profiled: true, state: '' },
-      { path: '1', name: '模块B', full: '模块B', goal: '', kind: 'module', rules: 4, pend: 1, conf: 0, profiled: false, state: '' },
-      { path: '1,0', name: '叶B', full: '模块B/叶B', goal: '', kind: 'leaf', rules: 4, pend: 1, conf: 0, profiled: false, state: '' },
+      { path: '0', name: '模块A', full: '模块A', goal: '', kind: 'module', rules: 73, unverified: 3, conf: 1, profiled: true, state: '' },
+      { path: '0,0', name: '叶A', full: '模块A/叶A', goal: '', kind: 'leaf', rules: 39, unverified: 2, conf: 1, profiled: true, state: '' },
+      { path: '1', name: '模块B', full: '模块B', goal: '', kind: 'module', rules: 4, unverified: 1, conf: 0, profiled: false, state: '' },
+      { path: '1,0', name: '叶B', full: '模块B/叶B', goal: '', kind: 'leaf', rules: 4, unverified: 1, conf: 0, profiled: false, state: '' },
     ]
     const w = mount(WbTree, { props: { selected: '' } })
     const rmeta = w.find('.rootcard .rmeta').text()
     expect(rmeta).toContain('77 条') // 顶层 73+4，非全平铺 73+4+39+4=120
-    expect(rmeta).toContain('4 待判断') // 顶层 3+1，非 3+1+2+1=7
+    expect(rmeta).toContain('4 待核') // 顶层 3+1，非 3+1+2+1=7
     wbSummary.tree = DEFAULT_TREE
   })
 
   it('state=doing 行渲染「处理中」蓝徽章', () => {
     wbSummary.tree = [
-      { path: '0', name: '工具模块', full: '工具模块', goal: '', kind: 'module', rules: 73, pend: 0, conf: 0, profiled: true, state: '' },
-      { path: '0,0', name: '工商信息查询', full: '工具模块/工商信息查询', goal: '', kind: 'leaf', rules: 39, pend: 1, conf: 0, profiled: false, state: 'doing' },
+      { path: '0', name: '工具模块', full: '工具模块', goal: '', kind: 'module', rules: 73, unverified: 0, conf: 0, profiled: true, state: '' },
+      { path: '0,0', name: '工商信息查询', full: '工具模块/工商信息查询', goal: '', kind: 'leaf', rules: 39, unverified: 1, conf: 0, profiled: false, state: 'doing' },
     ]
     const w = mount(WbTree, { props: { selected: '' } })
     expect(w.find('.leaf .nbadge.doing').text()).toBe('处理中')

@@ -11,11 +11,6 @@ export function useWb() {
   return { wb, refreshWb, stop: () => clearInterval(t) }
 }
 
-/** 节点徽章：待判断 = 未核 + 冲突合计（全 0 显示就绪） */
-export function deriveBadge(s: { rules: number; pend: number; conf: number }) {
-  return { pend: s.pend + s.conf, conf: s.conf }
-}
-
 /** full → 数字路径：/profiles/{node_path} 是单段参数，只匹配数字路径或 __root__——含 / 的 full 会 404/405 */
 export function digitPathOf(full: string): string {
   if (full === '__root__') return full

@@ -16,7 +16,7 @@ const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 // ── 根详情：wb.root + wb.tree 顶层行（与 WbTree 根卡同口径：只对顶层求和，防模块/叶双计）
 const isRoot = computed(() => props.nodeFull === '__root__')
 const topRows = computed(() => (wb.value?.tree ?? []).filter(r => !r.path.includes(',')))
-const rootPend = computed(() => topRows.value.reduce((s, r) => s + r.pend, 0))
+const rootPend = computed(() => topRows.value.reduce((s, r) => s + r.unverified + r.conf + r.gaps, 0))
 const rootStat = computed(() => {
   const t = wb.value?.tree ?? []
   return { done: t.filter(r => r.state === 'done').length, doing: t.some(r => r.state === 'doing'), total: t.length }
@@ -56,13 +56,11 @@ async function load() {
     allRules.value = rs
     rules.value = rs.filter(r => under(r.node))
     const nodeOf = new Map(rs.map(r => [r.id, r.node ?? '']))
-    // 冲突归属与后端徽章同口径：最深具体节点（模块级/未归类不吞冲突）——tab 角标与树行 ⚠ 计数一致
-    const deepest = (na?: string, nb?: string) =>
-      [na, nb].filter((n): n is string => !!n).sort((x, y) => y.split('/').length - x.split('/').length)[0] ?? ''
+    // 冲突过滤只用后端 node 归属字段（_conflict_node 唯一口径，与树行 ⚠ 同源）——前端不再自行推导
     conflicts.value = cs.filter(c => {
       const na = nodeOf.get(c.a), nb = nodeOf.get(c.b)
-      if (na === undefined && nb === undefined) return true // a/b 规则查不到归属（已删/未同步）：不过滤防漏
-      return under(deepest(na, nb))
+      if (na === undefined && nb === undefined && !c.node) return true // 极旧数据无归属：不过滤防漏
+      return under(c.node || na || nb)
     })
     gaps.value = gs.filter(g => g.node === '__root__' ? false : under(g.node)) // 缺口按 node 子树过滤（__root__/全局不在节点展示，汇总视图承接）
   } catch (e) {
@@ -105,8 +103,10 @@ async function disposeGlobal(g: DoubtGlobalGap, action: 'clar' | 'ok') {
 }
 
 const parts = computed(() => (isRoot.value ? [] : props.nodeFull.split('/')))
-/** 就绪态右侧徽章：取 wb 行 pend（后端已含冲突数）；行缺失（如未同步）不显示 */
-const rowPend = computed(() => (wb.value?.tree ?? []).find(r => r.full === props.nodeFull)?.pend ?? -1)
+/** 就绪态右侧徽章：取 wb 行原子计数（与树行同源）；清零 = 待核+冲突+缺口全零 */
+const rowStat = computed(() => (wb.value?.tree ?? []).find(r => r.full === props.nodeFull)
+  ?? { unverified: -1, conf: 0, gaps: 0 })
+const rowPend = computed(() => rowStat.value.unverified + rowStat.value.conf + rowStat.value.gaps)
 /** 存疑 tab 角标：open 冲突与未处置缺口分开计、分色显示（⚠红=冲突 / △琥珀=缺口）——
  * 与树行徽章同口径同色，杜绝同一符号两处计数不同的混淆 */
 const confOpenN = computed(() => conflicts.value.filter(c => c.st === 'open').length)
@@ -140,6 +140,10 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
           <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g, 'ok')">设计如此</button>
         </span>
       </div>
+      <div v-for="c in doubts.globalConflicts ?? []" :key="c.id" class="dsum-global cconf">
+        <span class="gtag cred">全局矛盾</span>
+        <span class="gtext">{{ c.q }}<span class="gdim"> · 参与双方规则无具体节点归属（未归类/模块级歧义），待人工核对</span></span>
+      </div>
       <div v-for="m in doubtRows" :key="m.name" class="dsum-row" @click="emit('jump', m.name, 'doubt')">
         <span class="dnode">{{ m.name }}<span class="sub">{{ m.rules }} 条目</span></span>
         <span class="dcount">
@@ -149,7 +153,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
         <span class="dpeek">{{ m.peek }}</span>
         <button class="go" type="button" @click.stop="emit('jump', m.name, 'doubt')">去处理 →</button>
       </div>
-      <p v-if="!doubtTotal && !doubts.global.length" class="none">判断清零 ✓——没有待处置的疑点</p>
+      <p v-if="!doubtTotal && !doubts.global.length && !(doubts.globalConflicts ?? []).length" class="none">判断清零 ✓——没有待处置的疑点</p>
     </div>
     <div class="card">
       <h3>这份需求是什么</h3>
@@ -184,7 +188,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
               <span v-else-if="doubts" class="badge b-green">清</span>
               <span v-else class="dim">—</span>
             </td>
-            <td><span :class="r.state === 'doing' ? 'badge b-blue' : r.pend ? 'badge b-amber' : 'badge b-green'">{{ r.state === 'doing' ? '处理中' : r.pend ? `${r.pend} 待判断` : '就绪' }}</span></td>
+            <td><span :class="r.state === 'doing' ? 'badge b-blue' : r.unverified + r.conf + r.gaps ? 'badge b-amber' : 'badge b-green'">{{ r.state === 'doing' ? '处理中' : r.unverified + r.conf + r.gaps ? `${r.unverified + r.conf + r.gaps} 处待人工` : '就绪' }}</span></td>
           </tr>
           <tr v-if="!topRows.length"><td colspan="4" class="none">树还是空的——先在左栏加模块</td></tr>
         </tbody>
@@ -214,8 +218,8 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
         <button v-if="i < parts.length - 1" class="cl" type="button" @click="emit('jump', parts.slice(0, i + 1).join('/'))">{{ p }}</button>
         <b v-else>{{ p }}</b>
       </template>
-      <span class="right">
-        <span v-if="rowPend > 0" class="badge b-amber">{{ rowPend }} 处待判断</span>
+      <span class="right" :title="`待核 ${rowStat.unverified} + 冲突 ${rowStat.conf} + 缺口 ${rowStat.gaps}`">
+        <span v-if="rowPend > 0" class="badge b-amber">{{ rowPend }} 处待人工</span>
         <span v-else-if="rowPend === 0" class="badge b-green">判断清零 ✓</span>
       </span>
     </div>
@@ -280,6 +284,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
 .dsum-chip.c-red b { color: var(--destructive); } .dsum-chip.c-amber b { color: var(--warn); }
 .dsum-global { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px; font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
 .dsum-global .gtag { flex: none; font-weight: 700; color: var(--warn); font-size: 10.5px; padding: 1px 8px; margin-top: 1px; background: var(--amber-bg); border: 1px solid #f5d98a; border-radius: 999px; }
+.dsum-global .gtag.cred { color: #991b1b; background: #fecaca; border-color: #f5b5b5; }
 .dsum-global .gtext { flex: 1; min-width: 0; }
 .dsum-global .gdim { color: var(--muted-fg); font-size: 11px; }
 .dsum-global .gacts { display: flex; gap: 6px; flex: none; }

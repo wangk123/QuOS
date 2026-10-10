@@ -58,6 +58,7 @@ export interface Conflict {
   q: string
   st: string
   resolution: string | null
+  node?: string // 归属节点全路径（后端唯一口径 _conflict_node；'__root__'=全局，无具体归属）
 }
 
 export interface Gap {
@@ -234,9 +235,16 @@ export interface DoubtModule {
   peek: string
 }
 
+export interface DoubtGlobalConflict {
+  id: string
+  q: string
+  st: string
+}
+
 export interface DoubtSummary {
   stats: { conflicts: number; gaps: number; clarified: number }
   global: DoubtGlobalGap[]
+  globalConflicts: DoubtGlobalConflict[]
   modules: DoubtModule[]
 }
 
@@ -328,7 +336,8 @@ export const listBaselines = () => req<Baseline[]>('/baseline')
 
 // ---------- 工作台（总表 / 一键生成 / 重生成；对应 server/app/api/generate.py、router.py 工作台段） ----------
 
-/** 总表行（server WbNode 十一字段）：path=数字路径，full=全路径，state=''|'done'|'doing' */
+/** 总表行（server WbNode 十一字段）：path=数字路径，full=全路径，state=''|'done'|'doing'
+ * 四原子指标：rules 条目 / unverified 未核验 / conf 冲突 / gaps 缺口（模块行=子树聚合，与存疑汇总同源） */
 export interface WbNodeRow {
   path: string
   name: string
@@ -336,7 +345,7 @@ export interface WbNodeRow {
   goal: string
   kind: 'module' | 'leaf'
   rules: number
-  pend: number
+  unverified: number
   conf: number
   gaps: number
   profiled: boolean

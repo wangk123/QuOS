@@ -18,9 +18,9 @@ vi.mock('../../api', () => api)
 const wbData = vi.hoisted(() => ({
   root: { goal: '根目标', entry: '安装触发', flow: '登录 → 查询 → 输出', boundaries: '客户经理 · 一期文字', note: '', kind: 'root' },
   tree: [
-    { path: '0', name: '登录', full: '登录', goal: '', kind: 'leaf', rules: 3, pend: 1, conf: 0, profiled: true, state: 'done' },
-    { path: '1', name: '查询', full: '查询', goal: '', kind: 'leaf', rules: 4, pend: 0, conf: 0, profiled: true, state: 'done' },
-    { path: '1,0', name: '子叶', full: '查询/子叶', goal: '', kind: 'leaf', rules: 4, pend: 2, conf: 0, profiled: false, state: '' },
+    { path: '0', name: '登录', full: '登录', goal: '', kind: 'leaf', rules: 3, unverified: 1, conf: 0, gaps: 0, profiled: true, state: 'done' },
+    { path: '1', name: '查询', full: '查询', goal: '', kind: 'leaf', rules: 4, unverified: 0, conf: 0, gaps: 0, profiled: true, state: 'done' },
+    { path: '1,0', name: '子叶', full: '查询/子叶', goal: '', kind: 'leaf', rules: 4, unverified: 2, conf: 0, gaps: 0, profiled: false, state: '' },
   ],
 }))
 vi.mock('../../wb', () => ({
@@ -104,8 +104,8 @@ describe('WbDetail', () => {
     expect(w.text()).toContain('根目标')
     expect(w.text()).toContain('模块速览')
     expect(w.findAll('.mtx tr.clickable')).toHaveLength(2) // 只顶层行，子叶不进表
-    // 待你判断 = 顶层 pend 合计（1+0=1，子叶 2 不计）
-    expect(w.text()).toContain('1 处待判断')
+    // 待人工 = 顶层三原子合计（1+0=1，子叶 2 不计）
+    expect(w.text()).toContain('1 处待人工')
     expect(w.text()).not.toContain('3 处待判断')
     // 主线 chips：命中顶层模块名可跳（登录/查询），未命中（输出）只展示；边界 chips 不可点
     const chips = w.findAll('.jstep-chip')

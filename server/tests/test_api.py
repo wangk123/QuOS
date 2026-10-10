@@ -688,14 +688,14 @@ async def test_wb_summary(client):
     pay = rows["支付"]
     assert pay["kind"] == "module" and pay["path"] == "0" and not pay["profiled"]
     assert pay["rules"] == 3  # 子树 R1+R2 + 模块自身规则 R4（模块级规则计入模块行，模块详情条目可见）
-    assert pay["conf"] == 2 and pay["pend"] == 3  # C1+C2 都经最深叶聚合上来；pend=未核1+冲突2（C3 归属风控不在此）
+    assert pay["conf"] == 2 and pay["unverified"] == 1  # C1+C2 都经最深叶聚合上来；未核=1（R2），pend 合成已废除
     assert pay["gaps"] == 1  # 子树聚合：G1（G2 已 answered、G3 根级不计入节点）
     leaf = rows["支付/放款重试"]
     assert leaf["kind"] == "leaf" and leaf["path"] == "0,0" and leaf["profiled"]
     assert leaf["goal"] == "不重复放款" and leaf["state"] == "done"  # 无 running job：日常态全部就绪
     assert leaf["gaps"] == 1
     assert leaf["conf"] == 2  # C1（双叶）+ C2（模块级×叶）都归属最深叶——叶子可见可下钻，模块行不再吞冲突
-    assert leaf["pend"] == 3  # 未核1 + 冲突2
+    assert leaf["unverified"] == 1
     assert rows["风控"]["conf"] == 1  # C3：一方未归类 → 归属另一方的具体节点
     root_seg = r.json()["root"]
     assert root_seg["kind"] == "root" and root_seg["goal"] == "全树总览"

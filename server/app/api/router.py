@@ -451,7 +451,11 @@ async def set_rule_node(proj: str, rid: str, body: NodeIn):
 
 @api_router.get("/conflicts")
 async def list_conflicts(proj: str):
-    return [c.model_dump() for c in findings.load_conflicts(_root(proj))]
+    """每条附 node 归属字段（_conflict_node 唯一口径）——前端只按它过滤，不再自行推导"""
+    root = _root(proj)
+    items = findings.load_conflicts(root)
+    rmap, valid = _rule_map(root), set(tree.paths(_load_tree(root)))
+    return [{**c.model_dump(), "node": _conflict_node(c, rmap, valid)} for c in items]
 
 
 @api_router.post("/conflicts/rescan")
@@ -766,8 +770,23 @@ async def list_jobs(proj: str):
 
 class WbNode(BaseModel):
     path: str; name: str; full: str; goal: str = ""
-    kind: str = "leaf"; rules: int = 0; pend: int = 0; conf: int = 0; gaps: int = 0
+    kind: str = "leaf"; rules: int = 0; unverified: int = 0; conf: int = 0; gaps: int = 0
     profiled: bool = False; state: str = ""
+
+
+# ---------- 疑点归属（全站唯一实现：树行徽章 / 存疑汇总 / 详情冲突过滤三处同源） ----------
+
+def _conflict_node(c, rmap: dict, valid: set[str]) -> str:
+    """冲突归属 = 参与规则中**有效路径里最深**的具体节点（模块级/未归类/已删路径不吞冲突）；
+    无任何有效归属 → 根（进存疑汇总全局冲突区）。平局取甲方（确定性）。"""
+    nodes = [rmap[x].node for x in (c.a, c.b)
+             if x in rmap and rmap[x].node in valid]
+    return max(nodes, key=lambda p: p.count("/")) if nodes else profiles.ROOT_NODE
+
+
+def _gap_node(g, valid: set[str]) -> str:
+    """缺口归属 = 绑定节点；根级/未绑定/孤儿路径（树已删）一律归根——保证 Σ树行+全局 ≡ stats 不泄漏"""
+    return g.node if g.node in valid else profiles.ROOT_NODE
 
 
 @api_router.get("/wb/summary")
@@ -778,6 +797,7 @@ async def wb_summary(proj: str):
     confs = findings.load_conflicts(root)
     gaps = findings.load_gaps(root)
     rmap = _rule_map(root)
+    valid = set(tree.paths(nodes))
     run = jobs.running() or {}
     jobless = not run or run.get("kind") not in ("generate", "regen")  # 其他 job（核验/重检等）不动树：日常态全部就绪
 
@@ -792,17 +812,14 @@ async def wb_summary(proj: str):
             return "done"
         return "done" if full in run.get("done_nodes", []) else ""
 
-    def conf_node(c) -> str:
-        """冲突归属 = 参与规则中最深的具体节点（模块级/未归类不吞冲突——落不到叶上的冲突无处裁决）；
-        双方都无具体节点时返回 ''（不计入任何节点行，只进根详情存疑汇总的冲突统计）"""
-        nodes = [rmap[x].node for x in (c.a, c.b) if x in rmap and rmap[x].node]
-        return max(nodes, key=lambda p: p.count("/")) if nodes else ""
-
     def stat(full: str) -> dict:
-        rs = [a for a in rules if a.id not in void and _in_subtree(a.node, full)]
-        cf = [c for c in confs if c.st == "open" and _in_subtree(conf_node(c), full)]  # 冲突按最深规则节点归属计
-        gp = [g for g in gaps if g.st == "open" and _in_subtree(g.node, full)]  # 存疑按绑定节点计（根级/全局不进节点行）
-        return {"rules": len(rs), "pend": sum(0 if a.verified else 1 for a in rs) + len(cf),
+        """四原子指标（子树聚合）：rules 条目 / unverified 未核验 / conf 冲突 / gaps 缺口——
+        废除 pend 合成（待核+冲突两成分曾与「待处置=冲突+缺口」并存，成分不一不可对拍）。
+        三类归集同过 valid 白名单：孤儿路径/未归类不进树行（未归类在条目页可见，孤儿进汇总）"""
+        rs = [a for a in rules if a.id not in void and a.node in valid and _in_subtree(a.node, full)]
+        cf = [c for c in confs if c.st == "open" and _in_subtree(_conflict_node(c, rmap, valid), full)]
+        gp = [g for g in gaps if g.st == "open" and _in_subtree(_gap_node(g, valid), full)]
+        return {"rules": len(rs), "unverified": sum(0 if a.verified else 1 for a in rs),
                 "conf": len(cf), "gaps": len(gp)}
     out: list[dict] = []
     def walk(items, prefix, name_prefix, depth):

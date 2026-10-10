@@ -27,29 +27,31 @@ const mods = computed<{ row: WbNodeRow; rows: FlatRow[] }[]>(() => {
   return out
 })
 
-/** 根卡片统计徽章：rules/pend 只对顶层行求和——模块行是子树聚合值，再叠叶行会双计；顶层互不重叠且覆盖全树 */
+/** 根卡片统计徽章：只对顶层行求和——模块行是子树聚合值，再叠叶行会双计；顶层互不重叠且覆盖全树 */
 const stat = computed(() => {
   const t = wb.value?.tree ?? []
   const top = mods.value.map(m => m.row)
   return {
     rules: top.reduce((s, r) => s + r.rules, 0),
-    pend: top.reduce((s, r) => s + r.pend, 0),
+    unverified: top.reduce((s, r) => s + r.unverified, 0),
+    conf: top.reduce((s, r) => s + r.conf, 0),
+    gaps: top.reduce((s, r) => s + r.gaps, 0),
     done: t.filter(r => r.state === 'done').length,
     doing: t.some(r => r.state === 'doing'),
     total: t.length,
   }
 })
 
-/** 徽章工作清单：行数据直出（doing 蓝 / pend 琥珀 / conf 冲突红⚠ / gaps 存疑琥珀△ / rules 灰 / profiled 清零绿）；
- * title=hover 说明——⚠与△小字号下难分辨，颜色+悬停双通道区分 */
+/** 徽章工作清单（四原子规范，模块行=子树聚合）：
+ * doing 蓝=处理中 / unverified 灰「n 待核」/ conf 红「⚠n」冲突 / gaps 琥珀「△n」缺口 / cnt 灰「n 条」/ profiled 绿 ✓ */
 function badges(r: WbNodeRow): { cls: string; text: string; title: string }[] {
   const b: { cls: string; text: string; title: string }[] = []
   if (r.state === 'doing') b.push({ cls: 'doing', text: '处理中', title: '后台正在完善该节点' })
-  if (r.pend > 0) b.push({ cls: 'warn', text: `${r.pend} 待判断`, title: '未核验条目 + 冲突，待人工判断' })
-  if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}`, title: `${r.conf} 处条目冲突，待裁决（条目 tab）` })
-  if (r.gaps > 0) b.push({ cls: 'doubt', text: `△${r.gaps}`, title: `${r.gaps} 条存疑待澄清（含子树，存疑 tab）` })
-  if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条`, title: `${r.rules} 条行为条目` })
-  if (r.profiled && r.pend === 0) b.push({ cls: 'okc', text: '✓', title: '画像就绪，无待判断' })
+  if (r.unverified > 0) b.push({ cls: 'unv', text: `${r.unverified} 待核`, title: `${r.unverified} 条未核验，条目 tab 行内核验` })
+  if (r.conf > 0) b.push({ cls: 'conf', text: `⚠${r.conf}`, title: `${r.conf} 处条目冲突待裁决（存疑 tab）` })
+  if (r.gaps > 0) b.push({ cls: 'doubt', text: `△${r.gaps}`, title: `${r.gaps} 条材料缺口待澄清（存疑 tab，含子树）` })
+  if (r.rules > 0) b.push({ cls: 'cnt', text: `${r.rules} 条`, title: `${r.rules} 条行为条目（含子树）` })
+  if (r.profiled && r.unverified === 0) b.push({ cls: 'okc', text: '✓', title: '画像就绪，无待核' })
   return b
 }
 
@@ -137,7 +139,9 @@ async function confirmDel() {
         <span v-if="stat.doing" class="badge">正在完善 {{ stat.done }}/{{ stat.total }}</span>
         <template v-else-if="stat.total">
           <span class="badge">{{ stat.rules }} 条目</span>
-          <span v-if="stat.pend" class="badge hot">{{ stat.pend }} 待判断</span>
+          <span v-if="stat.unverified" class="badge">{{ stat.unverified }} 待核</span>
+          <span v-if="stat.conf" class="badge hot">⚠{{ stat.conf }}</span>
+          <span v-if="stat.gaps" class="badge warm">△{{ stat.gaps }}</span>
           <span v-else class="badge">判断清零 ✓</span>
         </template>
         <span v-else class="badge">大纲就绪</span>
@@ -283,7 +287,7 @@ async function confirmDel() {
 .top-leaf { background: #fff; border: 1px solid var(--border2); border-radius: var(--radius); padding: 7px 12px; }
 .nbadge { font-size: 10px; font-weight: 700; border-radius: 8px; padding: 0 6px; display: inline-flex; align-items: center; gap: 3px; }
 .nbadge.okc { background: var(--green-bg); color: var(--ok); }
-.nbadge.warn { background: var(--amber-bg); color: var(--warn); }
+.nbadge.unv { background: var(--muted); color: var(--muted-fg); }
 .nbadge.cnt { background: var(--muted); color: var(--muted-fg); }
 .nbadge.conf { background: var(--red-bg); color: var(--destructive); }
 .nbadge.doubt { background: var(--amber-bg); color: var(--warn); }
@@ -304,6 +308,7 @@ async function confirmDel() {
 .rootcard .rmeta { display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
 .rootcard .rmeta .badge { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.18); color: #fff; }
 .rootcard .rmeta .badge.hot { background: #fecaca; color: #991b1b; }
+.rootcard .rmeta .badge.warm { background: var(--amber-bg); color: var(--warn); }
 .rootcard .corner { position: absolute; top: 12px; right: 14px; display: flex; gap: 6px; }
 .rootcard .corner button { background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 11px; padding: 3px 9px; font-weight: 600; border: none; cursor: pointer; border-radius: 6px; }
 .rootcard .corner button:hover { background: rgba(255, 255, 255, 0.3); }
