@@ -35,9 +35,12 @@ function summary(j: Job): string {
     if (j.failed) parts.push(`失败 ${j.failed}`)
     return `核验完成：${parts.join(' · ')}（无依据项请人工过或转澄清）`
   }
-  if (j.kind === 'clar-review') {
-    // ok=AI 材料代答落库数（待人工采纳）
-    return `澄清重检完成：材料代答 ${j.ok ?? 0} 题待采纳`
+  if (j.kind === 'regen' && j.auto_resolved) {
+    const parts = []
+    if (j.auto_resolved?.length) parts.push(`自动裁决 ${j.auto_resolved.length} 处冲突`)
+    if (j.auto_closed?.length) parts.push(`闭环 ${j.auto_closed.length} 条缺口`)
+    if (j.regen_nodes?.length) parts.push(`重组 ${j.regen_nodes.length} 个节点`)
+    if (parts.length) return `智能生成完成：${parts.join(' · ')}`
   }
   if (j.kind === 'generate') {
     // ok=assemble 成功节点数；blocked=闸门拦下的未核验节点

@@ -34,7 +34,7 @@ def _engine_on(monkeypatch):
     async def _boom(*a, **k):
         raise AssertionError("engine=on 不得走旧 tasks 链路")
 
-    calls = {"gen_tree": 0, "extract_one": 0, "verify_all": 0, "clar_review_all": 0}
+    calls = {"gen_tree": 0, "extract_one": 0, "verify_all": 0}
 
     async def gen_tree(proj, root, jid):
         calls["gen_tree"] += 1
@@ -51,20 +51,13 @@ def _engine_on(monkeypatch):
         from app.storage import jobs
         jobs.finish(jid)
 
-    async def clar_review_all(root, waits, ev_ids, jid):
-        calls["clar_review_all"] += 1
-        from app.storage import jobs
-        jobs.finish(jid)
-        return 0
-
     for mod in ("app.api.generate", "app.api.router"):
         monkeypatch.setattr(f"{mod}.engine_on", lambda: True, raising=False)
     monkeypatch.setattr(agent_flow, "gen_tree", gen_tree)
     monkeypatch.setattr(agent_flow, "extract_one", extract_one)
     monkeypatch.setattr(agent_flow, "verify_all", verify_all)
-    monkeypatch.setattr(agent_flow, "clar_review_all", clar_review_all)
-    # 旧链路全炸（understand/extract/verify/clar_review 四任务不得被触碰）
-    for name in ("understand", "extract", "verify", "clar_review"):
+    # 旧链路全炸（understand/extract/verify 三任务不得被触碰）
+    for name in ("understand", "extract", "verify"):
         monkeypatch.setattr(tasks, name, _boom)
     return calls
 
@@ -100,7 +93,7 @@ async def test_generate_phase1_routes_to_agent(client, monkeypatch):
     assert tree and tree[0]["name"] == "支付", "树来自 agent flow"
 
 
-async def test_extract_verify_clar_route_to_agent(client, monkeypatch):
+async def test_extract_verify_route_to_agent(client, monkeypatch):
     from app.core.models import Rule
     from app.storage import rules as rule_store
     from app.storage.project import project_root
@@ -112,8 +105,6 @@ async def test_extract_verify_clar_route_to_agent(client, monkeypatch):
     calls = _engine_on(monkeypatch)
     from app.storage import tree as tree_store
     tree_store.save(root, [tree_store.Node(name="支付", children=[])])
-    from app.storage import clarifications
-    await clarifications.add(root, "入口在哪?", [], kind="open")
 
     r = await client.post(f"{BASE}/evidence/extract-job")
     assert r.status_code == 200
@@ -127,8 +118,3 @@ async def test_extract_verify_clar_route_to_agent(client, monkeypatch):
     assert r.status_code == 200
     j = await _wait_job_done(client, r.json()["job_id"])
     assert j["status"] == "done" and calls["verify_all"] == 1
-
-    r = await client.post(f"{BASE}/clarifications/review", json={"ev_ids": [ev_id]})
-    assert r.status_code == 200
-    j = await _wait_job_done(client, r.json()["job_id"])
-    assert j["status"] == "done" and calls["clar_review_all"] == 1

@@ -40,7 +40,5 @@ async def doubts_summary(proj: str):
             for g in g_open if g_node(g) == root_node]
     glob_c = [{"id": c.id, "q": c.q, "st": c.st}
               for c in c_open if c_node(c) == root_node]
-    return {"stats": {"conflicts": len(c_open), "gaps": len(g_open),
-                      "clarified": sum(1 for c in confs if c.st == "clar")
-                      + sum(1 for g in gaps if g.st == "clar")},
+    return {"stats": {"conflicts": len(c_open), "gaps": len(g_open)},
             "global": glob, "globalConflicts": glob_c, "modules": rows}

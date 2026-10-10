@@ -20,8 +20,13 @@ class VerifyOut(BaseModel):
     results: list[dict]
 
 
+class ConflictDraft(BaseModel):
+    q: str
+    parties: list[str]  # 同主题 2~N 条规则 id（多方归组）
+
+
 class ConflictOut(BaseModel):
-    conflicts: list[Conflict]
+    conflicts: list[ConflictDraft]
 
 
 class GapOut(BaseModel):
@@ -72,16 +77,16 @@ class UnderstandOut(BaseModel):
     nodes: list[OutlineNode]
 
 
-class ClarReviewItem(BaseModel):
-    no: int
-    answered: bool
-    answer: str = ""
-    quote: str = ""
-    conf: str = "med"
+class ResolveItem(BaseModel):
+    kind: str  # conflict | gap
+    id: str
+    action: str  # conflict: auto|keep；gap: close|keep
+    winner: str = ""  # conflict auto 时的胜方规则 id
+    quote: str = ""  # 材料原文依据（自动处理必附，落库时定位校验）
 
 
-class ClarReviewOut(BaseModel):
-    results: list[ClarReviewItem]
+class ResolveDoubtsOut(BaseModel):
+    items: list[ResolveItem]
 
 
 class SummaryOut(BaseModel):
@@ -120,7 +125,7 @@ async def conflict(rules: list[Rule]) -> list[Conflict]:
         {"rules": _fmt_rules(rules)},
         ConflictOut,
     )
-    return out.conflicts
+    return [Conflict(id="", q=d.q, parties=d.parties) for d in out.conflicts]
 
 
 async def gaps(profile_summary: str, dims: list[str]) -> list[Gap]:
@@ -164,14 +169,11 @@ async def understand(material: str, images: list[bytes] | None = None) -> Unders
     return await complete("understand", {"material": material}, UnderstandOut, images=images)
 
 
-async def clar_review(questions_text: str, materials_text: str,
-                      images: list[bytes] | None = None) -> ClarReviewOut:
-    return await complete(
-        "clar-review",
-        {"questions": questions_text, "materials": materials_text},
-        ClarReviewOut,
-        images=images,
-    )
+async def resolve_doubts(doubts_text: str, materials_text: str) -> ResolveDoubtsOut:
+    """遗留疑点直处（智能生成 ③ 阶段）：疑点清单 × 材料 → 逐项 auto/close（附 quote）/keep"""
+    return await complete("resolve-doubts",
+                          {"doubts": doubts_text, "materials": materials_text},
+                          ResolveDoubtsOut)
 
 
 async def summary(parts: str, kind: str) -> SummaryOut:

@@ -2,7 +2,7 @@
 import json
 
 from app.ai.agent import ingest
-from app.core.models import Clarification, Rule
+from app.core.models import Rule
 from app.storage import rules as rule_store
 from app.storage import tree as tree_store
 from app.storage.profiles import ROOT_NODE, load_profile
@@ -86,15 +86,3 @@ def test_verify_quote_mismatch_falls_to_nobasis(tmp_path):
     assert items[0].verified is False and items[0].nb == "引用无法定位"
 
 
-def test_clar_paths(tmp_path):
-    d = _dir(tmp_path)
-    waits = [Clarification(no=1, q="支持哪些格式?", opts=["PDF/图片", "仅 PDF"], kind="choice"),
-             Clarification(no=2, q="入口在哪?", opts=[], kind="open")]
-    data = {"results": [
-        {"no": 1, "answered": True, "answer": "第三个选项", "quote": "支付模块", "conf": "high"},
-        {"no": 2, "answered": True, "answer": "上传页", "quote": "编造的引用", "conf": "high"},
-        {"no": 7, "answered": True, "answer": "x", "quote": "", "conf": "high"}]}
-    n = ingest.ingest_clar(waits, data, d, ev_ids=["文档a1"])
-    assert n == 1                                     # choice 未命中丢弃、未知 no 丢弃
-    assert waits[1].ai.quote_ok is False and waits[1].ai.conf == "low"
-    assert waits[0].ai is None                        # choice 丢弃 → 不落 ai

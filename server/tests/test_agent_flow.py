@@ -114,39 +114,3 @@ async def test_extract_one_marks_extracted(tmp_path):
         mp.undo()
 
 
-async def test_verify_all_and_clar_review(tmp_path):
-    from app.core.models import Clarification, Rule
-    from app.storage import clarifications, jobs
-    from app.storage import rules as rule_store
-
-    await _mk_ev(tmp_path, ev_id="文档a1")
-    await _seed_tree(tmp_path)
-    rule_store.save(tmp_path, [Rule(id="R1", text="旧文本", src="a", conf="文档")])
-    await clarifications.add(tmp_path, "入口在哪?", [], kind="open")
-    import app.ai.agent.export as ex
-    real_build = ex.build_task_dir
-    results = {"verify": {"results": [{"id": "R1", "ok": True, "quote": "支付模块负责收款"}]},
-               "clar-review": {"results": [{"no": 1, "answered": True, "answer": "上传页",
-                                            "quote": "支付模块负责收款", "conf": "high"}]}}
-
-    async def spy_build(root, evs, task, body):
-        d = await real_build(root, evs, task, body)
-        (d / "FAKE.json").write_text(json.dumps({"result": results[task]},
-                                                ensure_ascii=False), "utf-8")
-        return d
-
-    mp = pytest.MonkeyPatch()
-    mp.setattr(flow.export, "build_task_dir", spy_build)
-    try:
-        jv = jobs.create("verify-batch", "核验", 1)
-        await flow.verify_all(tmp_path, ["R1"], only_doc=False, jid=jv)
-        assert rule_store.load(tmp_path)[0].verified is True
-        jc = jobs.create("clar-review", "重检", 1)
-        waits = await clarifications.list_all(tmp_path)
-        n = await flow.clar_review_all(tmp_path, waits, ["文档a1"], jid=jc)
-        assert n == 1
-        w = (await clarifications.list_all(tmp_path))[0]
-        assert w.ai is not None and w.ai.answer == "上传页"
-        assert jobs.get(jv)["status"] == "done" and jobs.get(jc)["status"] == "done"
-    finally:
-        mp.undo()

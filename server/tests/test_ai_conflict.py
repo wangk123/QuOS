@@ -5,15 +5,15 @@ from app.storage import dims
 
 
 async def test_conflict(monkeypatch):
-    fake = tasks.ConflictOut(conflicts=[Conflict(id="C1", a="A1", b="A2", q="重试次数：代码3次 vs 文档5次")])
+    fake = tasks.ConflictOut(conflicts=[tasks.ConflictDraft(q="重试次数：代码3次 vs 文档5次", parties=["A1", "A2"])])
     async def mock(task, variables, schema): return fake
     monkeypatch.setattr(tasks, "complete", mock)
     out = await tasks.conflict([
         Rule(id="R1", text="当超时应重试3次", src="retry.py:15", conf="实证"),
         Rule(id="R2", text="当超时应重试5次", src="spec.md#3", conf="文档"),
     ])
-    assert out[0].id == "C1"
-    assert out[0].a == "A1" and out[0].b == "A2"
+    assert out[0].id == ""  # 归组扫描不产 id——merge_conflicts 落库时续 C{n}
+    assert out[0].parties == ["A1", "A2"]
     assert "重试" in out[0].q
 
 

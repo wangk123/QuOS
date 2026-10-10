@@ -1,16 +1,14 @@
 <script setup lang="ts">
-// 工作台终态（T19）：App = 顶栏（版本 | 证据池(n) | 待确认(n)）+ Workbench 单视图 + 全局进度条 + 弹窗/toasts。
+// 工作台终态：App = 顶栏（版本 | 证据池(n)）+ Workbench 单视图 + 全局进度条 + 弹窗/toasts。
 // 五步旧视图、侧栏树与 v-base 基线块均已删（版本入口收敛为 VerModal 弹窗）。
 import { computed, onMounted, provide, ref, watch } from 'vue'
-import { ApiError, curSlug, generateCancel, getClarifications, getEvidence, listBaselines, type Baseline, type EvidenceItem } from './api'
-import ClarModal from './components/ClarModal.vue'
+import { ApiError, curSlug, generateCancel, getEvidence, listBaselines, regen, type Baseline, type EvidenceItem } from './api'
 import EvPoolModal from './components/EvPoolModal.vue'
-import ImpactModal from './components/ImpactModal.vue'
 import VerModal from './components/VerModal.vue'
 import Home from './views/Home.vue'
 import Workbench from './views/Workbench.vue'
 import { aiBusy, goHome, syncFromHash, top } from './router'
-import { resumeJobs } from './jobs'
+import { resumeJobs, startJobPolling } from './jobs'
 import { refreshWb } from './wb'
 
 const err = ref('')
@@ -30,22 +28,9 @@ function toast(msg: string, cls = '') {
   setTimeout(() => (toasts.value = toasts.value.filter(x => x.id !== t.id)), 2800)
 }
 provide('toast', toast)
-provide('refreshClar', refreshClar) // Workbench 右栏待确认落定后刷新顶栏角标
 
 async function refreshBaselines() {
   baselines.value = await listBaselines()
-}
-
-// 顶栏「待确认」弹窗（T13）：wait 状态条数角标
-const clarOpen = ref(false)
-const clarWait = ref(0)
-async function refreshClar() {
-  clarWait.value = (await getClarifications()).filter(c => c.st === 'wait').length
-}
-// 弹窗内单题落定（记答复/采纳→规则自动核过）：角标与工作台树徽章同刷
-function onClarChanged() {
-  void refreshClar().catch(() => {})
-  void refreshWb().catch(() => {})
 }
 
 // 顶栏「证据池」弹窗（T12）：列表数据由 App 持有，角标 = 同源计数；增删后弹窗 emit changed 重拉
@@ -68,17 +53,17 @@ async function onCancelAi() {
     toast(e instanceof Error ? e.message : '取消失败', 'warn')
   }
 }
-/** 重新生成入口（T17）：打开影响分析弹窗——触发材料 = 未提取（state!=='extracted'）的新材料；
- *  同时关掉证据池弹窗，防双弹窗叠层与两处 paste 监听双投递 */
-const impactOpen = ref(false)
-const newEvIds = computed(() => evidence.value.filter(e => e.state !== 'extracted').map(e => e.id))
-function onImpact() {
+/** 重新生成两模式（证据池入口）：full=全量 / smart=智能生成——发 job 后关弹窗，
+ * 进度走全局 aiBusy 轮询，树徽章随 job 完成自动刷新 */
+async function onRegen(mode: 'full' | 'smart') {
   evOpen.value = false
-  impactOpen.value = true
-}
-/** regen job 已发起：立即刷总表（空新材料直接打开时弹窗内自会提示，不执行） */
-function onImpactDone() {
-  void refreshWb().catch(() => {})
+  try {
+    const evIds = evidence.value.map(e => e.id)
+    const r = await regen(mode, evIds)
+    startJobPolling(r.job_id, toast) // 进度条/取消/完成 toast 与树刷新由轮询驱动
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '重新生成发起失败', 'warn')
+  }
 }
 
 // 顶栏「版本」弹窗（T14 终态唯一版本入口）：存版成功后重拉基线
@@ -94,7 +79,6 @@ async function boot() {
     if (top.value !== 'proj') return
     await refreshBaselines()
     void resumeJobs(toast) // 恢复后端仍在跑的批量任务进度（页面刷新/重开场景）
-    void refreshClar().catch(() => {})
     void refreshEv().catch(() => {})
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
@@ -150,14 +134,9 @@ watch([top, curSlug], ([t]) => {
       <button class="pool-btn" type="button" @click="evOpen = true">
         证据池<span v-if="evCount" class="pool-badge">{{ evCount }}</span>
       </button>
-      <button class="pool-btn" type="button" @click="clarOpen = true">
-        待确认<span v-if="clarWait" class="pool-badge">{{ clarWait }}</span>
-      </button>
     </header>
 
-    <ClarModal :open="clarOpen" :evidence="evidence" @close="clarOpen = false" @changed="onClarChanged" />
-    <EvPoolModal :open="evOpen" :evidence="evidence" @close="evOpen = false" @changed="onEvChanged" @impact="onImpact" />
-    <ImpactModal :open="impactOpen" :ev-ids="newEvIds" :evidence="evidence" @close="impactOpen = false" @done="onImpactDone" />
+    <EvPoolModal :open="evOpen" :evidence="evidence" @close="evOpen = false" @changed="onEvChanged" @regen="onRegen" />
     <VerModal :open="verOpen" @close="verOpen = false" @saved="onSaved" />
 
     <p v-if="err" class="err">{{ err }}</p>

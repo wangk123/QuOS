@@ -121,7 +121,7 @@ describe('WbDetail', () => {
 
   it('根详情：存疑汇总卡——统计条/全局区/模块行跳转，全零模块不占行，速览表加待处置列', async () => {
     api.getDoubtSummary.mockResolvedValue({
-      stats: { conflicts: 1, gaps: 4, clarified: 2 },
+      stats: { conflicts: 1, gaps: 4 },
       global: [{ id: 'G3', dim: '状态', text: '未说明根级发布状态', st: 'open' }],
       modules: [
         { name: '登录', rules: 3, conflicts: 1, gaps: 1, peek: '未说明幂等键' },
@@ -132,7 +132,6 @@ describe('WbDetail', () => {
     await flushPromises()
     expect(w.text()).toContain('存疑汇总')
     expect(w.text()).toContain('矛盾待裁决')
-    expect(w.text()).toContain('已转待确认')
     expect(w.text()).toContain('全局')
     expect(w.text()).toContain('未说明根级发布状态')
     expect(w.findAll('.dsum-row')).toHaveLength(1) // 查询全零不占行
@@ -142,12 +141,11 @@ describe('WbDetail', () => {
     const tds = w.findAll('.mtx tr.clickable')
     expect(tds[0].text()).toContain('1 矛盾')
     expect(tds[1].text()).toContain('清')
-    // 全局缺口卡内处置：转澄清 → disposeGap + clar-changed
-    api.disposeGap.mockResolvedValue({ id: 'G3', dim: '状态', text: 'x', st: 'clar', node: '' })
-    api.getDoubtSummary.mockResolvedValue({ stats: { conflicts: 1, gaps: 4, clarified: 3 }, global: [], modules: [] })
+    // 全局缺口卡内处置：设计如此（转澄清已随问人退役）→ disposeGap 单参
+    api.disposeGap.mockResolvedValue({ id: 'G3', dim: '状态', text: 'x', st: 'ok', node: '' })
+    api.getDoubtSummary.mockResolvedValue({ stats: { conflicts: 1, gaps: 4 }, global: [], modules: [] })
     await w.findAll('.dsum-global button')[0].trigger('click')
     await flushPromises()
-    expect(api.disposeGap).toHaveBeenCalledWith('G3', 'clar')
-    expect(w.emitted('clar-changed')).toBeTruthy()
+    expect(api.disposeGap).toHaveBeenCalledWith('G3')
   })
 })

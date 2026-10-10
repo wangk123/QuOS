@@ -48,17 +48,16 @@ export interface Rule {
   /** 归属功能点全路径；空串 = 未归类（Task 5 绑定） */
   node?: string
   nb?: string
-  clar?: number | null
 }
 
 export interface Conflict {
   id: string
-  a: string
-  b: string
+  parties: string[] // 参与规则 id（2~N 同主题说法）
   q: string
-  st: string
-  resolution: string | null
-  node?: string // 归属节点全路径（后端唯一口径 _conflict_node；'__root__'=全局，无具体归属）
+  st: string // open | done
+  resolution: string | null // 胜方规则 id | 'manual'
+  manual_text?: string // 选「其他」手输的实际行为
+  node?: string // 归属节点全路径（后端唯一口径 _conflict_node；'__root__'=全局）
 }
 
 export interface Gap {
@@ -71,37 +70,6 @@ export interface Gap {
 }
 
 /** 澄清重检 AI 代答结果（待人工采纳） */
-export interface AiReview {
-  answer: string
-  quote: string
-  ev_ids: string[]
-  conf: string
-  quote_ok: boolean
-}
-
-export interface ClarAnswer {
-  kind: string
-  text: string
-  ev_ids: string[]
-  /** confirm 选「与实际不符」时补充的实际行为 */
-  extra?: string
-}
-
-export interface Clarification {
-  no: number
-  q: string
-  /** choice=选择题 open=开放题；旧数据无此字段按 choice 兼容 */
-  kind?: 'choice' | 'open'
-  /** confirm 确认 | choose 取舍 | supply 补全 | custom 自定义（后端读侧恒非空） */
-  type: string
-  opts: string[]
-  st: string
-  answer: string | null
-  ref: string | null
-  ai?: AiReview | null
-  ans?: ClarAnswer | null
-}
-
 export interface ProfileRule {
   id: string
   text: string
@@ -197,8 +165,6 @@ export const confirmRule = (id: string) =>
   req<void>(`/rules/${encodeURIComponent(id)}/confirm`, { method: 'POST' })
 
 /** 转问人：进「问人」清单，答案确认后自动核过；q 为自定义问法（空 = 后端默认拼接问法） */
-export const askRule = (id: string, q?: string) =>
-  req<void>(`/rules/${encodeURIComponent(id)}/ask`, json('POST', { q: q ?? '' }))
 
 /** 人工挂载/改归属；node 为空串 = 回未归类 */
 export const setRuleNode = (id: string, node: string) =>
@@ -208,14 +174,15 @@ export const setRuleNode = (id: string, node: string) =>
 
 export const getConflicts = () => req<Conflict[]>('/conflicts')
 
-export const resolveConflict = (id: string, action: 'code' | 'clar', side?: 'a' | 'b') =>
-  req<Conflict>('/conflicts', json('POST', { id, action, side }))
+/** 裁决：code=信第 side 方（parties 索引）；manual=其他（text=手输实际行为，后端落实证规则） */
+export const resolveConflict = (id: string, action: 'code' | 'manual', side?: number, text?: string) =>
+  req<Conflict>('/conflicts', json('POST', { id, action, side: side ?? -1, text: text ?? '' }))
 
 // ---------- 空白 ----------
 
 export const getGaps = () => req<Gap[]>('/gaps')
 
-export const disposeGap = (id: string, action: 'clar' | 'ok') => req<Gap>('/gaps', json('POST', { id, action }))
+export const disposeGap = (id: string) => req<Gap>('/gaps', json('POST', { id, action: 'ok' }))
 
 // ---------- 存疑汇总（根详情「存疑汇总」卡） ----------
 
@@ -241,7 +208,7 @@ export interface DoubtGlobalConflict {
 }
 
 export interface DoubtSummary {
-  stats: { conflicts: number; gaps: number; clarified: number }
+  stats: { conflicts: number; gaps: number }
   global: DoubtGlobalGap[]
   globalConflicts: DoubtGlobalConflict[]
   modules: DoubtModule[]
@@ -282,7 +249,10 @@ export interface Job {
   nobasis?: number    // verify-batch：材料无依据条数
   phase?: string        // generate/regen：outline|extract|verify|conflict|assemble|gap|summary
   current_node?: string // generate/regen：assemble 阶段当前节点全路径
-  done_nodes?: string[] // generate/regen：已完成节点全路径清单（总表 state 标记用）
+  done_nodes?: string[]
+  auto_resolved?: string[] // smart：自动裁决的冲突 id
+  auto_closed?: string[] // smart：自动闭环的缺口 id
+  regen_nodes?: string[] // smart：重组的节点全路径 // generate/regen：已完成节点全路径清单（总表 state 标记用）
   skipped: string[]
   blocked: string[]
   failed: number
@@ -299,32 +269,6 @@ export const patchProfileGoal = (full: string, goal: string) =>
   req<Profile>(`/profiles/${encodeURIComponent(full)}`, json('PATCH', { goal }))
 
 export const getDoc = () => req<string>('/doc')
-
-// ---------- 问人 ----------
-
-export const getClarifications = () => req<Clarification[]>('/clarifications')
-
-export const answerClar = (no: number, idx: number, extra = '') =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'answer', idx, extra }))
-
-export const verifyClar = (no: number) =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'verify' }))
-
-/** 澄清重检：选定材料 × 全部待问 → AI 代答（待采纳），进度走 GET /jobs */
-export const reviewClars = (evIds: string[]) =>
-  req<{ job_id: string; total: number; questions: number }>('/clarifications/review', json('POST', { ev_ids: evIds }))
-
-/** 采纳 AI 代答（触发规则核过联动） */
-export const adoptClar = (no: number) =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'adopt' }))
-
-/** 忽略 AI 代答 */
-export const ignoreClar = (no: number) =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'ignore' }))
-
-/** open 题文本作答，可关联材料（人工看图作答场景） */
-export const answerClarOpen = (no: number, text: string, evIds: string[] = []) =>
-  req<Clarification>('/clarifications', json('POST', { no, action: 'answer', text, ev_ids: evIds }))
 
 // ---------- 基线 ----------
 
@@ -366,17 +310,7 @@ export interface WbSummary {
   root: WbRoot | null
 }
 
-export type RegenMode = 'partial' | 'rescan' | 'full'
-
-/** POST /regen/impact 方案卡：关联清单 + AI 建议 mode；recommend 为白名单校验后的推荐方案（失配取 partial）；reason=AI 判断依据一句话 */
-export interface ImpactPlan {
-  nodes: string[]
-  rule_ids: string[]
-  clar_nos: string[]
-  mode: string
-  reason: string
-  recommend: RegenMode
-}
+export type RegenMode = 'full' | 'smart'
 
 /** GET /wb/summary：树总表（含每节点徽章计数与 job 进行态）+ 根画像 */
 export const wbSummary = () => req<WbSummary>('/wb/summary')
@@ -387,12 +321,9 @@ export const generateReq = () => req<{ job_id: string; total: number }>('/genera
 /** 取消当前 generate/regen job（已完成内容保留） */
 export const generateCancel = () => req<{ status: string }>('/generate/cancel', { method: 'POST' })
 
-/** 影响分析：新材料 × 现有条目/待确认 → 方案卡（T17 接线，端点 T15 交付） */
-export const impactAnalyse = (evIds: string[]) => req<ImpactPlan>('/regen/impact', json('POST', { ev_ids: evIds }))
-
-/** 重生成三模式：partial=受影响节点局部 / rescan=仅待确认代答 / full=全量（T17 接线，端点 T16 交付） */
-export const regen = (mode: RegenMode, evIds: string[], nodes?: string[]) =>
-  req<{ job_id: string }>('/regen', json('POST', { mode, ev_ids: evIds, nodes }))
+/** 重新生成两模式：full=全量重跑 / smart=智能生成（六阶段：新材料→重核→疑点直处→影响分析→重组→汇总） */
+export const regen = (mode: RegenMode, evIds: string[]) =>
+  req<{ job_id: string; mode: string; total: number }>('/regen', json('POST', { mode, ev_ids: evIds }))
 
 /** 根卡 ↻ 摘要：同步重聚合 root+全部 module 画像并写回（不 job 化，秒级返回） */
 export const summaryRegen = () => req<{ updated: string[] }>('/summary/regen', { method: 'POST' })

@@ -27,7 +27,7 @@ async def fake_conflict(rules: list[Rule]) -> list[Conflict]:
     pair = [r for r in rules if r.text in _PAIR]
     if len(pair) < 2:
         return []
-    return [Conflict(id="C1", a=pair[0].id, b=pair[1].id,
+    return [Conflict(id="C1", parties=[r.id for r in pair],
                      q="重试上限到底是几次？（代码与文档不一致）")]
 
 
@@ -70,13 +70,6 @@ async def fake_outline(material: str) -> list[tasks.OutlineNode]:
     ])]
 
 
-async def fake_clar_review(questions_text: str, materials_text: str,
-                           images: list[bytes] | None = None) -> tasks.ClarReviewOut:
-    return tasks.ClarReviewOut(results=[{
-        "no": 1, "answered": True, "answer": "假答案", "quote": "材料原文", "conf": "high",
-    }])
-
-
 async def fake_understand(material, images=None):
     return tasks.UnderstandOut(
         root=tasks.UnderstandRoot(goal="假需求：访前调查助手", entry="客户经理",
@@ -100,6 +93,5 @@ def install() -> None:
     tasks.assemble = fake_assemble
     tasks.impact_analysis = fake_impact_analysis
     tasks.outline = fake_outline
-    tasks.clar_review = fake_clar_review
     tasks.understand = fake_understand
     tasks.summary = fake_summary

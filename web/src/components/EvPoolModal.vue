@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 证据池弹窗（T12）：追加材料（点击/拖拽/⌘V）/ 删除 / 重新生成入口（ImpactModal T17 接）。
+// 证据池弹窗：追加材料（点击/拖拽/⌘V）/ 删除 / 重新生成两模式入口（full/smart）。
 // 数据由父级传入（App 持有 evidence 供顶栏角标复用），增删后 emit('changed') 父级重拉。
 import { inject, onUnmounted, ref, watch } from 'vue'
 import { ApiError, addEvidenceFile, deleteEvidence, type EvidenceItem } from '../api'
@@ -8,8 +8,8 @@ const props = defineProps<{ open: boolean; evidence: EvidenceItem[] }>()
 const emit = defineEmits<{
   close: []
   changed: []
-  /** 重新生成入口（无载荷）——Workbench 挂 ImpactModal 后由父级接 */
-  impact: []
+  /** 重新生成两模式：full=全量重跑 / smart=智能生成（疑点直处+自动范围重组） */
+  regen: [mode: 'full' | 'smart']
 }>()
 
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
@@ -114,8 +114,9 @@ async function remove(ev: EvidenceItem) {
         <div v-if="!evidence.length" class="evrow" style="color: var(--muted-fg)">池是空的——拖文件 / ⌘V / 点击上方框追加</div>
       </div>
       <div class="modal-foot">
-        <button class="btn" type="button" @click="$emit('impact')">↻ 重新生成</button>
-        <span class="fnote">先出影响分析方案——AI 判断局部还是全量，你确认后执行</span>
+        <button class="btn" type="button" @click="$emit('regen', 'full')">↻ 全量重新生成</button>
+        <button class="btn btn-accent2" type="button" @click="$emit('regen', 'smart')">✦ 智能生成</button>
+        <span class="fnote">智能生成自动核验遗留待处理疑点、自动判断受影响模块并重组</span>
       </div>
     </div>
   </div>

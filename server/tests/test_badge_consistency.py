@@ -37,11 +37,11 @@ async def _seed(client):
         Rule(id="R5", text="树上已删路径的规则", src="a", conf="文档", verified=True, node="支付/已删节点"),
     ])
     findings.save_conflicts(root, [
-        Conflict(id="C1", a="R1", b="R2", q="双叶冲突"),                     # deepest → 支付/放款重试
-        Conflict(id="C2", a="R3", b="R1", q="模块级×叶"),                    # deepest → 支付/放款重试
-        Conflict(id="C3", a="R4", b="R6", q="一方未归类一方不存在"),         # 无有效归属 → 全局
-        Conflict(id="C4", a="R5", b="R1", q="一方路径已删"),                 # 有效方最深 → 支付/放款重试
-        Conflict(id="C5", a="R1", b="R2", q="已裁决不计数", st="code", resolution="R1"),
+        Conflict(id="C1", parties=["R1", "R2"], q="双叶冲突"),                     # deepest → 支付/放款重试
+        Conflict(id="C2", parties=["R3", "R1"], q="模块级×叶"),                    # deepest → 支付/放款重试
+        Conflict(id="C3", parties=["R4", "R6"], q="一方未归类一方不存在"),         # 无有效归属 → 全局
+        Conflict(id="C4", parties=["R5", "R1"], q="一方路径已删"),                 # 有效方最深 → 支付/放款重试
+        Conflict(id="C5", parties=["R1", "R2"], q="已裁决不计数", st="code", resolution="R1"),
     ])
     findings.save_gaps(root, [
         Gap(id="G1", dim="边界", text="叶缺口", node="支付/额度测算"),

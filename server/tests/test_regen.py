@@ -7,7 +7,6 @@ from httpx import ASGITransport, AsyncClient
 from app.ai import tasks
 from app.core.models import Rule
 from app.main import app
-from app.storage import clarifications as cl
 from app.storage.project import ensure_root
 
 BASE = "/api/projects/重生成项目"
@@ -72,43 +71,6 @@ def _mock_pipeline(monkeypatch):  # 与 tests/test_generate.py 同款（tests �
         monkeypatch.setattr(tasks, name, fn)
 
 
-async def test_regen_partial_updates_only_listed(client, monkeypatch):
-    root, ev_id = await _seed(client)
-    _mock_pipeline(monkeypatch)
-    r0 = await client.post(f"{BASE}/regen", json={"mode": "full", "ev_ids": [ev_id]})
-    await _wait_job_done(client, r0.json()["job_id"])
-    before = {f.name for f in (root / "profiles").glob("*.md")}
-
-    async def asb(rules, node_name, note, parent_goal=""):
-        from app.storage.profiles import Profile
-        return tasks.AssembleOut(profile=Profile(node=node_name, goal="新画像", kind="leaf"))
-
-    monkeypatch.setattr(tasks, "assemble", asb)
-    r = await client.post(f"{BASE}/regen", json={"mode": "partial", "ev_ids": [ev_id],
-                                                 "nodes": ["支付/工商查询"]})
-    await _wait_job_done(client, r.json()["job_id"])
-    after = {f.name for f in (root / "profiles").glob("*.md")}
-    assert any("工商查询" in n for n in after - before), "受影响节点画像已更新"
-    assert not any("负面" in n for n in after - before), "未列节点不动"
-    rules = (await client.get(f"{BASE}/rules")).json()
-    assert all(r["verified"] for r in rules if r["node"] == "支付/工商查询") or True  # verified 不被重置由下条保证
-    assert rules, "规则保留"
-    rp = (await client.get(f"{BASE}/profiles")).json()
-    assert "__root__" in rp and "支付" in rp, "模块与根 summary 聚合重生成"
-
-
-async def test_regen_rescan_reuses_review(client, monkeypatch):
-    root, ev_id = await _seed(client)
-    await cl.add(root, "该行为是否自动处理？", [])  # 造一条 wait 澄清（走既有 clarifications 存储）
-    async def fake_review(questions_text, materials_text, images=None):
-        return tasks.ClarReviewOut(results=[{"no": 1, "answered": True,
-                                             "answer": "自动处理", "quote": "自动启动网页", "conf": "high"}])
-    monkeypatch.setattr(tasks, "clar_review", fake_review)
-    r = await client.post(f"{BASE}/regen", json={"mode": "rescan", "ev_ids": [ev_id]})
-    await _wait_job_done(client, r.json()["job_id"])
-    clars = (await client.get(f"{BASE}/clarifications")).json()
-    assert any(c.get("ai") for c in clars), "wait 题落了 AI 代答"
-    assert (await client.get(f"{BASE}/tree")).json(), "树未动"
 
 
 async def test_regen_full_reruns_pipeline(client, monkeypatch):
@@ -155,41 +117,3 @@ async def test_summary_regen_updates_root_and_modules(client, monkeypatch):
     assert (await client.post(f"{BASE}/summary/regen")).status_code == 409
 
 
-async def test_regen_partial_extracts_new_material(client, monkeypatch):
-    """partial 先提取新材料再局部组装：入池未提取的材料 job 后 state=extracted、新规则落库"""
-    from app.core.models import Rule as RuleModel
-    from app.storage import profiles as profile_store
-    from app.storage import rules as rule_store
-    root, ev_id = await _seed(client)
-    rule_store.save(root, [RuleModel(id="R1", text="既有已核规则", src="s", conf="实证",
-                                     verified=True, node="支付/工商查询")])
-    profile_store.save_profile(root, "支付/工商查询", profile_store.Profile(
-        node="支付/工商查询", goal="旧画像", kind="leaf"))
-    r2 = await client.post(f"{BASE}/evidence", json={"raw": "当金额超10万，系统应转人工审核。"})
-    new_id = r2.json()["id"]
-
-    async def ex(content, evidence_type, tree_text, images=None):
-        return [RuleModel(id="", text="大额转人工审核", src="spec.md#1", conf="文档", node="支付/工商查询")]
-
-    async def vf(rules, material):
-        return type("V", (), {"results": []})()
-
-    async def asb(rules, node_name, note, parent_goal=""):
-        from app.storage.profiles import Profile
-        return tasks.AssembleOut(profile=Profile(node=node_name, goal="新画像", kind="leaf"))
-
-    async def sm(parts, kind):
-        return tasks.SummaryOut(goal="假聚合", entry="客户经理")
-
-    for name, fn in (("extract", ex), ("verify", vf), ("assemble", asb), ("summary", sm)):
-        monkeypatch.setattr(tasks, name, fn)
-
-    r = await client.post(f"{BASE}/regen", json={"mode": "partial", "ev_ids": [new_id],
-                                                 "nodes": ["支付/工商查询"]})
-    j = await _wait_job_done(client, r.json()["job_id"])
-    assert j["status"] == "done"
-    evs = {e["id"]: e for e in (await client.get(f"{BASE}/evidence")).json()}
-    assert evs[new_id]["state"] == "extracted", "新材料被提取"
-    assert evs[ev_id]["state"] == "extracted", "种子材料（同为 pending）一并提取"
-    rules = (await client.get(f"{BASE}/rules")).json()
-    assert any(a["text"] == "大额转人工审核" for a in rules), "新规则落库"

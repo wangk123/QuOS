@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ValidationError, field_validator
 
 from app.ai.agent.runner import AgentRunError
-from app.core.models import AiReview, Rule
+from app.core.models import Rule
 from app.storage import profiles as profile_store
 from app.storage import rules as rule_store
 from app.storage import tree as tree_store
@@ -163,22 +163,3 @@ def ingest_verify(items: list[Rule], data: dict, dir_path: Path) -> dict:
     return stat
 
 
-def ingest_clar(waits, data: dict, dir_path: Path, ev_ids: list[str]) -> int:
-    """clar-review 产物落库：语义对齐 router._apply_review——choice 逐字命中、quote substring→quote_ok
-    （图片材料天然豁免：texts 不含图片）、失败 conf=low、未知 no 丢弃；返回落库数"""
-    by_no = {w.no: w for w in waits}
-    texts = load_texts(dir_path)
-    n = 0
-    for r in data.get("results", []):
-        w = by_no.get(r.get("no"))
-        if w is None or not r.get("answered"):
-            continue
-        if w.kind == "choice" and r.get("answer") not in w.opts:
-            continue  # 选择题答案必须逐字命中选项
-        quote = r.get("quote", "")
-        quote_ok = _quote_ok(quote, texts)
-        conf = r.get("conf", "med") if quote_ok else "low"
-        w.ai = AiReview(answer=r.get("answer", ""), quote=quote,
-                        ev_ids=list(ev_ids), conf=conf, quote_ok=quote_ok)
-        n += 1
-    return n

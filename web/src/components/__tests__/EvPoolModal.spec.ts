@@ -77,11 +77,13 @@ describe('EvPoolModal（证据池弹窗）', () => {
     expect(w.emitted('changed')).toBeFalsy()
   })
 
-  it('「↻ 重新生成」emit impact（无载荷，ImpactModal T17 接）', async () => {
-    const w = await mountModal()
-    await w.findAll('button').find(b => b.text().includes('重新生成'))!.trigger('click')
-    expect(w.emitted('impact')).toBeTruthy()
-    expect(w.emitted('impact')!.length).toBe(1)
+  it('重新生成两模式：emit regen full / smart', async () => {
+    const w = await mountModal({ open: true, evidence: [] })
+    const btns = w.findAll('button').filter(b => b.text().includes('重新生成') || b.text().includes('智能生成'))
+    await btns[0].trigger('click')
+    expect(w.emitted('regen')![0]).toEqual(['full'])
+    await btns[1].trigger('click')
+    expect(w.emitted('regen')![1]).toEqual(['smart'])
   })
 
   it('点击上传：隐藏 file input 逐份 addEvidenceFile（池直入无 source）并 emit changed', async () => {

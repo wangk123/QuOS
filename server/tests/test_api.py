@@ -113,7 +113,7 @@ async def test_end_to_end(client, monkeypatch):
 
     # ⑨ conflict/gap 路由 smoke
     async def mock_conflict(rules):
-        return [Conflict(id="C1", a="R1", b="R2", q="重试次数：代码3次 vs 文档5次")]
+        return [Conflict(id="C1", parties=["R1", "R2"], q="重试次数：代码3次 vs 文档5次")]
 
     monkeypatch.setattr(tasks, "conflict", mock_conflict)
     r = await client.post(f"{BASE}/conflicts/rescan")
@@ -122,8 +122,8 @@ async def test_end_to_end(client, monkeypatch):
     assert [c["id"] for c in r.json()] == ["C1"]
 
     # 裁决：信代码侧
-    r = await client.post(f"{BASE}/conflicts", json={"id": "C1", "action": "code", "side": "a"})
-    assert r.status_code == 200 and r.json()["resolution"] == "R1" and r.json()["st"] == "code"
+    r = await client.post(f"{BASE}/conflicts", json={"id": "C1", "action": "code", "side": 0})
+    assert r.status_code == 200 and r.json()["resolution"] == "R1" and r.json()["st"] == "done"
 
     async def mock_gaps(summary, dims):
         assert "放款" in summary
@@ -138,18 +138,9 @@ async def test_end_to_end(client, monkeypatch):
     r = await client.post(f"{BASE}/gaps", json={"id": "G1", "action": "ok"})
     assert r.json()["st"] == "ok"
 
-    # 问人链：gap 转问人 → answer → verify
-    monkeypatch.setattr(tasks, "gaps", mock_gaps)
-    await client.post(f"{BASE}/gaps/rescan")
+    # 转澄清已随问人体系退役：action=clar 一律 422
     r = await client.post(f"{BASE}/gaps", json={"id": "G1", "action": "clar"})
-    assert r.status_code == 200
-    r = await client.get(f"{BASE}/clarifications")
-    assert len(r.json()) == 1
-    no = r.json()[0]["no"]
-    r = await client.post(f"{BASE}/clarifications", json={"no": no, "action": "answer", "text": "幂等键为订单号"})
-    assert r.json()["st"] == "answered"
-    r = await client.post(f"{BASE}/clarifications", json={"no": no, "action": "verify"})
-    assert r.json()["st"] == "verified"
+    assert r.status_code == 422
 
 
 async def test_evidence_file_upload(client):
@@ -238,22 +229,6 @@ async def test_node_addressing_errors(client):
     assert (await client.get(f"{BASE}/profiles/x")).status_code == 422
 
 
-async def test_ask_rule_custom_q(client):
-    """POST /rules/{id}/ask 带自定义 q：澄清池问题 q 字段=自定义文本；不带 q 走默认拼接问法"""
-    from app.storage import clarifications as cl
-    from app.storage import rules as rule_store
-
-    root = ensure_root("演示项目")
-    rule_store.save(root, [Rule(id="R1", text="失败后兜底转人工", src="s", conf="推测"),
-                           Rule(id="R2", text="冷却期 7 天", src="s", conf="待实证")])
-    r = await client.post(f"{BASE}/rules/R1/ask", json={"q": "「R1」的具体触发条件是什么？"})
-    assert r.status_code == 204
-    r = await client.post(f"{BASE}/rules/R2/ask", json={})
-    assert r.status_code == 204
-    rows = {c.ref: c for c in await cl.list_all(root)}
-    assert rows["R1"].q == "「R1」的具体触发条件是什么？"
-    assert rows["R2"].q == "冷却期 7 天——该推测与实际系统一致吗？"
-
 
 async def test_baseline_without_changes(client):
     ensure_root("演示项目")
@@ -317,7 +292,7 @@ async def test_assemble_excludes_voided_rules(client, monkeypatch):
         Rule(id="R2", text="重试上限 3 次", src="retry.py:42", conf="实证", verified=True, node="放款"),
         Rule(id="R3", text="重试上限 5 次", src="设计文档§2", conf="文档", verified=True, node="放款"),
     ])
-    finding_store.save_conflicts(root, [Conflict(id="C1", a="R2", b="R3", q="重试几次？", st="code", resolution="R2")])
+    finding_store.save_conflicts(root, [Conflict(id="C1", parties=["R2", "R3"], q="重试几次？", st="done", resolution="R2")])
     await client.post(f"{BASE}/tree", json={"op": "add", "path": None, "name": "放款"})
 
     seen = {}
@@ -669,9 +644,9 @@ async def test_wb_summary(client):
         Rule(id="R5", text="未归类规则", src="r.py:5", conf="文档", verified=True, node=""),
     ])
     finding_store.save_conflicts(root, [
-        Conflict(id="C1", a="R1", b="R2", q="重试几次？"),
-        Conflict(id="C2", a="R4", b="R1", q="模块级规则与叶规则冲突——应归属最深的叶，不得只在模块行可见"),
-        Conflict(id="C3", a="R5", b="R3", q="一方未归类——应归属另一方的具体节点，不得全项目不可见"),
+        Conflict(id="C1", parties=["R1", "R2"], q="重试几次？"),
+        Conflict(id="C2", parties=["R4", "R1"], q="模块级规则与叶规则冲突——应归属最深的叶，不得只在模块行可见"),
+        Conflict(id="C3", parties=["R5", "R3"], q="一方未归类——应归属另一方的具体节点，不得全项目不可见"),
     ])
     finding_store.save_gaps(root, [
         Gap(id="G1", dim="边界", text="重试上限后行为未说明", node="支付/放款重试"),
@@ -766,44 +741,6 @@ async def test_patch_profile_goal(client):
     # 节点不存在 404
     assert (await client.patch(f"{BASE}/profiles/9", json={"goal": "x"})).status_code == 404
 
-
-async def test_conflict_clar_answer_resolves_code(client):
-    """B6/B9 闭环：矛盾裁决转澄清 → 答题（idx）/采纳代答 → 矛盾 st='code'、resolution=胜方规则 id，
-    败方规则进 _void_ids（assemble 不再吃败方）"""
-    from app.api import router as R
-    from app.storage import clarifications as cl
-    from app.storage import rules as rule_store
-    root = ensure_root("演示项目")
-    rule_store.save(root, [
-        Rule(id="R1", text="重试3次", src="a.py:1", conf="实证", verified=True),
-        Rule(id="R2", text="不重试", src="b.py:1", conf="实证", verified=True),
-        Rule(id="R3", text="每日对账", src="c.py:1", conf="实证", verified=True),
-        Rule(id="R4", text="每周对账", src="d.py:1", conf="实证", verified=True),
-    ])
-    from app.storage import findings as finding_store
-    finding_store.save_conflicts(root, [
-        Conflict(id="C1", a="R1", b="R2", q="超时后重试吗？"),
-        Conflict(id="C2", a="R3", b="R4", q="对账频率？"),
-    ])
-    # C1 转澄清（opts=[R1 文本, R2 文本]）→ answer idx=0 → R1 胜
-    await client.post(f"{BASE}/conflicts", json={"id": "C1", "action": "clar"})
-    c = next(x for x in await cl.list_all(root) if x.ref == "C1")
-    assert c.opts == ["重试3次", "不重试"], "opts 构造序 = [a 规则文本, b 规则文本]"
-    r = await client.post(f"{BASE}/clarifications", json={"no": c.no, "action": "answer", "idx": 0})
-    assert r.status_code == 200
-    # C2 转澄清 → 造代答（answer=b 侧文本）→ adopt → R4 胜
-    await client.post(f"{BASE}/conflicts", json={"id": "C2", "action": "clar"})
-    c2 = next(x for x in await cl.list_all(root) if x.ref == "C2")
-    await cl.set_ai(root, c2.no, {"answer": "每周对账", "quote": "原文", "ev_ids": [], "conf": "high", "quote_ok": True})
-    r = await client.post(f"{BASE}/clarifications", json={"no": c2.no, "action": "adopt"})
-    assert r.status_code == 200
-
-    confs = {x.id: x for x in finding_store.load_conflicts(root)}
-    assert confs["C1"].st == "code" and confs["C1"].resolution == "R1"
-    assert confs["C2"].st == "code" and confs["C2"].resolution == "R4"
-    void = R._void_ids(root)
-    assert "R2" in void and "R3" in void, "败方规则作废，assemble 不再吃"
-    assert "R1" not in void and "R4" not in void
 
 
 async def test_verify_job_only_doc_skips_guesses(client, monkeypatch):

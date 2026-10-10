@@ -2,7 +2,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { getClarifications, getEvidence, listBaselines, wbSummary } from './api'
+import { getEvidence, listBaselines, wbSummary } from './api'
 import { aiBusy, top } from './router'
 
 vi.mock('./api', () => ({
@@ -42,7 +42,6 @@ vi.mock('./api', () => ({
   patchProfileGoal: vi.fn(),
   listProfiles: vi.fn(),
   getDoc: vi.fn(),
-  getClarifications: vi.fn(),
   answerClar: vi.fn(),
   answerClarOpen: vi.fn(),
   adoptClar: vi.fn(),
@@ -63,7 +62,6 @@ beforeEach(() => {
   top.value = 'proj' // App 挂载处于工作台态（默认 home 会渲染项目首页）
   location.hash = '#/p/演示项目' // 配套工作台 hash：App onMounted 的 syncFromHash 需一致才不被拉回 home
   vi.mocked(getEvidence).mockResolvedValue([])
-  vi.mocked(getClarifications).mockResolvedValue([])
   vi.mocked(listBaselines).mockResolvedValue([])
   // listJobs 不设默认：resumeJobs 拿到 undefined 抛错被吞，不清 aiBusy（进度条用例依赖预设值）
   vi.mocked(wbSummary).mockResolvedValue({ tree: [], root: null }) // 空树 → Landing 导入态

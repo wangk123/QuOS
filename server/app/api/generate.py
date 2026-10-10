@@ -5,22 +5,21 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.ai import tasks
-from app.ai.agent import engine_on
-from app.ai.agent import flow as agent_flow
-from app.api.router import (AssembleIn, CLAR_BATCH, REVIEW_IMG_CAP, REVIEW_TEXT_CAP, ReviewIn, _ai,
-                            _evidence_parts, _evidence_texts, _load_tree, _review_batches, _root,
-                            _run_extract_verify, _to_tree_nodes, assemble_profile, rescan_conflicts,
-                            rescan_gaps)
-from app.storage import clarifications, evidence, jobs, profiles, rules as rule_store, tree
+from app.ai.agent import engine_on, flow as agent_flow
+from app.storage import findings as findings_
+from app.api.router import (AssembleIn, _ai, _evidence_parts, _evidence_texts, _load_tree,
+                            _root, _run_extract_verify, _to_tree_nodes, assemble_profile,
+                            rescan_conflicts, rescan_gaps)
+from app.storage import evidence, jobs, profiles, rules as rule_store, tree
 
 api_router = APIRouter()
 
-_MODES = ("partial", "rescan", "full")
+_MODES = ("full", "smart")
 
 
 def _safe_mode(mode: str) -> str:
-    """mode 白名单校验（纯函数）：AI 或用户传入编造值一律落 partial（最保守的局部重生成）"""
-    return mode if mode in _MODES else "partial"
+    """mode 白名单校验（纯函数）：编造值一律落 full（最直接的全量）"""
+    return mode if mode in _MODES else "full"
 
 
 def _walk_initial_profiles(items, prefix: str = ""):
@@ -131,9 +130,8 @@ async def generate_cancel(proj: str):
 # ---------- 重生成（三模式：局部组装 / 待确认重扫 / 全量） ----------
 
 class RegenIn(BaseModel):
-    mode: str
+    mode: str  # full | smart（smart=智能生成，随编排交付）
     ev_ids: list[str] = []
-    nodes: list[str] = []  # partial 模式的局部组装目标（树全路径；默认取 impact 建议的 nodes）
 
 
 def _digit_map(nodes, digits: str = "", prefix: str = "") -> dict[str, str]:
@@ -161,34 +159,6 @@ def _ancestors(full: str) -> list[str]:
     segs = full.split("/")
     return ["/".join(segs[:i]) for i in range(1, len(segs))]
 
-
-async def _review_material(root, ev_ids: list[str]) -> tuple[str, list[bytes], bool]:
-    """重扫取材：选中材料的文本拼接（超长截断）+ 图片限量——与 /clarifications/review 同口径"""
-    evs = []
-    for eid in ev_ids:
-        e = await evidence.get(root, eid)
-        if e is not None:
-            evs.append(e)
-    parts = [_evidence_parts(root, e) for e in evs]
-    images = [b for _, imgs in parts for (_, b) in imgs][:REVIEW_IMG_CAP]
-    text = "\n\n".join(t for t, _ in parts if t)
-    truncated = len(text) > REVIEW_TEXT_CAP
-    return text[:REVIEW_TEXT_CAP], images, truncated
-
-
-async def _rescan_waits(proj, jid, root, ev_ids) -> None:
-    """对全部 wait 题 AI 代答（复用重检分批循环体；确认题不送 AI——材料证不了「实际系统」）。
-    agent 引擎启用时一次运行全部 wait 题（flow 内部 finish）"""
-    waits = [c for c in await clarifications.list_all(root) if c.st == "wait" and c.type != "confirm"]
-    if not waits:
-        jobs.update(jid, label="没有待问问题，无需重扫")
-        return
-    if engine_on():
-        await agent_flow.clar_review_all(root, waits, ev_ids, jid)
-        return
-    text, images, truncated = await _review_material(root, ev_ids)
-    answered = await _review_batches(proj, jid, root, waits, text, images, ev_ids, truncated)
-    jobs.update(jid, ok=answered)
 
 
 async def _regen_summaries(root, jid, affected: list[str]) -> None:
@@ -218,87 +188,125 @@ async def _regen_summaries(root, jid, affected: list[str]) -> None:
         profiles.save_profile(root, target, card)
 
 
-async def _run_regen(proj: str, jid: str, mode: str, ev_ids: list[str], nodes: list[str]) -> None:
+async def _run_regen(proj: str, jid: str, mode: str, ev_ids: list[str]) -> None:
     """与 _run_generate 同款异常兜底：分支裸调抛错统一置 failed，不占死并发位"""
     try:
-        await _run_regen_inner(proj, jid, mode, ev_ids, nodes)
+        await _run_regen_inner(proj, jid, mode, ev_ids)
     except Exception as e:
         if not jobs.is_cancelled(jid):
             jobs.update(jid, status="failed", label=f"重生成失败：{str(e)[:80]}")
 
 
-async def _run_regen_inner(proj: str, jid: str, mode: str, ev_ids: list[str], nodes: list[str]) -> None:
-    root = _root(proj)
+async def _run_regen_inner(proj: str, jid: str, mode: str, ev_ids: list[str]) -> None:
+    """full=同 generate 但树非空不拦；smart=智能生成六阶段（疑点直处+自动范围重组）"""
     if mode == "full":
-        await _run_generate_inner(proj, jid)  # 同 generate 壳语义：树非空仅跳过 outline，其余全跑
+        await _run_generate_inner(proj, jid)
         return
-    if mode == "rescan":
-        await _rescan_waits(proj, jid, root, ev_ids)
-        jobs.finish(jid)
-        return
-    # partial：⓪ 新材料（未提取的）先过「提取+核验」一体链（与 generate phase2 同款：跳过已提取材料，
-    # 幂等断点恢复；复用链尾部自带 finish 会置 done——照 generate 的做法拉回 running）
+    await _run_smart(proj, jid, ev_ids)
+
+
+async def _run_smart(proj: str, jid: str, ev_ids: list[str]) -> None:
+    """智能生成六阶段：新材料提取 → 遗留重核 → 疑点直处（自动裁决/闭环）→ 影响分析 →
+    受影响节点重组 → 模块/根汇总。AI 判断全自动，明细经 job label 与产出字段透出。"""
+    root = _root(proj)
+    auto: dict = {"auto_resolved": [], "auto_closed": [], "regen_nodes": []}
+    # ① 新材料提取+自核验（复用一体链；断点恢复幂等）
     pending = [e.id for e in await evidence.list_all(root)
                if e.type != "压缩包" and e.state != "extracted"]
     if pending:
-        jobs.update(jid, phase="extract", label="正在读新材料提炼并核验条目…")
+        jobs.update(jid, phase="extract", label="智能生成：正在读新材料提炼并核验…")
         await _run_extract_verify(proj, jid, pending)
         if jobs.is_cancelled(jid) or (jobs.get(jid) or {}).get("status") == "failed":
-            return  # 新材料提取全败已置 failed：同 generate，防假完成
+            return
         jobs.update(jid, status="running")
-    # ① 逐节点局部组装（assemble 输入本就不改规则 → verified 天然保留；409 细分 blocked）
+    # ② 遗留未核验规则全量重核（新材料已入池）
+    ids = [a.id for a in rule_store.load(root) if not a.verified]
+    if ids:
+        jobs.update(jid, phase="verify", label=f"智能生成：重核 {len(ids)} 条未核验规则…")
+        from app.api.router import _run_verify_phase
+        await _run_verify_phase(proj, jid, ids, only_doc=False)
+        if jobs.is_cancelled(jid) or (jobs.get(jid) or {}).get("status") == "failed":
+            return  # 阶段②失败（flow 内已置 failed）不得覆盖回 running 假 done
+        jobs.update(jid, status="running")
+    # ③ 疑点直处：遗留 open 冲突+缺口 × 全池材料（agent 引擎走 ATD，off 走单次 LLM）
+    jobs.update(jid, phase="resolve", label="智能生成：核对遗留冲突与缺口…")
+    if engine_on():
+        stat = await agent_flow.resolve_doubts(root, jid)
+    else:
+        from app.api.router import _apply_resolve, _evidence_texts
+        confs = [c for c in findings_.load_conflicts(root) if c.st == "open"]
+        gaps = [g for g in findings_.load_gaps(root) if g.st == "open"]
+        if confs or gaps:
+            rmap = {a.id: a for a in rule_store.load(root)}
+            doubts_text = ("遗留冲突清单：\n" + "\n".join(
+                f"- {c.id} | {c.q} | 各方：" + " / ".join(
+                    f"{x}={rmap[x].text if x in rmap else x}" for x in c.parties) for c in confs)
+                + "\n\n遗留缺口清单：\n" + "\n".join(f"- {g.id} | {g.dim} | {g.text}" for g in gaps))
+            material = "\n\n".join(t for t, _ in await _evidence_texts(root))
+            out = await _ai(tasks.resolve_doubts, doubts_text, material)
+            stat = await _apply_resolve(root, out, material)
+        else:
+            stat = {"auto_resolved": [], "auto_closed": []}
+    auto["auto_resolved"], auto["auto_closed"] = stat["auto_resolved"], stat["auto_closed"]
+    jobs.update(jid, status="running",
+                label=f"智能生成：自动裁决 {len(stat['auto_resolved'])} 处冲突、闭环 {len(stat['auto_closed'])} 条缺口")
+    # ④ 影响分析（全自动取 nodes；防幻觉白名单过滤）
+    if jobs.is_cancelled(jid):
+        return
+    jobs.update(jid, phase="impact", label="智能生成：分析受影响范围…")
+    evs = []
+    for eid in ev_ids:
+        e = await evidence.get(root, eid)
+        if e is not None:
+            evs.append(e)
+    new_text = "\n\n".join(t for t, _ in (_evidence_parts(root, e) for e in evs) if t)
+    items = rule_store.load(root)
+    out = await _ai(tasks.impact_analysis, new_text,
+                    "\n".join(f"- {a.id} | {a.node or '（未归类）'} | {a.text}" for a in items) or "（暂无条目）",
+                    "（问人体系已退役）")
+    valid = set(tree.paths(_load_tree(root)))
+    nodes = [n for n in out.nodes if n in valid]
+    auto["regen_nodes"] = nodes
+    # ⑤ 受影响节点重组（dmap 寻址；409 细分 blocked）
     dmap = _digit_map(_load_tree(root))
-    for n in nodes:
-        if n not in dmap:
-            jobs.bump(jid, "skipped", n)
-    targets = [n for n in nodes if n in dmap]
-    for i, full in enumerate(targets, 1):
+    for i, full in enumerate(nodes, 1):
         if jobs.is_cancelled(jid):
             return
-        jobs.update(jid, phase="assemble", label=f"正在完善「{full}」",
-                    current_node=full, cur=i, total=len(targets))
+        jobs.update(jid, phase="assemble", label=f"智能生成：完善「{full}」（{i}/{len(nodes)}）",
+                    current_node=full, cur=i, total=max(len(nodes), 1))
+        if full not in dmap:
+            continue
         try:
             await assemble_profile(proj, AssembleIn(node_path=dmap[full], note=""))
-            jobs.bump(jid, "done_nodes", full)
             jobs.bump(jid, "ok")
         except HTTPException as e:
             if e.status_code == 409:
-                jobs.bump(jid, "blocked", full)
+                jobs.bump(jid, "blocked", full)  # 带 item：bump 对 list 字段无参是 no-op
             else:
                 jobs.bump(jid, "failed")
-    # ② 受影响待确认重扫（全部 wait 题）
+    # ⑥ 受影响模块/根汇总刷新
     if jobs.is_cancelled(jid):
         return
-    jobs.update(jid, phase="clar", label="正在重扫待确认问题…", cur=0)
-    await _rescan_waits(proj, jid, root, ev_ids)
-    # ③ 受影响模块/根 summary 聚合重生成
-    if jobs.is_cancelled(jid):
-        return
-    jobs.update(jid, phase="summary", label="正在汇总模块与根画像…")
-    await _regen_summaries(root, jid, targets)
+    jobs.update(jid, phase="summary", label="智能生成：汇总模块与根画像…")
+    await _regen_summaries(root, jid, nodes)
+    jobs.update(jid, **auto)
     jobs.finish(jid)
-
 
 @api_router.post("/regen")
 async def regen(proj: str, body: RegenIn):
-    """重生成三模式：full=同 generate 但树非空不拦；partial=局部组装+待确认重扫+模块/根 summary；
-    rescan=仅对 wait 题 AI 代答。mode 过白名单（编造值落 partial）"""
+    """重新生成（智能模式 smart 随编排交付；当前可用：full=全量）"""
     root = _root(proj)
     if jobs.running():
-        raise HTTPException(409, f"已有任务进行中（{jobs.running()['label']}）")
+        raise HTTPException(409, detail=f"已有任务进行中（{jobs.running()['label']}）")
     if not body.ev_ids:
-        raise HTTPException(422, "未选择重生成材料")
+        raise HTTPException(422, detail="未选择重生成材料")
     for eid in body.ev_ids:
         if await evidence.get(root, eid) is None:
             raise HTTPException(404, detail=f"证据不存在: {eid}")
     mode = _safe_mode(body.mode)
-    waits = [c for c in await clarifications.list_all(root) if c.st == "wait"] if mode == "rescan" else []
-    total = {"partial": max(1, len(body.nodes)) + 2,
-             "rescan": max(1, (len(waits) + CLAR_BATCH - 1) // CLAR_BATCH),
-             "full": 6}[mode]
-    jid = jobs.create("regen", {"partial": "局部重生成", "rescan": "待确认重扫", "full": "全量重生成"}[mode], total)
-    asyncio.create_task(_run_regen(proj, jid, mode, body.ev_ids, body.nodes))
-    return {"job_id": jid, "mode": mode, "total": total}
+    jid = jobs.create("regen", {"full": "全量重生成", "smart": "智能生成"}[mode], 6)
+    asyncio.create_task(_run_regen(proj, jid, mode, body.ev_ids))
+    return {"job_id": jid, "mode": mode, "total": 6}
 
 
 async def _summary_regen_all(root) -> list[str]:
@@ -340,29 +348,3 @@ async def summary_regen(proj: str):
     return {"updated": updated}
 
 
-@api_router.post("/regen/impact")
-async def regen_impact(proj: str, body: ReviewIn):
-    """材料级影响分析：新材料全文 × 现有条目/待确认清单 → 受影响范围 + 重生成方案建议；
-    AI 产出的 nodes/rule_ids/clar_nos 逐项防幻觉过滤（失配丢弃），mode 过白名单"""
-    root = _root(proj)
-    if not body.ev_ids:
-        raise HTTPException(422, "未选择新材料")
-    evs = []
-    for eid in body.ev_ids:
-        ev = await evidence.get(root, eid)
-        if ev is None:
-            raise HTTPException(404, detail=f"证据不存在: {eid}")
-        evs.append(ev)
-    new_text = "\n\n".join(t for t, _ in (_evidence_parts(root, e) for e in evs) if t)
-    items = rule_store.load(root)
-    rules_text = "\n".join(f"- {a.id} | {a.node or '（未归类）'} | {a.text}" for a in items) or "（暂无条目）"
-    waits = [c for c in await clarifications.list_all(root) if c.st == "wait"]
-    clars_text = "\n".join(f"- Q{c.no} | {c.q}" for c in waits) or "（暂无待确认问题）"
-    out = await _ai(tasks.impact_analysis, new_text, rules_text, clars_text)
-    valid_nodes, valid_rules, valid_nos = (
-        set(tree.paths(_load_tree(root))), {a.id for a in items}, {f"Q{c.no}" for c in waits})
-    return {**out.model_dump(),
-            "nodes": [n for n in out.nodes if n in valid_nodes],
-            "rule_ids": [r for r in out.rule_ids if r in valid_rules],
-            "clar_nos": [q for q in out.clar_nos if q in valid_nos],
-            "recommend": _safe_mode(out.mode)}

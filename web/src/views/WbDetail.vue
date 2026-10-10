@@ -54,13 +54,8 @@ async function load() {
     profile.value = p
     allRules.value = rs
     rules.value = rs.filter(r => under(r.node))
-    const nodeOf = new Map(rs.map(r => [r.id, r.node ?? '']))
-    // 冲突过滤只用后端 node 归属字段（_conflict_node 唯一口径，与树行 ⚠ 同源）——前端不再自行推导
-    conflicts.value = cs.filter(c => {
-      const na = nodeOf.get(c.a), nb = nodeOf.get(c.b)
-      if (na === undefined && nb === undefined && !c.node) return true // 极旧数据无归属：不过滤防漏
-      return under(c.node || na || nb)
-    })
+    // 冲突过滤只用后端 node 归属字段（_conflict_node 唯一口径，与树行 ⚠ 同源）——前端不自行推导
+    conflicts.value = cs.filter(c => c.node ? under(c.node) : true) // 无归属（全局）：只在根汇总展示
     gaps.value = gs.filter(g => g.node === '__root__' ? false : under(g.node)) // 缺口按 node 子树过滤（__root__/全局不在节点展示，汇总视图承接）
   } catch (e) {
     err.value = e instanceof Error ? `详情加载失败：${e.message}` : String(e)
@@ -89,13 +84,12 @@ const topView = computed(() => topRows.value.map(r => {
   return { r, dc: d?.conflicts ?? 0, dg: d?.gaps ?? 0 }
 }))
 
-async function disposeGlobal(g: DoubtGlobalGap, action: 'clar' | 'ok') {
+async function disposeGlobal(g: DoubtGlobalGap) {
   try {
-    await disposeGap(g.id, action)
+    await disposeGap(g.id)
     await loadDoubts()
     void refreshWb()
-    if (action === 'clar') emit('clar-changed')
-    toast(action === 'clar' ? `${g.id} → 已转待确认` : '已按「设计如此」记录', 'ok')
+    toast('已按「设计如此」记录', 'ok')
   } catch (e) {
     toast(e instanceof Error ? `处置失败：${e.message}` : '处置失败', 'warn')
   }
@@ -129,14 +123,12 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
       <div class="dsum-stat">
         <span class="dsum-chip c-red"><b>{{ doubts.stats.conflicts }}</b>矛盾待裁决</span>
         <span class="dsum-chip c-amber"><b>{{ doubts.stats.gaps }}</b>缺口待补</span>
-        <span v-if="doubts.stats.clarified" class="dsum-chip"><b>{{ doubts.stats.clarified }}</b>已转待确认</span>
       </div>
       <div v-for="g in doubts.global" :key="g.id" class="dsum-global">
         <span class="gtag">全局</span>
         <span class="gtext">{{ g.text }}<span class="gdim"> · {{ g.dim }}</span></span>
         <span class="gacts">
-          <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g, 'clar')">转澄清</button>
-          <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g, 'ok')">设计如此</button>
+          <button class="btn-ghost btn-sm" type="button" @click="disposeGlobal(g)">设计如此</button>
         </span>
       </div>
       <div v-for="c in doubts.globalConflicts ?? []" :key="c.id" class="dsum-global cconf">

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DetailRules from '../DetailRules.vue'
 import type { Conflict, Gap, Rule } from '../../../api'
 
-const api = vi.hoisted(() => ({ confirmRule: vi.fn(), askRule: vi.fn(), verifyJob: vi.fn(), disposeGap: vi.fn(), resolveConflict: vi.fn() }))
+const api = vi.hoisted(() => ({ confirmRule: vi.fn(), verifyJob: vi.fn(), disposeGap: vi.fn(), resolveConflict: vi.fn() }))
 vi.mock('../../../api', () => api)
 vi.mock('../../../jobs', () => ({ startJobPolling: vi.fn(), jobRunning: ref(false) }))
 vi.mock('../../../wb', () => ({ refreshWb: vi.fn() }))
@@ -41,20 +41,6 @@ describe('DetailRules 写操作', () => {
     expect(w.text()).toContain('67% 已确认')
   })
 
-  it('待确认：行内展开表单预填建议问法，改文本后投递 askRule(id, q) 并 emit clar-changed', async () => {
-    api.askRule.mockResolvedValue(undefined)
-    const w = mountIt()
-    await btn(w, '待确认？').trigger('click')
-    const ta = w.find('textarea')
-    expect(ta.exists()).toBe(true)
-    expect((ta.element as HTMLTextAreaElement).value).toBe('「R2」的具体触发条件/兜底行为是什么？')
-    await ta.setValue('自定义问法：兜底是什么？')
-    await btn(w, '投递到待确认').trigger('click')
-    await flushPromises()
-    expect(api.askRule).toHaveBeenCalledWith('R2', '自定义问法：兜底是什么？')
-    expect(w.emitted('clar-changed')).toHaveLength(1)
-    expect(w.find('textarea').exists()).toBe(false) // 表单收起
-  })
 
   it('AI 辅助核验（文档级）：调 verifyJob({only_doc:true}) + startJobPolling', async () => {
     api.verifyJob.mockResolvedValue({ job_id: 'J1', total: 2, rules: 2 })

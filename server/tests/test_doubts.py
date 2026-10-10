@@ -29,8 +29,8 @@ async def _seed(client):
         Rule(id="R3", text="幂等键", src="a.py:9", conf="实证", verified=True, node="支付/放款重试"),
     ])
     findings.save_conflicts(root, [
-        Conflict(id="C1", a="R1", b="R2", q="重试几次？"),               # open：按 R1 归属「支付」
-        Conflict(id="C2", a="R1", b="R3", q="已转待确认的矛盾", st="clar"),
+        Conflict(id="C1", parties=["R1", "R2"], q="重试几次？"),               # open：按 R1 归属「支付」
+        Conflict(id="C2", parties=["R1", "R3"], q="历史已裁决的矛盾", st="done"),
     ])
     findings.save_gaps(root, [
         Gap(id="G1", dim="幂等", text="未说明幂等键", node="支付/放款重试"),
@@ -47,7 +47,7 @@ async def test_doubts_summary_groups_global_and_stats(client):
     r = await client.get(f"{BASE}/doubts/summary")
     assert r.status_code == 200
     d = r.json()
-    assert d["stats"] == {"conflicts": 1, "gaps": 4, "clarified": 2}  # open 计数；clar 的 C2+G6 只进 clarified
+    assert d["stats"] == {"conflicts": 1, "gaps": 4}  # open 计数（clarified 已随问人体系退役）
     assert [g["id"] for g in d["global"]] == ["G3", "G4"]  # __root__ 与未绑定 → 全局区
     by_name = {m["name"]: m for m in d["modules"]}
     assert by_name["支付"] == {"name": "支付", "rules": 2, "conflicts": 1, "gaps": 1, "peek": "未说明幂等键"}

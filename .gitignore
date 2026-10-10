@@ -8,3 +8,6 @@ __pycache__/
 *.local
 .superpowers/
 server/data/
+server/out/
+server/reports/
+web/reports/

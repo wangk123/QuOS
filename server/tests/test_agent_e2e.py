@@ -19,8 +19,6 @@ TREE_RESULT = {"root": {"goal": "给测试的需求逆向", "entry": "测试工�
                           "cite": {"ev_id": "", "section": "1"}, "children": []}]}
 EXTRACT_RESULT = {"rules": [{"text": "当收款时，系统应入账", "node": "支付", "conf": "文档",
                              "verified": True, "quote": "支付模块负责收款"}]}
-CLAR_RESULT = {"results": [{"no": 1, "answered": True, "answer": "上传页",
-                            "quote": "支付模块负责收款", "conf": "high"}]}
 
 
 async def _wait_job_done(client, jid):
@@ -81,9 +79,11 @@ async def test_generate_full_chain(client, monkeypatch, tmp_path):
     for name, fn in (("conflict", cf), ("gaps", gp), ("assemble", asb)):
         monkeypatch.setattr(tasks, name, fn)  # 非 agent 任务照旧 mock
 
+    _seed(root, "tree-gen", {"result": TREE_RESULT})
+    _seed(root, "extract", {"result": EXTRACT_RESULT})
+    _seed(root, "verify", {"result": {"results": []}})
     ev = await client.post(f"{BASE}/evidence", json={"raw": "支付模块负责收款。"})
     assert ev.status_code == 200
-    _seed(root, "tree-gen", {"result": TREE_RESULT}); _seed(root, "extract", {"result": EXTRACT_RESULT}); _seed(root, "verify", {"result": {"results": []}}); _seed(root, "clar-review", {"result": CLAR_RESULT})
     r = await client.post(f"{BASE}/generate")
     assert r.status_code == 200, r.text
     j = await _wait_job_done(client, r.json()["job_id"])
@@ -96,18 +96,3 @@ async def test_generate_full_chain(client, monkeypatch, tmp_path):
     assert "__root__" in profs and "支付" in profs
 
 
-async def test_clar_review_full_chain(client, tmp_path):
-    from app.storage import clarifications
-    ensure_root("集成项目")
-    root = project_root("集成项目")
-    ev = await client.post(f"{BASE}/evidence", json={"raw": "支付模块负责收款。"})
-    ev_id = ev.json()["id"]
-    await clarifications.add(root, "入口在哪?", [], kind="open")
-    _seed(root, "tree-gen", {"result": TREE_RESULT}); _seed(root, "extract", {"result": EXTRACT_RESULT}); _seed(root, "verify", {"result": {"results": []}}); _seed(root, "clar-review", {"result": CLAR_RESULT})
-    r = await client.post(f"{BASE}/clarifications/review", json={"ev_ids": [ev_id]})
-    assert r.status_code == 200, r.text
-    j = await _wait_job_done(client, r.json()["job_id"])
-    assert j["status"] == "done", j
-    ws = await clarifications.list_all(root)
-    assert ws[0].ai is not None and ws[0].ai.answer == "上传页"
-    assert ws[0].ai.quote_ok is True and ws[0].ai.ev_ids == [ev_id]

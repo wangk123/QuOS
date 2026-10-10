@@ -1,10 +1,12 @@
 # server/app/ai/agent/flow.py —— 四个大输入任务的 agent 组合层（export→runner→ingest）
 from pathlib import Path
 
+from app.ai import tasks
 from app.ai.agent import export
-from app.ai.agent.ingest import ingest_clar, ingest_extract, ingest_tree, ingest_verify
+from app.ai.agent.ingest import ingest_extract, ingest_tree, ingest_verify
+from app.storage import findings as findings_store
 from app.ai.agent.runner import AgentRunError, run_agent
-from app.storage import clarifications, evidence, jobs, tree
+from app.storage import evidence, jobs, tree
 from app.storage import rules as rule_store
 
 
@@ -72,27 +74,31 @@ async def verify_all(root: Path, ids: list[str], only_doc: bool, jid: str) -> No
         raise
 
 
-async def clar_review_all(root: Path, waits: list, ev_ids: list[str], jid: str) -> int:
-    """clar-review 的 agent 版：一次运行处理全部 wait 题（不分批不截断）。
-    失败兜底置 job failed 后 re-raise——同 verify_all"""
-    evs = []
-    for eid in ev_ids:
-        e = await evidence.get(root, eid)
-        if e is not None:
-            evs.append(e)
-    qs = "\n".join(
-        f"{w.no}. [{'选择题：' + ' / '.join(w.opts) if w.kind == 'choice' else '开放题：需以材料为据'}] {w.q}"
-        for w in waits)
-    body = "待答问题清单（只答这些）：\n" + (qs or "（无）")
-    d = await export.build_task_dir(root, evs, "clar-review", body)
+
+
+async def resolve_doubts(root: Path, jid: str | None) -> dict:
+    """智能生成 ③ 阶段：遗留 open 冲突+缺口 × 全池材料 → ATD 运行 → _apply_resolve 落库
+    （off 引擎由编排层直接调 tasks.resolve_doubts，不经此函数）"""
+    evs = [e for e in await evidence.list_all(root) if e.type != "压缩包"]
+    confs = [c for c in findings_store.load_conflicts(root) if c.st == "open"]
+    gaps = [g for g in findings_store.load_gaps(root) if g.st == "open"]
+    if not confs and not gaps:
+        return {"auto_resolved": [], "auto_closed": []}
+    rmap = {a.id: a for a in rule_store.load(root)}
+    body = ("遗留冲突清单（信某方须材料明确依据）：\n"
+            + "\n".join(f"- {c.id} | {c.q} | 各方："
+                        + " / ".join(f"{x}={rmap[x].text if x in rmap else x}" for x in c.parties)
+                        for c in confs)
+            + "\n\n遗留缺口清单：\n"
+            + "\n".join(f"- {g.id} | {g.dim} | {g.text}" for g in gaps))
+    d = await export.build_task_dir(root, evs, "resolve-doubts", body)
     try:
         data = await _run_flow(d, jid)
-        n = ingest_clar(waits, data, d, ev_ids)
-        for w in waits:  # 逐题落盘 AI 代答
-            await clarifications.set_ai(root, w.no, w.ai.model_dump() if w.ai else None)
-        jobs.update(jid, ok=n)
-        jobs.finish(jid)
-        return n
-    except Exception as e:
-        jobs.update(jid, status="failed", label=f"agent 代答失败：{str(e)[:60]}")
+        out = tasks.ResolveDoubtsOut.model_validate(data)
+        from app.api.router import _apply_resolve, _evidence_texts
+        material = "\n\n".join(t for t, _ in await _evidence_texts(root))
+        return await _apply_resolve(root, out, material)
+    except AgentRunError:
+        export.cleanup(d, keep=True)
         raise
+    export.cleanup(d)

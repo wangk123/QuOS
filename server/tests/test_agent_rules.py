@@ -2,7 +2,7 @@
 from pathlib import Path
 
 RULES = Path(__file__).parent.parent / "app" / "ai" / "agent" / "rules"
-TASKS = ("tree-gen", "extract", "verify", "clar-review")
+TASKS = ("tree-gen", "extract", "verify")
 
 
 def test_shared_preamble():
@@ -15,6 +15,5 @@ def test_shared_preamble():
 
 
 def test_schema_examples_present():
-    for t, key in (("tree-gen", '"nodes"'), ("extract", '"rules"'),
-                   ("verify", '"results"'), ("clar-review", '"results"')):
+    for t, key in (("tree-gen", '"nodes"'), ("extract", '"rules"'), ("verify", '"results"')):
         assert key in (RULES / f"{t}.md").read_text("utf-8")

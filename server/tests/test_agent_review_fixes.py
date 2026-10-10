@@ -125,18 +125,6 @@ def test_verify_image_pool_quote_exempt(tmp_path):
 
 # ---- C1：verify/clar agent 失败 → job 落 failed 不卡 running ----
 
-async def test_clar_review_agent_fail_marks_job_failed(client):
-    from app.storage import clarifications
-    ensure_root("修复项目")
-    root = project_root("修复项目")
-    ev = await client.post(f"{BASE}/evidence", json={"raw": "支付模块负责收款。"})
-    await clarifications.add(root, "入口在哪?", [], kind="open")
-    _seed(root, "clar-review", {"fail": True})
-    r = await client.post(f"{BASE}/clarifications/review", json={"ev_ids": [ev.json()["id"]]})
-    assert r.status_code == 200
-    j = await _wait_job_settled(client, r.json()["job_id"])
-    assert j["status"] == "failed", "agent 失败必须落终态，不得占死并发位"
-
 
 async def test_verify_agent_fail_marks_job_failed(client):
     from app.core.models import Rule
