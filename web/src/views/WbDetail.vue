@@ -98,7 +98,7 @@ async function disposeGlobal(g: DoubtGlobalGap) {
 const parts = computed(() => (isRoot.value ? [] : props.nodeFull.split('/')))
 /** 就绪态右侧徽章：取 wb 行原子计数（与树行同源）；清零 = 待核+冲突+缺口全零 */
 const rowStat = computed(() => (wb.value?.tree ?? []).find(r => r.full === props.nodeFull)
-  ?? { unverified: -1, conf: 0, gaps: 0 })
+  ?? { total: 0, unverified: -1, conf: 0, gaps: 0 })
 const rowPend = computed(() => rowStat.value.unverified + rowStat.value.conf + rowStat.value.gaps)
 /** 存疑 tab 角标：open 冲突与未处置缺口分开计、分色显示（⚠红=冲突 / △琥珀=缺口）——
  * 与树行徽章同口径同色，杜绝同一符号两处计数不同的混淆 */
@@ -219,11 +219,11 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
     <template v-else>
       <div class="tabbar">
         <button class="tab" :class="{ on: tab === 'overview' }" @click="tab = 'overview'">概要</button>
-        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rules.length + confOpenN + gapOpenN }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
+        <button class="tab" :class="{ on: tab === 'rules' }" @click="tab = 'rules'">规则 <span class="c">{{ rowStat.total }}</span><span v-if="confOpenN" class="c conf" title="条目冲突待裁决">⚠{{ confOpenN }}</span><span v-if="gapOpenN" class="c doubt" title="材料缺口待澄清">△{{ gapOpenN }}</span></button>
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps" :node-full="props.nodeFull"
-                   :all-rules="allRules" @clar-changed="emit('clar-changed')" @changed="load" />
+                   :all-rules="allRules" :total="rowStat.total" @clar-changed="emit('clar-changed')" @changed="load" />
     </template>
   </div>
 </template>

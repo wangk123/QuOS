@@ -9,7 +9,7 @@ import { ApiError, addRuleManual, confirmRule, correctRule, deleteRule, disposeG
 import { jobRunning, startJobPolling } from '../../jobs'
 import { refreshWb } from '../../wb'
 
-const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; nodeFull: string }>()
+const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; nodeFull: string; total: number }>()
 const emit = defineEmits<{ 'clar-changed': []; changed: [] }>()
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -35,20 +35,21 @@ const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
 const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
 const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
 
-// ---- 状态 chips（唯一口径：总数 = 已核过 + 待处理）：
-// 总数 = 全部规则（含冲突中）+ open 冲突 + open 缺口——与树行「N 条」/tab 数严格相等；
+// ---- 状态 chips（唯一口径：总数 = 已核过 + 待处理，total 来自 wb 行——含跨节点冲突参与方，
+// 与树行「N 条」严格同数）：
 // 待处理 = 待核规则 + 冲突中规则 + open 冲突 + open 缺口；已核过 = 已核规则。
-// 已处置的冲突/缺口收进底部「已处置记录」折叠区（留痕不计数的毕业区）----
+// 已处置的冲突/缺口收进底部「已处置记录」折叠区（留痕不计数）----
 const filter = ref<'all' | 'ok' | 'pend'>('all')
 const openGaps = computed(() => gapList.value.filter(g => g.st === 'open'))
 const pendRules = computed(() => props.rules.filter(r => !isOk(r) && !conflictedIds.value.has(r.id)))
-const confRules = computed(() => props.rules.filter(r => conflictedIds.value.has(r.id)))
+// 冲突中行 = 本节点 open 冲突的全部参与方（从全量规则反查，跨节点的也在此显示——冲突卡在哪参与方就在哪）
+const confRules = computed(() => props.allRules.filter(r => conflictedIds.value.has(r.id)))
 const okRules = computed(() => props.rules.filter(isOk))
 const doneConfs = computed(() => confList.value.filter(c => c.st !== 'open'))
 const doneGaps = computed(() => gapList.value.filter(g => g.st !== 'open'))
-const allN = computed(() => props.rules.length + openConfs.value.length + openGaps.value.length)
+const allN = computed(() => props.total)
 const okN2 = computed(() => okRules.value.length)
-const pendN = computed(() => allN.value - okN2.value)
+const pendN = computed(() => Math.max(0, allN.value - okN2.value))
 const pct = computed(() => (allN.value ? Math.round((okN2.value / allN.value) * 100) : 0))
 const pendEmpty = computed(() => !openConfs.value.length && !confRules.value.length && !openGaps.value.length && !pendRules.value.length)
 const okEmpty = computed(() => !okRules.value.length)

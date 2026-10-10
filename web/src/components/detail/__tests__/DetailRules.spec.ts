@@ -28,7 +28,8 @@ const allRules = rules
 
 function mountIt() {
   return mount(DetailRules, {
-    props: { rules, conflicts, gaps, allRules, nodeFull: '支付' },
+    // total 模拟 wb 行口径：3 规则 + 1 open 冲突 + 1 open 缺口（本例无跨节点参与方）
+    props: { rules, conflicts, gaps, allRules, nodeFull: '支付', total: 5 },
     global: { provide: { toast: vi.fn() } },
   })
 }
