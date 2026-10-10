@@ -17,6 +17,7 @@ class CreateIn(BaseModel):
 
 
 class PatchIn(BaseModel):
+    name: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -74,9 +75,10 @@ def patch_project(slug: str, body: PatchIn):
         project.require_root(slug)
     except project.ProjectNotFound as e:
         raise HTTPException(status_code=404, detail=f"项目不存在或已归档: {e}")
-    if body.description is not None:
-        project.write_description(slug, body.description)
-    return {"slug": slug, "description": body.description}
+    if body.name is not None and not project.is_valid_name(body.name):
+        raise HTTPException(status_code=422, detail=f"非法项目名: {body.name}")
+    # 改的是 project.json 显示名，slug（目录身份）不动
+    return project.write_meta(slug, name=body.name, description=body.description)
 
 
 @projects_router.post("/{slug}/archive", status_code=204)

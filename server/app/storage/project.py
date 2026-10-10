@@ -94,10 +94,14 @@ def create(name: str, description: str = "") -> dict:
     return {"slug": slug, "name": name, "description": description, "created_at": created_at}
 
 
-def write_description(slug: str, description: str):
+def write_meta(slug: str, name: str = None, description: str = None) -> dict:
+    """部分更新显示元信息并返回更新后行；slug（目录身份）不动，None 字段保持原值"""
     root = ARCHIVE_DIR / slug if (ARCHIVE_DIR / slug).is_dir() else DATA_DIR / slug
     m = _read_meta(root, slug)
-    _write_meta(root, m["name"], description, m["created_at"])
+    out = {**m, "name": name if name is not None else m["name"],
+           "description": description if description is not None else m["description"]}
+    _write_meta(root, out["name"], out["description"], m["created_at"])
+    return out
 
 
 def archive(slug: str):

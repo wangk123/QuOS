@@ -363,8 +363,9 @@ export const createProject = (name: string, description = '') =>
   reqRoot<ProjectInfo>('', json('POST', { name, description }))
 export const openProject = (slug: string) =>
   reqRoot<void>(`/${encodeURIComponent(slug)}/open`, { method: 'POST' })
-export const patchProject = (slug: string, description: string) =>
-  reqRoot<{ slug: string }>(`/${encodeURIComponent(slug)}`, json('PATCH', { description }))
+export const patchProject = (slug: string, patch: { name?: string; description?: string }) =>
+  reqRoot<{ slug: string; name: string; description: string }>(
+    `/${encodeURIComponent(slug)}`, json('PATCH', patch))
 export const archiveProject = (slug: string) =>
   reqRoot<void>(`/${encodeURIComponent(slug)}/archive`, { method: 'POST' })
 export const restoreProject = (slug: string) =>

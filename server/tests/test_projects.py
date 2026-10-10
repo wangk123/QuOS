@@ -263,6 +263,26 @@ async def test_purge_active_409(client):
     assert r.status_code == 409  # 彻底删除仅限归档态
 
 
+async def test_patch_rename_and_description(client, tmp_path):
+    # 编辑=改 project.json 显示名+描述；slug（目录身份）不动
+    await client.post("/api/projects", json={"name": "风控云", "description": "核心"})
+    r = await client.request("PATCH", "/api/projects/风控云",
+                             json={"name": "风控云 Pro", "description": "账务中台"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "风控云 Pro" and r.json()["description"] == "账务中台"
+    assert r.json()["slug"] == "风控云"
+    rows = (await client.get("/api/projects")).json()
+    assert rows[0]["name"] == "风控云 Pro" and rows[0]["slug"] == "风控云"
+    assert (tmp_path / "风控云").is_dir() and not (tmp_path / "风控云Pro").exists()
+
+
+async def test_patch_invalid_name_422(client):
+    await client.post("/api/projects", json={"name": "风控云"})
+    r = await client.request("PATCH", "/api/projects/风控云", json={"name": "///"})
+    assert r.status_code == 422
+    assert (await client.get("/api/projects")).json()[0]["name"] == "风控云"  # 未被破坏
+
+
 async def test_create_empty_slug_name_422(client):
     # 清洗后为空的项目名（如纯符号）：422 而非 409"项目已存在"
     r = await client.post("/api/projects", json={"name": "///"})

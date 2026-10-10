@@ -11,13 +11,25 @@ vi.mock('../../api', () => ({
   getArchivedProjects: vi.fn(),
   createProject: vi.fn(),
   openProject: vi.fn(),
+  patchProject: vi.fn(),
   archiveProject: vi.fn(),
   restoreProject: vi.fn(),
   purgeProject: vi.fn(),
   setProject: vi.fn(),
 }))
-import { archiveProject, createProject, getArchivedProjects, getProjects, openProject } from '../../api'
+import {
+  archiveProject,
+  createProject,
+  getArchivedProjects,
+  getProjects,
+  openProject,
+  patchProject,
+  purgeProject,
+} from '../../api'
 import { top } from '../../router'
+
+const findBtn = (w: ReturnType<typeof mount>, text: string) =>
+  w.findAll('button').find((b) => b.text() === text)!
 
 describe('Home 项目首页', () => {
   beforeEach(() => {
@@ -28,6 +40,8 @@ describe('Home 项目首页', () => {
     vi.mocked(createProject).mockReset().mockResolvedValue({} as never)
     vi.mocked(openProject).mockReset().mockResolvedValue(undefined as never)
     vi.mocked(archiveProject).mockReset().mockResolvedValue(undefined as never)
+    vi.mocked(patchProject).mockReset().mockResolvedValue({} as never)
+    vi.mocked(purgeProject).mockReset().mockResolvedValue(undefined as never)
     location.hash = ''
     top.value = 'home'
   })
@@ -71,10 +85,53 @@ describe('Home 项目首页', () => {
     vi.stubGlobal('confirm', () => true)
     const w = mount(Home)
     await flushPromises()
-    await w.find('[data-test="proj-card"] .ghost').trigger('click')
+    await findBtn(w, '归档').trigger('click')
     await flushPromises()
     expect(archiveProject).toHaveBeenCalledWith('风控云')
     expect(getProjects).toHaveBeenCalledTimes(2)
+    vi.unstubAllGlobals()
+  })
+
+  it('编辑保存调 patchProject 改名改描述并刷新', async () => {
+    const w = mount(Home)
+    await flushPromises()
+    await findBtn(w, '编辑').trigger('click')
+    await w.find('input[data-test="edit-name"]').setValue('风控云 Pro')
+    await w.find('input[data-test="edit-desc"]').setValue('账务中台')
+    await w.find('[data-test="edit-form"]').trigger('submit')
+    await flushPromises()
+    expect(patchProject).toHaveBeenCalledWith('风控云', { name: '风控云 Pro', description: '账务中台' })
+    expect(getProjects).toHaveBeenCalledTimes(2)
+  })
+
+  it('编辑取消不调 patchProject', async () => {
+    const w = mount(Home)
+    await flushPromises()
+    await findBtn(w, '编辑').trigger('click')
+    await findBtn(w, '取消').trigger('click')
+    expect(w.find('[data-test="edit-form"]').exists()).toBe(false)
+    expect(patchProject).not.toHaveBeenCalled()
+  })
+
+  it('删除需输名确认后归档+彻底删除', async () => {
+    vi.stubGlobal('prompt', () => '风控云')
+    const w = mount(Home)
+    await flushPromises()
+    await findBtn(w, '删除').trigger('click')
+    await flushPromises()
+    expect(archiveProject).toHaveBeenCalledWith('风控云')
+    expect(purgeProject).toHaveBeenCalledWith('风控云')
+    vi.unstubAllGlobals()
+  })
+
+  it('删除输名不一致则取消', async () => {
+    vi.stubGlobal('prompt', () => '别的名字')
+    const w = mount(Home)
+    await flushPromises()
+    await findBtn(w, '删除').trigger('click')
+    await flushPromises()
+    expect(archiveProject).not.toHaveBeenCalled()
+    expect(purgeProject).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
   })
 
