@@ -9,7 +9,7 @@ import { ApiError, addRuleManual, confirmRule, correctRule, deleteRule, disposeG
 import { jobRunning, startJobPolling } from '../../jobs'
 import { refreshWb } from '../../wb'
 
-const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; nodeFull: string; total: number }>()
+const props = defineProps<{ rules: Rule[]; conflicts: Conflict[]; gaps: Gap[]; allRules: Rule[]; allConflicts: Conflict[]; nodeFull: string; total: number }>()
 const emit = defineEmits<{ 'clar-changed': []; changed: []; jump: [full: string, tab?: 'rules'] }>()
 const toast = inject<(msg: string, cls?: string) => void>('toast', () => {})
 
@@ -30,8 +30,9 @@ const gOver = ref(new Map<string, Gap>())
 const confList = computed(() => props.conflicts.map(c => cOver.value.get(c.id) ?? c))
 const gapList = computed(() => props.gaps.map(g => gOver.value.get(g.id) ?? g))
 const openConfs = computed(() => confList.value.filter(c => c.st === 'open'))
-// 冲突参与规则正被质疑：不算核验过，照常显示行（数量与树行闭环），处置走冲突卡裁决
-const conflictedIds = computed(() => new Set(openConfs.value.flatMap(c => c.parties)))
+// 冲突参与规则正被质疑：状态判定用全量 open 冲突（冲突卡可归属兄弟节点，规则在自己节点也不得显示已核过）
+const conflictedIds = computed(() => new Set(
+  props.allConflicts.filter(c => (cOver.value.get(c.id) ?? c).st === 'open').flatMap(c => c.parties)))
 const isOk = (r: Rule) => (r.verified || okLocal.value.has(r.id)) && !conflictedIds.value.has(r.id)
 
 // ---- 状态 chips（唯一口径：总数 = 已核过 + 待处理，total 来自 wb 行——含跨节点冲突参与方，
@@ -88,17 +89,23 @@ async function confirmResolve(c: Conflict) {
   } catch (e) { fail(e, '裁决失败') } finally { busyConf.value = '' }
 }
 
-/** 冲突中规则行 → 展开其所属冲突的裁决卡 */
+/** 冲突中规则行 → 定位裁决入口：冲突卡在本页则展开滚动，归属兄弟节点则跳转过去 */
 function conflictOf(id: string): Conflict | undefined {
-  return openConfs.value.find(c => c.parties.includes(id))
+  return props.allConflicts.filter(c => (cOver.value.get(c.id) ?? c).st === 'open')
+    .find(c => c.parties.includes(id))
 }
 function gotoAdjudicate(r: Rule) {
   const c = conflictOf(r.id)
   if (!c) return
-  const next = new Set(expanded.value)
-  next.add(c.id)
-  expanded.value = next
-  document.getElementById(`conf-${c.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  const local = openConfs.value.find(x => x.id === c.id)
+  if (local) {
+    const next = new Set(expanded.value)
+    next.add(c.id)
+    expanded.value = next
+    document.getElementById(`conf-${c.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  } else if (c.node && c.node !== '__root__') {
+    emit('jump', c.node, 'rules')  // 冲突卡归属兄弟节点——跳过去裁决
+  }
 }
 
 // ---- 缺口：补写 / 设计如此 ----
@@ -231,13 +238,13 @@ function gotoRule(id: string) {
             <div class="obody">
               <span class="osrc">{{ side(pid).src }}
                 <button v-if="byId.get(pid)?.node" class="jump" type="button" title="跳转到该规则所在节点"
-                        @click.stop="gotoRule(pid)">↗ 跳转</button>
+                        @click.stop="gotoRule(pid)">↗</button>
               </span>{{ side(pid).text }}
             </div>
           </div>
           <div class="opt" :class="{ sel: picked.get(c.id) === 'other' }" @click="pickConf(c, 'other')">
-            <span class="tag">其</span>
-            <div class="obody">其他——实际行为与以上都不同（确认后生成实证规则，各方作废）</div>
+            <span class="tag">其他</span>
+            <div class="obody">实际行为与以上都不同（确认后生成实证规则，各方作废）</div>
           </div>
           <textarea v-if="picked.get(c.id) === 'other'" v-model="manualText" rows="2"
                     placeholder="实际行为是什么就写什么" />
@@ -264,7 +271,9 @@ function gotoRule(id: string) {
         <div v-if="expanded.has(r.id)" class="foldbody amber">
           <p class="cnote">该规则正参与 <b>{{ conflictOf(r.id)?.id }}</b> 的冲突裁决——以裁决结果为准（胜方保留，败方作废出列表）。</p>
           <div class="actsbar">
-            <button class="btn-sm link" type="button" @click="gotoAdjudicate(r)">↓ 去裁决</button>
+            <button class="btn-sm link" type="button" @click="gotoAdjudicate(r)">
+              {{ openConfs.some(x => x.id === conflictOf(r.id)?.id) ? '↓ 去裁决' : '↗ 前往冲突所在节点裁决' }}
+            </button>
           </div>
         </div>
         <div v-if="editing?.id === r.id" class="editbox">
@@ -435,9 +444,10 @@ function gotoRule(id: string) {
 .opt.sel .tag { border-color: var(--primary); background: var(--primary); color: #fff; }
 .opt .obody { flex: 1; min-width: 0; font-size: 12px; }
 .opt .osrc { display: block; font-size: 11px; color: var(--muted-fg); margin-bottom: 2px; }
-.opt .osrc .jump { background: none; border: 1px solid #bfdbfe; color: var(--primary); font-size: 10.5px; font-weight: 600;
-  padding: 1px 8px; border-radius: 999px; cursor: pointer; margin-left: 6px; }
-.opt .osrc .jump:hover { background: var(--blue-bg); }
+.opt .osrc .jump { background: none; border: 1px solid #cbd5e1; color: var(--muted-fg); font-size: 11px;
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer; margin-left: 6px;
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1; vertical-align: middle; }
+.opt .osrc .jump:hover { background: var(--blue-bg); border-color: var(--primary); color: var(--primary); }
 
 /* 已处置/已核灰行 */
 .rrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 2px; border-top: 1px solid #f1f5f9; font-size: 12.5px; }

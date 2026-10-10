@@ -29,7 +29,7 @@ const allRules = rules
 function mountIt() {
   return mount(DetailRules, {
     // total 模拟 wb 行口径：3 规则 + 1 open 冲突 + 1 open 缺口（本例无跨节点参与方）
-    props: { rules, conflicts, gaps, allRules, nodeFull: '支付', total: 5 },
+    props: { rules, conflicts, gaps, allRules, allConflicts: conflicts, nodeFull: '支付', total: 5 },
     global: { provide: { toast: vi.fn() } },
   })
 }
@@ -124,6 +124,19 @@ describe('DetailRules 折叠交互', () => {
     expect(jumps.length).toBe(2)  // R1/R2 均有归属节点
     await jumps[1].trigger('click')  // R2 在「风控/额度」（跨节点）——跳过去看
     expect(w.emitted('jump')![0]).toEqual(['风控/额度', 'rules'])
+  })
+
+  it('冲突卡归属兄弟节点时，本地参与规则仍显示冲突中（状态判定用全量冲突，不再误标已核过）', async () => {
+    // 场景＝R251：C1 归属别处不在本页 conflicts，但 R1/R2 是本节点规则且参与 C1
+    const w = mount(DetailRules, {
+      props: { rules, conflicts: [], gaps, allRules, allConflicts: conflicts, nodeFull: '支付', total: 4 },
+      global: { provide: { toast: vi.fn() } },
+    })
+    expect(w.text()).toContain('冲突中')  // R1/R2 冲突中行
+    expect(w.findAll('.badge.b-green').length).toBe(0)  // 无「已核过」绿徽章
+    // 跨节点裁决跳转按钮
+    await w.findAll('.fold').find(f => f.text().includes('R2'))!.trigger('click')
+    expect(w.text()).toContain('前往冲突所在节点裁决')
   })
 
   it('冲突其他：选其他 → 输入 → manual 裁决', async () => {

@@ -35,6 +35,7 @@ const profile = ref<Profile | null>(null)
 const rules = ref<Rule[]>([]) // 本节点子树规则（条目 tab）
 const allRules = ref<Rule[]>([]) // 全量规则（存疑 tab 冲突 a/b 反查文本）
 const conflicts = ref<Conflict[]>([])
+const allConflicts = ref<Conflict[]>([]) // 全量冲突：参与规则「冲突中」状态判定（冲突卡可归属兄弟节点）
 const gaps = ref<Gap[]>([]) // 本节点子树缺口（gap.node 绑定，见 load()）
 const err = ref('')
 const loading = ref(false)
@@ -45,6 +46,7 @@ async function load() {
   rules.value = []
   allRules.value = []
   conflicts.value = []
+  allConflicts.value = []
   gaps.value = []
   if (props.nodeFull === '__root__' || props.state !== 'done') return
   loading.value = true
@@ -54,7 +56,8 @@ async function load() {
     profile.value = p
     allRules.value = rs
     rules.value = rs.filter(r => under(r.node))
-    // 冲突过滤只用后端 node 归属字段（_conflict_node 唯一口径，与树行 ⚠ 同源）——前端不自行推导
+    allConflicts.value = cs
+    // 冲突卡过滤只用后端 node 归属字段（_conflict_node 唯一口径，与树行 ⚠ 同源）——前端不自行推导
     conflicts.value = cs.filter(c => c.node ? under(c.node) : true) // 无归属（全局）：只在根汇总展示
     gaps.value = gs.filter(g => g.node === '__root__' ? false : under(g.node)) // 缺口按 node 子树过滤（__root__/全局不在节点展示，汇总视图承接）
   } catch (e) {
@@ -223,7 +226,7 @@ const gapOpenN = computed(() => gaps.value.filter(g => g.st === 'open').length)
       </div>
       <DetailOverview v-if="tab === 'overview'" :profile="profile" />
       <DetailRules v-else :rules="rules" :conflicts="conflicts" :gaps="gaps" :node-full="props.nodeFull"
-                   :all-rules="allRules" :total="rowStat.total" @clar-changed="emit('clar-changed')" @changed="load"
+                   :all-rules="allRules" :all-conflicts="allConflicts" :total="rowStat.total" @clar-changed="emit('clar-changed')" @changed="load"
                    @jump="(f: string, t?: 'rules') => emit('jump', f, t)" />
     </template>
   </div>
