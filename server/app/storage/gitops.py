@@ -54,9 +54,9 @@ def save_baseline(root, version: str, note: str) -> dict:
     if max_new and tuple(int(x) for x in version.split(".")) <= max_new:
         raise ValueError(f"版本号不得低于已有最大版本 {'.'.join(map(str, max_new))}")
     _git(root, "add", "-A")
-    has_head = _git(root, "rev-list", "-n1", "--all") != ""
-    if _git(root, "status", "--porcelain") or not has_head:  # 无变更跳过；空仓库建空 commit 供 tag 挂靠
-        _git(root, "commit", *_commit_args(root), "-m", note, "--allow-empty")
+    # 恒建 commit（无变更时空 commit）：说明必须随版本落档——跳过 commit 会让 tag 挂旧
+    # commit、时间线显示旧 message，本次输入的说明丢失
+    _git(root, "commit", *_commit_args(root), "-m", note, "--allow-empty")
     commit = _git(root, "rev-parse", "HEAD")
     _git(root, "tag", tag)
     return {"commit": commit, "tag": tag, "version": version}

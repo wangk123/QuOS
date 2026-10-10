@@ -21,7 +21,7 @@
 
 - `save_baseline(root, version, note) -> dict`
   - 校验：version 匹配 `^\d+\.\d+\.\d+$`，否则 `ValueError`；tag `v{version}` 不得已存在；version 不得 ≤ 列表最大新格式版本（倒挂下限基准；旧 `vN` 不参与，回滚到旧版后仍可存高位版本）。
-  - 行为沿用现状：`git init`（无 .git 时）→ `add -A` → 有变更才 commit（note 为 message，空 note 默认「基线存档」）→ 无变更也允许打 tag（指向当前 commit）→ 返回 `{tag, version, commit}`。
+  - 行为：`git init`（无 .git 时）→ `add -A` → **恒建 commit**（无变更时空 commit `--allow-empty`；note 为 message，空 note 默认「基线存档」）→ 打 tag → 返回 `{tag, version, commit}`。恒建的理由：跳过 commit 会让 tag 挂旧 commit、时间线显示旧 message，本次输入的说明丢失（线上实测踩过）。
 - `list_baselines(root) -> list[dict]`
   - `git for-each-ref refs/tags` 一次取 `%(refname:short) %(objectname) %(contents:subject) %(committerdate:unix)`，补齐 `note` / `time` 字段（轻量 tag 的 contents/committerdate 即指向 commit 的）；每项补 `cur: bool`（tag commit == `git rev-parse HEAD`，前端「当前」徽章依据——回滚后旧版标当前，不依赖列表末位）。
   - 排序：tag 解析为 `(major, minor, patch)` 语义化升序（末项 = 当前）；旧 `vN` 映射 `(N, 0, 0)` 兼容显示，行内带「旧格式」视觉标识（前端职责）。

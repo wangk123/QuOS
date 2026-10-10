@@ -236,9 +236,10 @@ async def test_baseline_without_changes(client):
     await client.post(f"{BASE}/evidence", json={"raw": "x"})
     b1 = (await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "一"})).json()
     b2 = (await client.post(f"{BASE}/baseline", json={"version": "1.0.1", "note": "二"})).json()
-    assert b2["tag"] == "v1.0.1" and b2["commit"] == b1["commit"]  # 无变更跳过 commit，tag 指向当前 commit
+    assert b2["tag"] == "v1.0.1" and b2["commit"] != b1["commit"]  # 无变更也建空 commit，说明随版本落档
     tags = (await client.get(f"{BASE}/baseline")).json()
     assert [t["tag"] for t in tags] == ["v1.0.0", "v1.0.1"]
+    assert [t["note"] for t in tags] == ["一", "二"]  # 无变更存版的说明不丢（线上 V0.0.2 根因回归）
 
 
 async def test_ai_error_maps_to_502(client, monkeypatch):

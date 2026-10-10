@@ -49,6 +49,16 @@ def test_save_without_changes_still_tags(root):
     assert r["tag"] == "v1.0.1" and r["commit"]  # 无变更 tag 指向当前 commit
 
 
+def test_save_without_changes_keeps_note(root):
+    """无变更存版说明不丢：恒建空 commit，note 进 message——
+    若跳过 commit，tag 挂旧 commit、时间线显示旧 message（线上 1.0.0 显示"V0.0.2"根因）"""
+    gitops.save_baseline(root, "1.0.0", "第一版说明")
+    gitops.save_baseline(root, "1.0.1", "本次输入的说明")
+    items = {i["tag"]: i for i in gitops.list_baselines(root)}
+    assert items["v1.0.0"]["note"] == "第一版说明"
+    assert items["v1.0.1"]["note"] == "本次输入的说明"
+
+
 def test_list_fields_and_semver_order(root):
     gitops.save_baseline(root, "1.0.0", "第一版说明")
     c1 = gitops._git(root, "rev-list", "-n1", "HEAD")
