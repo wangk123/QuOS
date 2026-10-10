@@ -25,6 +25,14 @@ def test_export_doc(tmp_path):
     doc = export_doc(tmp_path)
     assert "R1" in doc and "放款/重试" in doc
 
+def test_export_doc_rule_table_drops_src_conf(tmp_path):
+    """面向人的需求文档：规则表只留 ID/规则，来源与置信度是过程产物不进文档"""
+    save_profile(tmp_path, "放款/重试", _card())
+    doc = export_doc(tmp_path)
+    assert "| ID | 规则 |" in doc
+    assert "来源" not in doc and "置信度" not in doc
+    assert "retry.py:42" not in doc  # src 值不落文档
+
 def test_slug_special_chars(tmp_path):
     p = save_profile(tmp_path, "放款/重 试!", _card(node="放款/重 试!"))
     assert "/" not in p.name and " " not in p.name and "!" not in p.name

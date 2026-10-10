@@ -91,9 +91,10 @@ async def test_end_to_end(client, monkeypatch):
     r = await client.get(f"{BASE}/profiles")
     assert r.status_code == 200 and r.json() == ["放款/放款重试"]
 
-    # ⑥ 导出文档含 R1
+    # ⑥ 导出文档含 R1；章节标题用节点名（层级由标题层级表达，不拼全路径）
     r = await client.get(f"{BASE}/doc")
-    assert r.status_code == 200 and "R1" in r.text and "放款/放款重试" in r.text
+    assert r.status_code == 200 and "R1" in r.text and "放款重试" in r.text
+    assert "放款/放款重试" not in r.text
 
     # ⑦ 基线：手动版本号 + 独立 git 仓库
     r = await client.post(f"{BASE}/baseline", json={"version": "1.0.0", "note": "首个基线"})

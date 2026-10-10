@@ -10,7 +10,6 @@ from app.storage.project import slugify
 PROFILE_DIR = "profiles"
 OLD_DIR = "cards"  # 术语迁移前（卡片→用户画像）的目录名，读到即整目录改名
 ROOT_NODE = "__root__"  # 根画像的寻址键：不在功能树上，直接以该常量存取
-CONF_MARK = {"实证": "✅", "文档": "✅"}
 
 _SECTIONS = [("flow", "主流程"), ("states", "状态机"), ("boundaries", "异常边界"),
              ("note", "补充说明"), ("deps", "依赖")]
@@ -153,10 +152,10 @@ def _render_profile(profile: Profile, with_title: bool = True) -> list[str]:
         f"- 目标：{profile.goal}", f"- 入口：{profile.entry}", "",
         "主流程：", profile.flow or "无", ""]
     if profile.rules:
-        out += ["规则：", "", "| ID | 规则 | 来源 | 置信度 |", "|---|---|---|---|"]
+        out += ["规则：", "", "| ID | 规则 |", "|---|---|"]
         for r in profile.rules:
             text = r.text.replace("|", "\\|")
-            out.append(f"| {r.id} | {text} | {r.src} | {r.conf} {CONF_MARK.get(r.conf, '⚠️')} |")
+            out.append(f"| {r.id} | {text} |")
         out.append("")
     for key, title in _SECTIONS[1:-1]:
         v = getattr(profile, key)
@@ -201,7 +200,7 @@ def export_doc(root) -> str:
     def walk(items: list[tree.Node], prefix: str, depth: int):
         for n in items:
             full = f"{prefix}/{n.name}" if prefix else n.name
-            out.append("#" * (depth + 2) + " " + full)
+            out.append("#" * (depth + 2) + " " + n.name)  # 章节标题用节点名，层级由标题层级表达
             out.append("")
             profile = profiles.get(full)
             if profile is not None:

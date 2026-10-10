@@ -147,9 +147,9 @@ describe('VerModal（版本弹窗）', () => {
     expect(w.findAll('button').some(b => b.text() === '下载 .md')).toBe(true)
   })
 
-  it('预览章节导航：h2/h4 入导航（h1 不入），点击滚动到对应标题，源码模式隐藏', async () => {
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView
+  it('预览章节导航：h2/h4 入导航（h1 不入），点击按偏移手动滚动，源码模式隐藏', async () => {
+    const scrollTo = vi.fn()
+    Element.prototype.scrollTo = scrollTo
     const w = await mountModal()
     await w.findAll('button').find(b => b.text().includes('预览 / 导出需求文档'))!.trigger('click')
     await flushPromises()
@@ -158,12 +158,28 @@ describe('VerModal（版本弹窗）', () => {
     const items = w.findAll('.doc-nav .nav-item')
     expect(items.some(i => i.text() === '需求总览')).toBe(true)   // h2 入导航
     expect(items.some(i => i.text() === '需求文档')).toBe(false)  // h1（文档唯一标题）不入导航
+    // 目标标题在滚动容器下方 420px → 手动滚动到该偏移（scrollIntoView 在嵌套滚动容器不可靠）
+    const heads = (w.element as HTMLElement).querySelectorAll('.md-view h2')
+    ;(heads[0] as HTMLElement).getBoundingClientRect = () => ({ top: 420 } as DOMRect)
     const idx = items.findIndex(i => i.text() === '需求总览')
     await items[idx].trigger('click')
-    expect(scrollIntoView).toHaveBeenCalled()
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 412 }))  // 420 - 8 顶部留白
     // 源码模式无标题结构，导航隐藏
     await w.findAll('button').find(b => b.text() === '源码')!.trigger('click')
     expect(w.find('.doc-nav').exists()).toBe(false)
+  })
+
+  it('章节导航可折叠：收起出浮动目录钮，点钮恢复', async () => {
+    const w = await mountModal()
+    await w.findAll('button').find(b => b.text().includes('预览 / 导出需求文档'))!.trigger('click')
+    await flushPromises()
+    expect(w.find('.doc-nav').exists()).toBe(true)
+    await w.find('.nav-fold').trigger('click')
+    expect(w.find('.doc-nav').exists()).toBe(false)
+    const fab = w.find('.nav-fab')
+    expect(fab.exists()).toBe(true)
+    await fab.trigger('click')
+    expect(w.find('.doc-nav').exists()).toBe(true)
   })
 
   it('同 commit 多 tag（无变更连续存版）：仅一行标当前，各行仍有废弃入口', async () => {

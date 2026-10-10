@@ -33,8 +33,10 @@ const confirmBox = ref<null | { kind: 'restore' | 'deprecate'; b: Baseline }>(nu
 
 // 预览章节导航：渲染后从 DOM 提取 h2-h4（h1 为文档唯一标题不入导航）
 const mdViewEl = ref<HTMLElement | null>(null)
+const docBodyEl = ref<HTMLElement | null>(null)
 const docNav = ref<{ level: number; text: string; el: HTMLElement }[]>([])
 const activeNav = ref(-1)
+const navOpen = ref(true)
 
 function scanNav() {
   docNav.value = mdViewEl.value
@@ -45,7 +47,12 @@ function scanNav() {
 }
 
 function jumpNav(i: number) {
-  docNav.value[i]?.el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const el = docNav.value[i]?.el
+  const body = docBodyEl.value
+  if (!el || !body) return
+  // 手动按偏移滚动：scrollIntoView 在弹窗嵌套滚动容器（modal+body+nav 三层）下不可靠
+  const top = el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 8
+  body.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' })
 }
 
 function onDocScroll(e: Event) {  // 当前章节高亮：滚动位置上方最近的标题
@@ -282,16 +289,18 @@ function download() {
         </div>
         <button class="x" type="button" aria-label="关闭预览" @click="docOpen = false">✕</button>
       </div>
-      <div class="modal-body doc-body" @scroll.passive="docMode === 'md' && onDocScroll($event)">
+      <div ref="docBodyEl" class="modal-body doc-body" @scroll.passive="docMode === 'md' && onDocScroll($event)">
         <div class="doc-main">
           <!-- eslint-disable-next-line vue/no-v-html —— 内容经 renderMd 全量 escape -->
           <div v-if="docMode === 'md'" ref="mdViewEl" class="md-view" v-html="renderMd(docText)"></div>
           <pre v-else class="doc-outline">{{ docText }}</pre>
         </div>
-        <nav v-if="docMode === 'md' && docNav.length" class="doc-nav" aria-label="章节导航">
+        <nav v-if="docMode === 'md' && docNav.length && navOpen" class="doc-nav" aria-label="章节导航">
+          <div class="nav-head">章节 <button class="nav-fold" type="button" aria-label="收起导航" @click="navOpen = false">⟩</button></div>
           <div v-for="(n, i) in docNav" :key="i" class="nav-item"
                :class="[`lv${n.level}`, { on: i === activeNav }]" @click="jumpNav(i)">{{ n.text }}</div>
         </nav>
+        <button v-else-if="docMode === 'md' && docNav.length" class="nav-fab" type="button" @click="navOpen = true">☰ 目录</button>
       </div>
       <div class="modal-foot">
         <span class="fnote">下载始终为 .md 源码</span>
