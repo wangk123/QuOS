@@ -15,10 +15,8 @@ Quality OS —— 质量操作系统。
   └── 模块：reqspec · casegen · defect · rerun · perf · sec
 ```
 
-- 总体架构：[docs/architecture.md](docs/architecture.md)
 - 需求文档：[docs/requirements.md](docs/requirements.md)
-- 模块路线：[docs/roadmap.md](docs/roadmap.md)
-- reqspec 设计 spec：[docs/specs/2026-09-23-reqspec-design.md](docs/specs/2026-09-23-reqspec-design.md)
+- 开发规范：[docs/development.md](docs/development.md)
 
 ## 快速开始
 
