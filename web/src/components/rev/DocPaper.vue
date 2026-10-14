@@ -10,8 +10,10 @@ const props = defineProps<{
   materials: Material[]
   title: string
   verLabel: string
+  /** 目录呈现:pinned=常驻挤占正文 / hover=悬浮浮层 / hidden=只留把手 */
+  tocMode: 'pinned' | 'hover' | 'hidden'
 }>()
-const emit = defineEmits<{ 'activate': [qid: number]; 'jump': [ch: string] }>()
+const emit = defineEmits<{ 'activate': [qid: number]; 'jump': [ch: string]; 'toc-show': []; 'toc-hide': [] }>()
 
 /* 术语表章:术语 → 正文出现章节(与旧目录悬浮同口径),chip 点击跳转 */
 function termHits(name: string): string[] {
@@ -100,8 +102,9 @@ function onClickBody(e: MouseEvent) {
 
 <template>
   <div class="docpaper" @click="onClickBody">
-    <aside v-if="$slots.toc" class="doc-toc"><slot name="toc" /></aside>
-    <slot v-else name="handle" />
+    <aside v-if="tocMode !== 'hidden'" class="doc-toc" :class="tocMode" @mouseleave="emit('toc-hide')"><slot name="toc" /></aside>
+    <button v-else class="toc-handle" type="button" aria-label="展开目录" title="悬浮展开章节目录"
+            @mouseenter="emit('toc-show')" @click="emit('toc-show')">›</button>
     <div class="doc-main">
     <div class="doc-title">{{ title }} · 需求文档</div>
     <div class="doc-meta">

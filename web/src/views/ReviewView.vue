@@ -20,9 +20,17 @@ const versions = ref<any[]>([])
 
 const docWidth = ref<'normal' | 'wide' | 'full'>('normal')
 const mode = ref<'side' | 'focus'>('side')
-/* 章节目录折叠态:默认展开,记忆到 localStorage */
-const tocOpen = ref(localStorage.getItem('quos.toc') !== '0')
-watch(tocOpen, v => localStorage.setItem('quos.toc', v ? '1' : '0'))
+/* 章节目录三态:固定(常驻挤占正文)/悬浮(鼠标移入浮现、移开隐藏)/隐藏(只留把手);固定态记忆到 localStorage */
+const tocPinned = ref(localStorage.getItem('quos.tocPin') === '1')
+const tocHover = ref(false)
+const tocMode = computed(() => (tocPinned.value ? 'pinned' : tocHover.value ? 'hover' : 'hidden') as 'pinned' | 'hover' | 'hidden')
+watch(tocPinned, v => localStorage.setItem('quos.tocPin', v ? '1' : '0'))
+function togglePin() {
+  tocPinned.value = !tocPinned.value
+  if (!tocPinned.value) tocHover.value = true // 指针还在面板上:先转悬浮,移开再隐藏
+}
+function tocShow() { if (!tocPinned.value) tocHover.value = true }
+function tocHide() { if (!tocPinned.value) tocHover.value = false }
 const focusIdx = ref(0)
 const openSet = ref(new Set<number>())
 const activeId = ref<number | null>(null)
@@ -183,12 +191,11 @@ async function doFinalize() {
     <div class="rev-body" :class="{ wide: docWidth === 'wide', full: docWidth === 'full' }">
       <div class="rev-col doc-col">
         <DocPaper v-if="payload" :payload="payload" :annos="annos" :materials="materials"
-                  :title="projName" :ver-label="verLabel" @activate="activateFromDoc" @jump="jumpChapter">
-          <template v-if="tocOpen" #toc>
-            <ChapterTree :chapters="payload.chapters" :annos="annos" current="" @jump="jumpChapter" @fold="tocOpen = false" />
-          </template>
-          <template v-else #handle>
-            <button class="toc-handle" type="button" aria-label="展开目录" title="展开目录" @click="tocOpen = true">⟩</button>
+                  :title="projName" :ver-label="verLabel" :toc-mode="tocMode"
+                  @activate="activateFromDoc" @jump="jumpChapter" @toc-show="tocShow" @toc-hide="tocHide">
+          <template v-if="tocMode !== 'hidden'" #toc>
+            <ChapterTree :chapters="payload.chapters" :annos="annos" current="" :pinned="tocPinned"
+                         @jump="jumpChapter" @pin="togglePin" />
           </template>
         </DocPaper>
         <div v-else class="card" style="margin: 20px">
