@@ -1,15 +1,15 @@
 [project]
 name = "server"
-version = "0.1.0"
-description = "Add your description here"
+version = "2.0.0"
+description = "QuOS v2 — 接口 + 两级校验 + 批注式评审 + 版本管理"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
-    "httpx>=0.28.1",
     "pillow>=12.3.0",
-    "pymysql>=1.2.3",
     "pypdf>=6.19.0",
+    "python-multipart>=0.0.20",
+    "sqlmodel>=0.0.24",
     "uvicorn>=0.53.0",
 ]
 
@@ -17,9 +17,8 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 pythonpath = ["."]
+testpaths = ["tests"]

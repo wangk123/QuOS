@@ -1,208 +1,62 @@
+<!-- 应用骨架:侧栏 + 顶栏(面包屑/页操作插槽) + 内容视图切换 -->
 <script setup lang="ts">
-// 工作台终态：App = 顶栏（版本 | 证据池(n)）+ Workbench 单视图 + 全局进度条 + 弹窗/toasts。
-// 五步旧视图、侧栏树与 v-base 基线块均已删（版本入口收敛为 VerModal 弹窗）。
-import { computed, onMounted, provide, ref, watch } from 'vue'
-import { ApiError, curSlug, generateCancel, getEvidence, listBaselines, regen, type Baseline, type EvidenceItem } from './api'
-import EvPoolModal from './components/EvPoolModal.vue'
-import VerModal from './components/VerModal.vue'
-import Home from './views/Home.vue'
-import Workbench from './views/Workbench.vue'
-import { aiBusy, goHome, syncFromHash, top } from './router'
-import { resumeJobs, startJobPolling } from './jobs'
-import { refreshWb } from './wb'
+import { computed, onMounted, ref, watch } from 'vue'
+import { route } from './router'
+import { getProject, type Project } from './api'
+import SideBar from './components/SideBar.vue'
+import ProjectsView from './views/ProjectsView.vue'
+import MaterialsView from './views/MaterialsView.vue'
+import ReviewView from './views/ReviewView.vue'
+import VersionsView from './views/VersionsView.vue'
+import { mountToasts } from './components/toast'
 
-const err = ref('')
-const baselines = ref<Baseline[]>([])
+const proj = ref<Project | null>(null)
+const names: Record<string, string> = { materials: '材料', review: '文档评审', versions: '版本' }
 
-interface Toast {
-  id: number
-  msg: string
-  cls: string
+async function loadProj() {
+  proj.value = route.pid ? await getProject(route.pid) : null
 }
-let toastSeq = 0
-const toasts = ref<Toast[]>([])
-
-function toast(msg: string, cls = '') {
-  const t = { id: ++toastSeq, msg, cls }
-  toasts.value.push(t)
-  setTimeout(() => (toasts.value = toasts.value.filter(x => x.id !== t.id)), 2800)
-}
-provide('toast', toast)
-
-async function refreshBaselines() {
-  baselines.value = await listBaselines()
-}
-
-// 顶栏「证据池」弹窗（T12）：列表数据由 App 持有，角标 = 同源计数；增删后弹窗 emit changed 重拉
-const evOpen = ref(false)
-const evidence = ref<EvidenceItem[]>([])
-const evCount = computed(() => evidence.value.length)
-async function refreshEv() {
-  evidence.value = await getEvidence()
-}
-function onEvChanged() {
-  void refreshEv().catch(() => {})
-}
-
-/** B3 取消入口：终结当前 generate/regen job；已完成内容保留，aiBusy 由 jobs 轮询驱动自动消失 */
-async function onCancelAi() {
-  try {
-    await generateCancel()
-    toast('已取消——已完成内容保留')
-  } catch (e) {
-    toast(e instanceof Error ? e.message : '取消失败', 'warn')
-  }
-}
-/** 重新生成两模式（证据池入口）：full=全量 / smart=智能生成——发 job 后关弹窗，
- * 进度走全局 aiBusy 轮询，树徽章随 job 完成自动刷新 */
-async function onRegen(mode: 'full' | 'smart') {
-  evOpen.value = false
-  try {
-    const evIds = evidence.value.map(e => e.id)
-    const r = await regen(mode, evIds)
-    startJobPolling(r.job_id, toast) // 进度条/取消/完成 toast 与树刷新由轮询驱动
-  } catch (e) {
-    toast(e instanceof ApiError ? e.message : '重新生成发起失败', 'warn')
-  }
-}
-
-// 顶栏「版本」弹窗（T14 终态唯一版本入口）：存版成功后重拉基线
-const verOpen = ref(false)
-function onSaved() {
-  void refreshBaselines().catch(() => {})
-}
-
-// 回滚后工作区内容整体回到旧版——wb/证据池/基线全链重拉，父级不再持有回滚前陈旧数据
-function onRestored() {
-  void refreshWb().catch(() => {})
-  void refreshBaselines().catch(() => {})
-  void refreshEv().catch(() => {})
-}
-
-async function boot() {
-  err.value = ''
-  try {
-    await refreshWb() // wb 探测：项目不存在 404 统一在此兜底（Workbench 内 useWb 刷新失败静默）
-    if (top.value !== 'proj') return
-    await refreshBaselines()
-    void resumeJobs(toast) // 恢复后端仍在跑的批量任务进度（页面刷新/重开场景）
-    void refreshEv().catch(() => {})
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) {
-      goHome()
-      toast('项目不存在或已归档')
-      return
-    }
-    err.value = e instanceof ApiError ? `加载失败（HTTP ${e.status}）：${e.message}` : '无法连接后端——请先启动 server'
-  }
-}
-
+watch(() => route.pid, loadProj)
 onMounted(() => {
-  const pre = top.value
-  try {
-    syncFromHash()
-  } catch {
-    // 畸形 hash（如 #/p/%）decode 抛 URIError：停留 home
-  }
-  // 浏览器前进/后退改变 hash 时同步顶层状态（enterProject/goHome 自身写的 hash
-  // 已与状态一致，syncFromHash 幂等跳过，不会重复触发切换）
-  window.addEventListener('hashchange', () => {
-    try {
-      syncFromHash()
-    } catch {
-      // 畸形 hash：停留当前态
-    }
-  })
-  // syncFromHash 造成 home→proj 切换时由下方 watch 接手，避免双重 boot
-  if (top.value === 'proj' && pre === 'proj') void boot()
+  const host = document.createElement('div')
+  document.body.appendChild(host) // 未挂载的容器渲染在内存,toast 不可见
+  mountToasts(host)
+  loadProj()
 })
 
-// 首次进入/切换项目（含 syncFromHash 恢复、hashchange 项目间前进后退）时加载树+基线
-watch([top, curSlug], ([t]) => {
-  if (t === 'proj') void boot()
+const crumbs = computed(() =>
+  route.view === 'projects'
+    ? [{ label: '项目总览' }]
+    : [
+        { label: 'QuOS', hash: '#/projects' },
+        { label: proj.value?.name ?? '', hash: `#/p/${route.pid}/review` },
+        { label: names[route.view] ?? '' },
+      ])
+
+const view = computed(() => {
+  if (route.view === 'materials') return MaterialsView
+  if (route.view === 'review') return ReviewView
+  if (route.view === 'versions') return VersionsView
+  return ProjectsView
 })
 </script>
 
 <template>
-  <Home v-if="top === 'home'" />
-  <template v-else>
-    <header>
-      <div class="logo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2v20M2 12h20" /><circle cx="12" cy="12" r="9" />
-        </svg>
-        QuOS
-      </div>
-      <button class="ghost" @click="goHome">⟵ 项目</button>
-      <div class="proj">项目 <b>{{ curSlug }}</b></div>
-      <span class="spacer"></span>
-      <!-- 三入口全为弹窗位：版本弹窗（T14）/证据池弹窗（T12）/待确认弹窗（T13） -->
-      <button class="ghost-sm" type="button" @click="verOpen = true">版本</button>
-      <button class="pool-btn" type="button" @click="evOpen = true">
-        证据池<span v-if="evCount" class="pool-badge">{{ evCount }}</span>
-      </button>
-    </header>
-
-    <EvPoolModal :open="evOpen" :evidence="evidence" @close="evOpen = false" @changed="onEvChanged" @regen="onRegen" />
-    <VerModal :open="verOpen" @close="verOpen = false" @saved="onSaved" @restored="onRestored" />
-
-    <p v-if="err" class="err">{{ err }}</p>
-
-    <!-- 后台进度条：状态在 router.ts 的 aiBusy，切页不丢失；有 cur/total 时为真实百分比 -->
-    <div v-if="aiBusy" class="ai-run global-ai">
-      <span class="spin" /><span>{{ aiBusy.label }}{{ aiBusy.total ? `（${aiBusy.cur ?? 0}/${aiBusy.total}）` : '' }}</span>
-      <div class="bar"><i :style="aiBusy.total ? { width: `${Math.round(((aiBusy.cur ?? 0) / aiBusy.total) * 100)}%`, animation: 'none' } : undefined" /></div>
-      <button class="cancel-btn" type="button" @click="onCancelAi">取消</button>
+  <div class="app">
+    <SideBar />
+    <div class="main">
+      <header class="topbar">
+        <div class="crumb">
+          <template v-for="(c, i) in crumbs" :key="i">
+            <a v-if="c.hash" :href="c.hash" style="color: var(--muted); text-decoration: none">{{ c.label }}</a>
+            <b v-else>{{ c.label }}</b>
+            <span v-if="i < crumbs.length - 1" class="sep">/</span>
+          </template>
+        </div>
+        <span class="spacer" />
+        <slot name="topbar" />
+      </header>
+      <component :is="view" :key="`${route.pid}-${route.view}`" />
     </div>
-
-    <main class="content wb">
-      <Workbench />
-    </main>
-  </template>
-
-  <div class="toasts" aria-live="polite">
-    <div v-for="t in toasts" :key="t.id" class="toast" :class="t.cls">{{ t.msg }}</div>
   </div>
 </template>
-
-<style scoped>
-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: #fff;
-  border-bottom: 1px solid var(--border2);
-  padding: 0 20px;
-  height: 52px;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
-.logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--primary); }
-.proj { display: flex; align-items: center; gap: 8px; color: var(--muted-fg); }
-.ghost-sm { background: #fff; color: var(--muted-fg); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
-.ghost-sm:hover { background: var(--muted); }
-.pool-btn { position: relative; background: #fff; color: var(--primary); border: 1px solid var(--border2); padding: 6px 13px; font-weight: 600; }
-.pool-btn:hover { background: var(--muted); }
-.pool-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px;
-  border-radius: 8px; background: var(--destructive); color: #fff; font-size: 10px;
-  display: flex; align-items: center; justify-content: center; padding: 0 4px; }
-.global-ai {
-  position: sticky;
-  top: 52px;
-  z-index: 48;
-  margin: 10px 20px 0;
-}
-.global-ai .cancel-btn { background: #fff; color: var(--destructive); border: 1px solid var(--border2); border-radius: 6px; padding: 3px 12px; font-size: 12px; font-weight: 600; flex: none; cursor: pointer; }
-.global-ai .cancel-btn:hover { background: var(--red-bg); }
-.err {
-  font-size: 12px;
-  color: var(--destructive);
-  background: var(--red-bg);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 10px 20px 0;
-}
-.content { min-height: calc(100vh - 52px); padding: 18px 22px; min-width: 0; }
-.content.wb { padding: 0; } /* Workbench 的 .stage 自带分栏 padding */
-</style>

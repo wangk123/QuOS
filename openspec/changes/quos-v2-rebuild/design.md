@@ -65,7 +65,7 @@ agent 无状态短事务:唤起 → 拉材料+基线 → 按 skill 加工 → �
 | Rule | id, project_id, no, text, violation, quote, material_id, status, replaced_by | 锚点层:编号稳定、作废留痕 |
 | Term | id, project_id, name, definition | 定稿时由快照 glossary 全量重建 |
 
-快照 payload 结构(meta/overview/glossary/new_terms/chapters/rules 含 status+replaced_by)与 design 前版一致,字段定义见原型数据模型。
+快照 payload 结构:meta/overview/glossary/new_terms/rules 与前版一致;chapters 见 §4.4a 文档形态契约。
 
 ### 4.3 REST 接口
 
@@ -92,7 +92,15 @@ GET              /api/v1/projects/{pid}/changes?version=
 | 硬拒收 | quote 归一化定位(去空白/全半角/大小写折叠子串匹配;图片类 parsed_text 为空跳过;quote<6 字降软;失败附最相近片段) | active 规则必查 |
 | 硬拒收 | 编号:草案内唯一;与 Rule 表同编号=修改路径放行;新编号不与现存冲突;引用闭合;material_id 不存在单列报错 | — |
 | 硬拒收 | 结构:active 规则 violation 非空、章节有标题、作废必带 replaced_by | — |
-| 软转批注 | new_terms 申报→术语确认(confirm);已登记术语正文写法不一致→confirm;violation 与 text 完全雷同→confirm;章节零规则/状态机空→fill | 不阻塞,草案 reviewing,自动批注带 anchor+source=auto,同内容去重 |
+| 软转批注 | new_terms 申报→术语确认(confirm);已登记术语正文写法不一致→confirm;violation 与 text 完全雷同→confirm;空壳章节(无正文块且零规则)→fill;有叙述或规则的章节不出题 | 不阻塞,草案 reviewing,自动批注带 anchor+source=auto,同内容去重 |
+
+### 4.4a 文档形态契约(2026-10-14 首例草案五连批后修订)
+
+章节正文由**有序自由块 blocks** 组成,取代固定四槽(background/states/exceptions 死板模板):
+- 块类型:para(叙述) / states(状态链,→ 连接) / table(columns+rows) / figure(title+flows,每行一条链路,表号/图号渲染时自动编) / exceptions(items);
+- 章节 `parent: 父章节 id` 构成层级(渲染自动编号 1 / 1.1),引用不闭合或成环为硬错误;
+- 参数表/字段清单/接口契约成 table 块、主链路成 figure 块——不得拆散塞进规则 text(写作纪律由 req-organize/req-review skill 执行,平台只做块结构合法性硬校验);
+- 术语表词条与正文的定位:前端确定性匹配自动锚定,点击词条滚动到出现章节(不新增字段,不靠 agent 申报)。
 
 ### 4.5 状态机
 
@@ -146,6 +154,8 @@ AI 编排(`server/app/ai/`)、树/证据/规则/画像存储、git 基线、MySQ
 - 归一化基线:Unicode NFKC + 空白折叠 + 大小写折叠后子串匹配;失败附 difflib 最相近片段;
 - SQLite 开 WAL;各表带 created_at;Vite dev proxy → 127.0.0.1:8000;前端在 web/ 内删除 v1 src 重写;
 - 「项目内仅一个 reviewing」不变量在 draft 提交与 finalize 处用事务保证(浏览器与 agent 双入口竞态)。
+
+- (2026-10-14 修订)章节正文 blocks 自由块 + parent 层级取代固定四槽;空壳章(无块无规则)才出 fill 题,删除零规则/状态机空逼填出题;块结构与 parent 闭合/成环为硬校验(BLOCK_*/CHAPTER_PARENT_*);术语定位由前端确定性匹配实现;agent 侧新增 req-review skill 作为提交前与人工评审前的强制评审门(可读性判据),req-organize 增写作纪律(规则收敛行为级/结构化内容成块/背景写动机/主链路落图)。
 
 ## 7. 留给实施计划(builder)的自由度
 

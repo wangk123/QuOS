@@ -1,51 +1,24 @@
-# server/app/main.py
-import os
-from contextlib import asynccontextmanager
-from pathlib import Path
-
+"""FastAPI 装配:CORS、健康检查、路由挂载。"""
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.doubts import api_router as doubts_router
-from app.api.generate import api_router as generate_router
-from app.api.projects import projects_router
-from app.api.router import api_router
-from app.storage import db, jobs, project
+from app.api import doc, materials, projects, questions
 
-# 后台任务状态落盘恢复：重启后 jobs 仍可查（cancelled 不复活为 running）
-jobs.load(Path(__file__).resolve().parent.parent / "data" / ".jobs.json")
+app = FastAPI(title="QuOS v2")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    # 启动对账：文件系统两侧扫描为准，DB 行同步（幽灵行删除、缺失行补齐）
-    rows = project.scan("active") + project.scan("archived")
-    db.reconcile([{**r, "status": "active" if project.exists_active(r["slug"]) else "archived"}
-                  for r in rows])
-    yield
+app.include_router(projects.router)
+app.include_router(materials.router)
+app.include_router(doc.router)
+app.include_router(questions.router)
 
 
-app = FastAPI(title="QuOS", lifespan=lifespan)
-
-app.include_router(projects_router, prefix="/api/projects")
-app.include_router(api_router, prefix="/api/projects/{proj}")
-app.include_router(generate_router, prefix="/api/projects/{proj}")
-app.include_router(doubts_router, prefix="/api/projects/{proj}")
-
-
-@app.get("/api/health")
+@app.get("/api/v1/health")
 def health():
-    return {"status": "ok"}
-
-
-# 无 LLM key 的端到端走查：AI 任务返回固定假数据（见 app/ai/fake.py）
-if os.environ.get("QUOS_FAKE_AI") == "1":
-    from app.ai import fake
-
-    fake.install()
-
-# 前端静态托管：web/dist 构建产物（server/app/main.py → 上两级为 QuOS 根）
-# 目录不存在时跳过挂载，避免测试/纯 API 环境报错
-_web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
-if _web_dist.is_dir():
-    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")
+    return {"ok": True}

@@ -1,114 +1,116 @@
-# server/app/api/projects.py
-# 项目管理端点：同步 def（pymysql 阻塞调用交 FastAPI 线程池）。
-# 真相源是文件系统扫描，db.* 仅补动态列（last_opened_at）与对账。
-from typing import Optional
-
-from fastapi import APIRouter, HTTPException
+"""项目 CRUD / 归档恢复 / 状态总览。"""
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlmodel import Session, select
 
-from app.storage import db, project
+from app.db import get_session
+from app.models import Baseline, DocDraft, DocVersion, Material, Project, Question
 
-projects_router = APIRouter()
+router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
 
-class CreateIn(BaseModel):
+class ProjectIn(BaseModel):
     name: str
     description: str = ""
 
 
-class PatchIn(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+class ProjectPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
 
 
-def _slug_path(slug: str) -> None:
-    """path 合法性与存在性的公共校验（不存在统一 404）"""
-    if not project.is_valid_name(slug) or project.slugify(slug) != slug:
-        raise HTTPException(status_code=422, detail=f"非法项目标识: {slug}")
+def _get_or_404(db: Session, pid: int) -> Project:
+    proj = db.get(Project, pid)
+    if proj is None:
+        raise HTTPException(404, "project not found")
+    return proj
 
 
-@projects_router.get("")
-def list_projects():
-    rows = project.scan("active")
-    extra = db.reconcile([{**r, "status": "active"} for r in rows])
-    out = [{**r, "last_opened_at": extra.get(r["slug"], {}).get("last_opened_at")}
-           for r in rows]
-    out.sort(key=lambda r: r["last_opened_at"] or "", reverse=True)
-    return out
+def _stats(db: Session, pid: int) -> dict:
+    materials = len(db.exec(select(Material.id).where(Material.project_id == pid)).all())
+    pending = len(
+        db.exec(
+            select(Question.id).where(Question.project_id == pid, Question.status == "pending")
+        ).all()
+    )
+    base = db.get(Baseline, pid)
+    version = base.version if base and base.version else None
+    has_draft = (
+        db.exec(
+            select(DocDraft.id)
+            .where(DocDraft.project_id == pid, DocDraft.status == "reviewing")
+            .limit(1)
+        ).first()
+        is not None
+    )
+    return {
+        "materials": materials,
+        "pending_annos": pending,
+        "version": version,
+        "draft_status": "reviewing" if has_draft else None,
+    }
 
 
-@projects_router.get("/archived")
-def list_archived():
-    rows = project.scan("archived")
-    db.reconcile([{**r, "status": "archived"} for r in rows])  # 归档侧也对账，防幽灵
-    return rows
+def _proj_out(db: Session, proj: Project) -> dict:
+    return {
+        "id": proj.id,
+        "name": proj.name,
+        "description": proj.description,
+        "archived": proj.archived,
+        "created_at": proj.created_at.isoformat(),
+        "stats": _stats(db, proj.id),
+    }
 
 
-@projects_router.post("", status_code=201)
-def create_project(body: CreateIn):
-    if not project.is_valid_name(body.name):
-        raise HTTPException(status_code=422, detail=f"非法项目名: {body.name}")
-    if len(project.slugify(body.name)) > 191:  # VARCHAR(191) 上限，防超长 slug 毒化 reconcile
-        raise HTTPException(status_code=422, detail="项目名过长")
-    try:
-        row = project.create(body.name, body.description)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    db.reconcile([{**row, "status": "active"}])
-    return row
+@router.get("")
+def list_projects(archived: bool = False, db: Session = Depends(get_session)):
+    projs = db.exec(select(Project).where(Project.archived == archived)).all()
+    return [_proj_out(db, p) for p in projs]
 
 
-@projects_router.post("/{slug}/open", status_code=204)
-def open_project(slug: str):
-    _slug_path(slug)
-    try:
-        project.require_root(slug)
-    except project.ProjectNotFound as e:
-        raise HTTPException(status_code=404, detail=f"项目不存在或已归档: {e}")
-    db.touch_opened(slug)
+@router.post("")
+def create_project(body: ProjectIn, db: Session = Depends(get_session)):
+    if not body.name.strip():
+        raise HTTPException(422, "name required")
+    proj = Project(name=body.name.strip(), description=body.description)
+    db.add(proj)
+    db.commit()
+    db.refresh(proj)
+    return _proj_out(db, proj)
 
 
-@projects_router.patch("/{slug}")
-def patch_project(slug: str, body: PatchIn):
-    _slug_path(slug)
-    try:
-        project.require_root(slug)
-    except project.ProjectNotFound as e:
-        raise HTTPException(status_code=404, detail=f"项目不存在或已归档: {e}")
-    if body.name is not None and not project.is_valid_name(body.name):
-        raise HTTPException(status_code=422, detail=f"非法项目名: {body.name}")
-    # 改的是 project.json 显示名，slug（目录身份）不动
-    return project.write_meta(slug, name=body.name, description=body.description)
+@router.get("/{pid}")
+def get_project(pid: int, db: Session = Depends(get_session)):
+    return _proj_out(db, _get_or_404(db, pid))
 
 
-@projects_router.post("/{slug}/archive", status_code=204)
-def archive_project(slug: str):
-    _slug_path(slug)
-    try:
-        project.archive(slug)
-    except project.ProjectNotFound as e:
-        raise HTTPException(status_code=404, detail=f"项目不存在: {e}")
-    db.delete_row(slug)
+@router.patch("/{pid}")
+def patch_project(pid: int, body: ProjectPatch, db: Session = Depends(get_session)):
+    proj = _get_or_404(db, pid)
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(422, "name required")
+        proj.name = body.name.strip()
+    if body.description is not None:
+        proj.description = body.description
+    db.add(proj)
+    db.commit()
+    return _proj_out(db, proj)
 
 
-@projects_router.post("/{slug}/restore", status_code=204)
-def restore_project(slug: str):
-    _slug_path(slug)
-    try:
-        project.restore(slug)
-    except project.ProjectNotFound as e:
-        raise HTTPException(status_code=404, detail=f"归档项目不存在: {e}")
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+@router.post("/{pid}/archive")
+def archive_project(pid: int, db: Session = Depends(get_session)):
+    proj = _get_or_404(db, pid)
+    proj.archived = True
+    db.add(proj)
+    db.commit()
+    return {"ok": True}
 
 
-@projects_router.delete("/{slug}", status_code=204)
-def purge_project(slug: str):
-    _slug_path(slug)
-    try:
-        project.purge(slug)
-    except project.ProjectNotFound as e:
-        raise HTTPException(status_code=404, detail=f"归档项目不存在: {e}")
-    except ValueError:
-        raise HTTPException(status_code=409, detail="仅归档项目可彻底删除")
-    db.delete_row(slug)
+@router.post("/{pid}/restore")
+def restore_project(pid: int, db: Session = Depends(get_session)):
+    proj = _get_or_404(db, pid)
+    proj.archived = False
+    db.add(proj)
+    db.commit()
+    return {"ok": True}
