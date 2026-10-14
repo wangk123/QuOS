@@ -53,28 +53,6 @@ description: 需求整理——从异质素材（口述、碎片文档、代码�
 - 条款编号稳定：小改编号不变；作废留痕（「R12 已作废，由 R15 替代」），不悄悄删除；
 - 文档版本 ↔ 代码提交 ↔ 测试基线互相引用；能回滚并知道牵连范围。
 
-## 平台对接（QuOS v2 接口协议）
+## 平台对接（QuOS v2）
 
-加工成果一律经平台接口提交，平台不内置 LLM；接口契约如下（基址默认 `http://127.0.0.1:8000`，本地无鉴权）：
-
-### 调用顺序（短事务：唤起 → 拉取 → 加工 → 提交 → 退出）
-
-1. `GET /api/v1/projects/{pid}/materials` — 拉材料清单（含 parsed_text，出处核对与 quote 复制的唯一来源）；
-2. `GET /api/v1/projects/{pid}/doc/baseline` — 拉当前基线（无定稿返回 `{"empty":true}`，冷启动；有则增量加工）；
-3. 加工（按本 skill 全流程 + 写作纪律）产出 DocPayload：`{meta, overview, glossary, new_terms, chapters, rules}`。章节含 `id/title/pri/parent(可选,父章节id)/background/blocks/rule_nos`，blocks 是正文块有序列表，每块 `{type: para|states|table|figure|exceptions, text?, title?, columns?, rows?, flows?, items?}`；rules 每条含 `no/text/violation/quote/material_id/status/replaced_by`；
-4. **本地预检**：按 req-review 的判据过一遍（含第 3-5 查与可读性检查），打回项修完再进下一步；
-5. `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（无包装层）。**quote 必须从材料 parsed_text 原文复制**（NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）；
-6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）；
-7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）；
-8. 全部批注收敛后提示用户在平台上「定稿发版」（版本号/说明由人定，agent 无发版权）。
-
-### 校验报告处理纪律
-
-- `POST draft` 硬错误 → 422，响应体 `{"detail":{"hard_errors":[{code, rule_no, detail}]}}`：**必须修正后重交，禁止绕过**。`QUOTE_NOT_FOUND` 的 detail.nearest 是材料内最相近片段，对照修正 quote；`BLOCK_*`/`CHAPTER_PARENT_*` 是正文块结构与层级错误，按 detail 修正；
-- 软警告 → 平台自动转批注（source=auto，带 anchor），不阻塞入库；`new_terms` 由本 skill 自查申报（发现新词是 AI 职责，平台不猜词）；
-- 编号口径：active 复用基线同编号 = 修改路径放行；**复活已作废编号会被拒**；作废必须显式 `status:"voided"` + `replaced_by`；
-- 断点续跑：进度以平台状态为准（draft/questions/baseline），agent 不自记进度。
-
-### 其他端点
-
-`GET /doc/draft`（读当前 reviewing 草案）、`GET /doc/versions`、`GET /doc/changes?version=`（变更记录）、`POST /doc/finalize`/`POST /doc/revert`（仅人在平台操作）。
+需要把成果提交 QuOS 平台时，**先读本 skill 目录下的 `platform-api.md`**（接口契约、调用顺序、校验报告处理纪律、本地预检有效做法）。不落平台的纯文档整理用不到它。
