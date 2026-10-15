@@ -26,6 +26,7 @@ AI 加工完全外部化:外部 agent 结合项目内 skill(`.agents/skills/`)�
 - 题目四种题型:选择题 / 确认题 / 填空题 / 批量扫
 - 主产物为章节式需求文档(给人读),规则条目库为锚点层(给机器引用)
 - v1(`server/app` 的 LLM 编排与树/证据/规则存储)整体废弃,旧数据不迁移
+- 接口与 CLI 变更须按根目录 AGENTS.md 开发规则同步维护 docs/api.md 与 server/app/cli.py(含 skill 对接指引)
 
 ## 权威文档
 
