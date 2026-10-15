@@ -1,0 +1,1797 @@
+- generic [ref=f7e3]:
+  - complementary [ref=f7e4]:
+    - generic [ref=f7e5]: QuOS
+    - generic [ref=f7e9]: 项目
+    - link "项目总览" [ref=f7e10] [cursor=pointer]:
+      - /url: "#/projects"
+    - link "多模态 草" [ref=f7e13] [cursor=pointer]:
+      - /url: "#/p/3/review"
+      - generic [ref=f7e14]: 多模态
+      - generic "草案评审中" [ref=f7e15]: 草
+    - link "材料 1" [ref=f7e16] [cursor=pointer]:
+      - /url: "#/p/3/materials"
+      - generic [ref=f7e17]: 材料
+      - generic [ref=f7e18]: "1"
+    - link "文档评审 18" [ref=f7e19] [cursor=pointer]:
+      - /url: "#/p/3/review"
+      - generic [ref=f7e20]: 文档评审
+      - generic [ref=f7e21]: "18"
+    - link "版本" [ref=f7e22] [cursor=pointer]:
+      - /url: "#/p/3/versions"
+    - link "云风控 草" [ref=f7e24] [cursor=pointer]:
+      - /url: "#/p/4/review"
+      - generic [ref=f7e25]: 云风控
+      - generic "草案评审中" [ref=f7e26]: 草
+    - generic [ref=f7e27]:
+      - generic [ref=f7e28]: v2
+      - text: 质量工作台
+  - generic [ref=f7e29]:
+    - banner [ref=f7e30]:
+      - generic [ref=f7e31]:
+        - link "QuOS" [ref=f7e32] [cursor=pointer]:
+          - /url: "#/projects"
+        - generic [ref=f7e33]: /
+        - link "多模态" [ref=f7e34] [cursor=pointer]:
+          - /url: "#/p/3/review"
+        - generic [ref=f7e35]: /
+        - generic [ref=f7e36]: 文档评审
+    - generic [ref=f7e37]:
+      - generic [ref=f7e38]:
+        - generic [ref=f7e39]: 草案评审中
+        - generic [ref=f7e41]: 基于 — · 48 章 · 123 条规则
+        - button "定稿发版" [ref=f7e42] [cursor=pointer]
+      - generic [ref=f7e43]:
+        - generic [ref=f7e45]:
+          - complementary [ref=f7e46]:
+            - navigation "章节目录" [ref=f7e47]:
+              - generic [ref=f7e48]:
+                - text: 章节
+                - button "取消固定(改为悬浮显隐)" [pressed] [ref=f7e49] [cursor=pointer]
+              - link "1 文档头" [ref=f7e52] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e53]: "1"
+                - generic [ref=f7e54]: 文档头
+              - link "2 背景与目标" [ref=f7e55] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e56]: "2"
+                - generic [ref=f7e57]: 背景与目标
+              - link "2.1 业务痛点" [ref=f7e58] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e59]: "2.1"
+                - generic [ref=f7e60]: 业务痛点
+              - link "2.2 目标（事实性陈述）" [ref=f7e61] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e62]: "2.2"
+                - generic [ref=f7e63]: 目标（事实性陈述）
+              - link "2.3 成功标准" [ref=f7e64] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e65]: "2.3"
+                - generic [ref=f7e66]: 成功标准
+              - link "2.4 明确不做什么及原因" [ref=f7e67] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e68]: "2.4"
+                - generic [ref=f7e69]: 明确不做什么及原因
+              - link "3 用户与场景" [ref=f7e70] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e71]: "3"
+                - generic [ref=f7e72]: 用户与场景
+              - link "3.1 用户类清单" [ref=f7e73] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e74]: "3.1"
+                - generic [ref=f7e75]: 用户类清单
+              - link "3.2 场景：业务受理/审查人员处理一笔业务的影像材料（端到端）" [ref=f7e76] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e77]: "3.2"
+                - generic [ref=f7e78]: 场景：业务受理/审查人员处理一笔业务的影像材料（端到端）
+              - link "3.3 场景：尽调系统经对外 API 委托处理并取数" [ref=f7e79] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e80]: "3.3"
+                - generic [ref=f7e81]: 场景：尽调系统经对外 API 委托处理并取数
+              - link "3.4 场景：分类/配置管理员配置分类并用 Agent 优化" [ref=f7e82] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e83]: "3.4"
+                - generic [ref=f7e84]: 场景：分类/配置管理员配置分类并用 Agent 优化
+              - link "3.5 场景：文档复核人员审阅、修正与发布" [ref=f7e85] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e86]: "3.5"
+                - generic [ref=f7e87]: 场景：文档复核人员审阅、修正与发布
+              - link "4 系统总览" [ref=f7e88] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e89]: "4"
+                - generic [ref=f7e90]: 系统总览
+              - link "4.1 一段话" [ref=f7e91] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e92]: "4.1"
+                - generic [ref=f7e93]: 一段话
+              - link "4.2 主链路" [ref=f7e94] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e95]: "4.2"
+                - generic [ref=f7e96]: 主链路
+              - link "4.3 上下文图（系统边界）" [ref=f7e97] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e98]: "4.3"
+                - generic [ref=f7e99]: 上下文图（系统边界）
+              - link "4.4 核心实体与关系" [ref=f7e100] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e101]: "4.4"
+                - generic [ref=f7e102]: 核心实体与关系
+              - link "4.5 全局业务原则（跨域通用，编号 GP）" [ref=f7e103] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e104]: "4.5"
+                - generic [ref=f7e105]: 全局业务原则（跨域通用，编号 GP）
+              - link "5 需求主体" [ref=f7e106] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e107]: "5"
+                - generic [ref=f7e108]: 需求主体
+              - link "5.1 受理与文档接入【已实现】 1" [ref=f7e109] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e110]: "5.1"
+                - generic [ref=f7e111]: 受理与文档接入【已实现】
+                - generic [ref=f7e112]: "1"
+              - link "5.2 文档解析与识别【已实现】" [ref=f7e113] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e114]: "5.2"
+                - generic [ref=f7e115]: 文档解析与识别【已实现】
+              - link "5.3 材料分类与样本库【已实现】 1" [ref=f7e116] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e117]: "5.3"
+                - generic [ref=f7e118]: 材料分类与样本库【已实现】
+                - generic [ref=f7e119]: "1"
+              - link "5.4 结构化抽取、校验与发布【已实现】" [ref=f7e120] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e121]: "5.4"
+                - generic [ref=f7e122]: 结构化抽取、校验与发布【已实现】
+              - link "5.5 特征提取与媒体数据【已实现】" [ref=f7e123] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e124]: "5.5"
+                - generic [ref=f7e125]: 特征提取与媒体数据【已实现】
+              - link "5.6 影像合规审查【部分实现】" [ref=f7e126] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e127]: "5.6"
+                - generic [ref=f7e128]: 影像合规审查【部分实现】
+              - link "5.6.1 当前实现行为（可测范围）" [ref=f7e129] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e130]: 5.6.1
+                - generic [ref=f7e131]: 当前实现行为（可测范围）
+              - link "5.6.2 完整审查引擎（目标态，未实现，当前不可测）" [ref=f7e132] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e133]: 5.6.2
+                - generic [ref=f7e134]: 完整审查引擎（目标态，未实现，当前不可测）
+              - link "5.7 对外 API 交付【已实现】" [ref=f7e135] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e136]: "5.7"
+                - generic [ref=f7e137]: 对外 API 交付【已实现】
+              - link "5.7.1 接入与受理" [ref=f7e138] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e139]: 5.7.1
+                - generic [ref=f7e140]: 接入与受理
+              - link "5.7.2 固定路径与 POST 查询" [ref=f7e141] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e142]: 5.7.2
+                - generic [ref=f7e143]: 固定路径与 POST 查询
+              - link "5.7.3 按分类取数（3 个只读接口）" [ref=f7e144] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e145]: 5.7.3
+                - generic [ref=f7e146]: 按分类取数（3 个只读接口）
+              - link "5.7.4 材料目录与 schema（尽调适配）" [ref=f7e147] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e148]: 5.7.4
+                - generic [ref=f7e149]: 材料目录与 schema（尽调适配）
+              - link "5.7.5 幂等与请求可靠性" [ref=f7e150] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e151]: 5.7.5
+                - generic [ref=f7e152]: 幂等与请求可靠性
+              - link "5.7.6 通知与错误码" [ref=f7e153] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e154]: 5.7.6
+                - generic [ref=f7e155]: 通知与错误码
+              - link "5.8 实时通知与事件交付【已实现】" [ref=f7e156] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e157]: "5.8"
+                - generic [ref=f7e158]: 实时通知与事件交付【已实现】
+              - link "5.9 智能分类助手与分类优化 Agent【部分实现】" [ref=f7e159] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e160]: "5.9"
+                - generic [ref=f7e161]: 智能分类助手与分类优化 Agent【部分实现】
+              - link "5.9.1 当前实现行为（可测范围）" [ref=f7e162] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e163]: 5.9.1
+                - generic [ref=f7e164]: 当前实现行为（可测范围）
+              - link "5.9.2 待实现增强【TBD-12：是否纳入本版范围】" [ref=f7e165] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e166]: 5.9.2
+                - generic [ref=f7e167]: 待实现增强【TBD-12：是否纳入本版范围】
+              - link "5.9.3 未实现（当前不可测，出现相关入口即为缺陷）" [ref=f7e168] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e169]: 5.9.3
+                - generic [ref=f7e170]: 未实现（当前不可测，出现相关入口即为缺陷）
+              - link "5.10 配置与规则管理【已实现】" [ref=f7e171] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e172]: "5.10"
+                - generic [ref=f7e173]: 配置与规则管理【已实现】
+              - link "6 非功能需求 2" [ref=f7e174] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e175]: "6"
+                - generic [ref=f7e176]: 非功能需求
+                - generic [ref=f7e177]: "2"
+              - link "7 约束、假设与开放问题" [ref=f7e178] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e179]: "7"
+                - generic [ref=f7e180]: 约束、假设与开放问题
+              - link "7.1 外部依赖清单" [ref=f7e181] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e182]: "7.1"
+                - generic [ref=f7e183]: 外部依赖清单
+              - link "7.2 前提假设" [ref=f7e184] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e185]: "7.2"
+                - generic [ref=f7e186]: 前提假设
+              - link "7.3 开放问题" [ref=f7e187] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e188]: "7.3"
+                - generic [ref=f7e189]: 开放问题
+              - link "8 术语表与变更记录" [ref=f7e190] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e191]: "8"
+                - generic [ref=f7e192]: 术语表与变更记录
+              - link "8.1 术语表" [ref=f7e193] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e194]: "8.1"
+                - generic [ref=f7e195]: 术语表
+              - link "8.2 变更记录" [ref=f7e196] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e197]: "8.2"
+                - generic [ref=f7e198]: 变更记录
+              - link "9 术语表" [ref=f7e199] [cursor=pointer]:
+                - /url: javascript:void 0
+                - generic [ref=f7e200]: "9"
+                - generic [ref=f7e201]: 术语表
+            - generic "拖拽调整目录宽度" [ref=f7e202]
+          - generic [ref=f7e203]:
+            - generic [ref=f7e204]: 多模态 · 需求文档
+            - generic [ref=f7e205]:
+              - generic [ref=f7e206]: 首版 · 草案评审中
+              - generic [ref=f7e207]: 2026-10-15
+              - generic [ref=f7e208]: 范围:瀚海多模态服务需求文档（草稿）
+            - generic [ref=f7e209]:
+              - heading "1 文档头 P1" [level=2] [ref=f7e210]:
+                - generic [ref=f7e211]: "1"
+                - text: 文档头
+                - generic [ref=f7e212]: P1
+              - generic [ref=f7e213]: 表1 ·
+              - table [ref=f7e214]:
+                - rowgroup [ref=f7e215]:
+                  - row [ref=f7e216]:
+                    - columnheader "项" [ref=f7e217]
+                    - columnheader "内容" [ref=f7e218]
+                - rowgroup [ref=f7e219]:
+                  - row [ref=f7e220]:
+                    - cell "文档状态" [ref=f7e221]
+                    - cell "草稿（draft-v5，未定稿；按版本管控纪律，草稿期不打版本号；v1→v2、v2→v3、v3→v4、v4→v5 差异见文末修改记录）" [ref=f7e222]
+                  - row [ref=f7e223]:
+                    - cell "日期" [ref=f7e224]
+                    - cell "2026-10-14" [ref=f7e225]
+                  - row [ref=f7e226]:
+                    - cell "需求范围" [ref=f7e227]
+                    - cell "瀚海智能助理系统的多模态能力服务：受理与文档接入、文档解析与识别、材料分类与样本库、结构化抽取与发布、特征提取与媒体数据、影像合规审查、对外 API 交付、实时通知、分类优化 Agent、配置与规则管理的功能需求，以及可判定的非功能需求" [ref=f7e228]
+                  - row [ref=f7e229]:
+                    - cell "不在本版范围" [ref=f7e230]
+                    - cell "系统内部模块架构与实现设计、测试用例设计本身、被辅助系统（尽调等）侧自身的功能" [ref=f7e231]
+                  - row [ref=f7e232]:
+                    - cell "读者对象" [ref=f7e233]
+                    - cell "【TBD-13】待用户确认（整理者推测：用户方、开发、测试三方共读，见附录 A）" [ref=f7e234]
+                  - row [ref=f7e235]:
+                    - cell "素材与口径" [ref=f7e236]
+                    - cell "本稿整理自《瀚海多模态服务需求总览（测试参考）》V1.1（2026-10-08）。素材混合「需求文档口径」与「dev 分支代码现状（至 2026-09-29）」，凡从代码反推出的行为均随条目标注实现状态；需求口径按目标态还是按当前实现取用，见【TBD-10】" [ref=f7e237]
+                  - row [ref=f7e238]:
+                    - cell "实现状态标注" [ref=f7e239]
+                    - cell "沿用素材口径：【已实现】= 当前行为可测；【部分实现】= 已有轻量能力，完整需求未落地；【待实现】= 未开发。标注仅为现状信息，不代表需求口径已定" [ref=f7e240]
+            - heading "2 背景与目标 P1" [level=2] [ref=f7e242]:
+              - generic [ref=f7e243]: "2"
+              - text: 背景与目标
+              - generic [ref=f7e244]: P1
+            - generic [ref=f7e245]:
+              - heading "2.1 业务痛点 P1" [level=2] [ref=f7e246]:
+                - generic [ref=f7e247]: "2.1"
+                - text: 业务痛点
+                - generic [ref=f7e248]: P1
+              - paragraph [ref=f7e249]: 【TBD-01】素材未说明建设该系统要解决的业务痛点与价值（谁、在什么业务中、因什么而低效或出错或不可控）。待用户补充一两句事实性叙述。痛点不成立，后续功能即无本之木，此项为背景层最高优先级缺口。
+            - generic [ref=f7e250]:
+              - heading "2.2 目标（事实性陈述） P1" [level=2] [ref=f7e251]:
+                - generic [ref=f7e252]: "2.2"
+                - text: 目标（事实性陈述）
+                - generic [ref=f7e253]: P1
+              - paragraph [ref=f7e254]: 系统接收多模态文档（PDF、图片、DOCX/XLSX/PPTX、压缩包、音视频），自动完成解析识别、材料分类、特征提取、结构化抽取与数据/影像校验，经人工确认后发布结构化结果，并通过对外 API 与 SSE 事件向被辅助系统（尽调等）交付。
+            - generic [ref=f7e255]:
+              - heading "2.3 成功标准 P1" [level=2] [ref=f7e256]:
+                - generic [ref=f7e257]: "2.3"
+                - text: 成功标准
+                - generic [ref=f7e258]: P1
+              - paragraph [ref=f7e259]: 【TBD-02】素材未给出可度量或可判定的成功标准：性能方面素材明确「无既定 p50/p95 目标值」；分类准确率、抽取准确率、人工复核工作量、单据处理时效等目标均未定义。待用户补充，否则本章为空壳，无法判定项目成败。
+            - generic [ref=f7e260]:
+              - heading "2.4 明确不做什么及原因 P1" [level=2] [ref=f7e261]:
+                - generic [ref=f7e262]: "2.4"
+                - text: 明确不做什么及原因
+                - generic [ref=f7e263]: P1
+              - paragraph [ref=f7e264]: 以下边界均可回指素材：
+              - paragraph [ref=f7e265]: 不生成、不保存尽调适配所需的 tables / unpublished 报文：尽调侧自行将已发布 schema 预展平为 CellMapper 报文，多模态只交付已发布结构（职责边界划分）。
+              - paragraph [ref=f7e266]: 不接受 process_id、node_code、影像树节点 ID、材料主键等内部标识作为对外 API 入参：对外契约不暴露内部主键（与 FR-API-21 呼应）。
+              - paragraph [ref=f7e267]: "已退役能力不得回归，出现即缺陷：旧材料核验（material_verification）的任务/API/前端/两张核验表、旧外部动态路径、business-task-list 列表、/batches/{id} 页面、Office 独立内存相似度分类路径、「全量重建向量」按钮与四个遗留向量域、分类优化任务的 Artifact 概念、「请勿关闭页面」提示与自动恢复（架构清理结果，按代码现状裁决）。"
+              - paragraph [ref=f7e268]: 不做静默降级：配置缺失、模型不匹配、关键依赖不可用必须显式失败（GP-01），不存在无记录的绕行路径。
+              - paragraph [ref=f7e269]: 以上之外是否还有明确不做项：【TBD-15】。
+            - heading "3 用户与场景 P1" [level=2] [ref=f7e271]:
+              - generic [ref=f7e272]: "3"
+              - text: 用户与场景
+              - generic [ref=f7e273]: P1
+            - generic [ref=f7e274]:
+              - heading "3.1 用户类清单 P1" [level=2] [ref=f7e275]:
+                - generic [ref=f7e276]: "3.1"
+                - text: 用户类清单
+                - generic [ref=f7e277]: P1
+              - generic [ref=f7e278]: 表2 ·
+              - table [ref=f7e279]:
+                - rowgroup [ref=f7e280]:
+                  - row [ref=f7e281]:
+                    - columnheader "用户类" [ref=f7e282]
+                    - columnheader "是谁 / 能干什么" [ref=f7e283]
+                    - columnheader "主要入口" [ref=f7e284]
+                    - columnheader "特征与频率" [ref=f7e285]
+                - rowgroup [ref=f7e286]:
+                  - row [ref=f7e287]:
+                    - cell "业务受理/审查人员" [ref=f7e288]
+                    - cell "创建受理单、上传/追加文档、检索受理单与上传记录、确认影像分类、推进五阶段工作台、发起整单提交" [ref=f7e289]
+                    - 'cell "/library、/cases/{caseId}、/businessRef/:ref" [ref=f7e290]'
+                    - cell "【TBD-03】" [ref=f7e291]
+                  - row [ref=f7e292]:
+                    - cell "文档复核人员" [ref=f7e293]
+                    - cell "上传单文件、查看最近 9 条文档、审阅抽取结果、原文证据核对、字段编辑、OCR 识别修复、确认发布" [ref=f7e294]
+                    - 'cell "/documents/{id}、/upload" [ref=f7e295]'
+                    - cell "【TBD-03】" [ref=f7e296]
+                  - row [ref=f7e297]:
+                    - cell "分类/配置管理员" [ref=f7e298]
+                    - cell "维护材料目录与四类材料配置、影像树与业务阶段、规则与审查要点、样本库；发起并裁决分类优化任务" [ref=f7e299]
+                    - cell "/material-config、/image-tree-config、/rule-management、/classification-assistant" [ref=f7e300]
+                    - cell "【TBD-03】" [ref=f7e301]
+                  - row [ref=f7e302]:
+                    - cell "被辅助系统（尽调等）及其开发方" [ref=f7e303]
+                    - cell "文件上传或平台文件引用、创建/追加受理单、订阅 SSE 事件、POST 查询进度与结果、按分类取数" [ref=f7e304]
+                    - cell "对外 API（/external/*）与 SSE /external/events/stream" [ref=f7e305]
+                    - cell "【TBD-03】" [ref=f7e306]
+            - generic [ref=f7e307]:
+              - heading "3.2 场景：业务受理/审查人员处理一笔业务的影像材料（端到端） P1" [level=2] [ref=f7e308]:
+                - generic [ref=f7e309]: "3.2"
+                - text: 场景：业务受理/审查人员处理一笔业务的影像材料（端到端）
+                - generic [ref=f7e310]: P1
+              - paragraph [ref=f7e311]: "业务受理/审查人员收到一笔信贷业务的影像材料：若干 PDF 扫描件和一个打包的压缩件。他在影像中心 /library 创建受理单，系统按该业务线影像树固化结构快照并分配唯一受理单号（受理单绑定哪棵影像树、由谁或哪个参数选定，素材未定义【TBD-17】）；通过受理对话框上传 PDF 与压缩包，压缩包被展开为子文件逐一派发处理。随后他在受理单工作台 /cases/{caseId} 沿五阶段推进：解析识别阶段，PDF 走 OCR 链路（探测模型 → 候选模型路由 → MinerU 提交 → 结果摄取），完成后形成标准解析数据；影像分类阶段，系统以双路径给出仲裁结论，低置信文档进入 REVIEW_REQUIRED，他在左侧「文档列表/影像树」双视图中逐份确认影像分类（AUTO_CONFIRMED 的可直接放行）；数据提取阶段，系统按材料的结果定义完成结构化抽取与字段校验；影像审查阶段，校验场景随事实变化自动补算；结果确认阶段，他核对后执行「确认结果」，最后整单提交。"
+              - paragraph [ref=f7e312]: 正常结果：各文档结果发布固化（携带 publishedAt 与 schemaHash），后续可被查询与对外交付。
+              - paragraph [ref=f7e313]: 异常分支：若影像树要求的部分必需影像未上传，详情页展示缺失清单，已上传影像仍可审查，但整单提交被拦截并返回缺失影像清单；若某 PDF 的 OCR 提交失败或证据 Profile 未就绪，该文档进入显式失败状态，他可在审阅页看到失败原因，其中 OCR 识别错误可通过识别修复编辑器人工修正。
+            - generic [ref=f7e314]:
+              - heading "3.3 场景：尽调系统经对外 API 委托处理并取数 P1" [level=2] [ref=f7e315]:
+                - generic [ref=f7e316]: "3.3"
+                - text: 场景：尽调系统经对外 API 委托处理并取数
+                - generic [ref=f7e317]: P1
+              - paragraph [ref=f7e318]: 尽调侧工程师要为一笔业务取结构化材料数据。他先取得文件凭证：或调用方先经平台上传拿到 platformFileId，或调 POST /external/files/upload（携带 Idempotency-Key）拿到 uploadId 与有效期。随后 POST /external/cases/create 提交 businessRef、工作模式与文档清单（每个文档只带两种凭证之一），系统受理后经 SSE 推送 RESULT_AVAILABLE 事件（必带 resourcePath、resourceMethod=POST、businessRef）。他按 eventId 幂等消费事件，再 POST 查询进度接口与七个单文档结果接口；对批量取数，按 materialCode 调按分类取数接口，命中多份时全部返回且顺序固定。
+              - paragraph [ref=f7e319]: 正常结果：拿到带 publishedAt 与 schemaHash 的已发布结构化数据。
+              - paragraph [ref=f7e320]: 异常分支：按分类取数命中 0 份时返回 200 + 空 items（不是 404）；materialCode 不存在时返回 MATERIAL_NOT_FOUND，两者严格区分；部分影像未完成时单项带 withheldReason（AWAITING_FINAL_CONFIRMATION / RESULT_NOT_READY / RESULT_FAILED），不影响其余影像返回；重试时同键同内容重放首次结果，同键不同内容得到 409 IDEMPOTENCY_CONFLICT；受理请求 PROCESSING 超过 15 分钟由系统自动恢复（未建单记失败可重试、已建单续收、已有文档补记成功）。
+            - generic [ref=f7e321]:
+              - heading "3.4 场景：分类/配置管理员配置分类并用 Agent 优化 P1" [level=2] [ref=f7e322]:
+                - generic [ref=f7e323]: "3.4"
+                - text: 场景：分类/配置管理员配置分类并用 Agent 优化
+                - generic [ref=f7e324]: P1
+              - paragraph [ref=f7e325]: 分类/配置管理员在材料配置中心为新材料配置智能分类项（语义判断、关键识别词、别名、负向证据），并用案例验证与效果统计检查配置效果。某类材料持续被分错时，他在智能分类助手创建「优化分类」任务并选定目标分类，系统冻结案例样本、文档运行版本、当前执行与人工确认结果、配置基线与预算。Agent 运行中仅能使用三个注册工具检索证据与生成草案修订，每产生新 Draft 自动执行两项必验（当前案例路径 A 真实试算 + 分类回归）；他在三栏工作台观察运行上下文、运行信息与草案产物，进度由 SSE 事件驱动刷新。最新 Draft 两项必验全部 PASSED、hash 匹配且输入无漂移时任务达到 READY_FOR_REVIEW，他查看草案与验证结果后走草案发布门禁确认发布。
+              - paragraph [ref=f7e326]: 异常分支：Agent 连续重复无进展时先被拒绝原计划强制改证据问题，再重复则结构化阻断；预算耗尽得到结构化阻断提示（不隐藏续跑）；验证失败不是任务失败，失败 Draft 携带 errorCode / suggestedFocus 进入下一轮。注意：人工暂停/恢复/取消/退回/修订当前未实现（见 5.9.3），场景中不可依赖。
+            - generic [ref=f7e327]:
+              - heading "3.5 场景：文档复核人员审阅、修正与发布 P1" [level=2] [ref=f7e328]:
+                - generic [ref=f7e329]: "3.5"
+                - text: 场景：文档复核人员审阅、修正与发布
+                - generic [ref=f7e330]: P1
+              - paragraph [ref=f7e331]: "文档复核人员在文档审阅工作台 /documents/{id} 打开一份抽取完成的文档，切换子文件，在原文预览中查看字段级证据高亮（block/region/页码/坐标/原文）。他核对抽取结果页签中的结果块与字段；发现识别错误时用识别修复编辑器修正 OCR 结果，发现字段错误时直接编辑字段。发布前系统执行字段校验与数据勾稽（等值/合计/加减），失败则阻止发布并给出缺失/阻断项清单；他补正后重新校验。配置单位与材料实际单位不一致且值非零时，字段值保持原始值不换算，仅以 unitWarning 附带配置单位与来源单位。确认无误后执行发布，结果固化且携带 publishedAt 与运行绑定的 schemaHash，此后不可再改。"
+              - paragraph [ref=f7e332]: 异常分支：目标不存在、多候选无法唯一、证据范围不成立、配置不完整、region 类型不匹配时，该来源显式失败并记录任务/定义/块/来源/目标名/原因，系统禁止全文回退或默认选首项。
+            - heading "4 系统总览 P1" [level=2] [ref=f7e334]:
+              - generic [ref=f7e335]: "4"
+              - text: 系统总览
+              - generic [ref=f7e336]: P1
+            - generic [ref=f7e337]:
+              - heading "4.1 一段话 P1" [level=2] [ref=f7e338]:
+                - generic [ref=f7e339]: "4.1"
+                - text: 一段话
+                - generic [ref=f7e340]: P1
+              - paragraph [ref=f7e341]: 瀚海多模态服务是瀚海智能助理系统的多模态能力服务：把进入系统的各类文档自动解析、分类、抽取成结构化结果，保留证据链与审计，经人工确认后发布，并以固定路径 API 与 SSE 事件向被辅助系统交付；全链路遵循「显式失败、不静默降级、每次处理新 Run、发布固化」四条主线。
+            - generic [ref=f7e342]:
+              - heading "4.2 主链路 P1" [level=2] [ref=f7e343]:
+                - generic [ref=f7e344]: "4.2"
+                - text: 主链路
+                - generic [ref=f7e345]: P1
+              - paragraph [ref=f7e346]: 一条文档的完整生命周期（三十秒读懂主干）：
+              - generic [ref=f7e347]: 图1 · 主链路
+              - document [ref=f7e350]:
+                - generic [ref=f7e353]:
+                  - generic [ref=f7e354]: 上传/受理
+                  - generic [ref=f7e364]:
+                    - generic [ref=f7e365]: 文件画像与预处
+                    - generic [ref=f7e366]: 理
+                  - generic [ref=f7e371]:
+                    - generic [ref=f7e372]: 解析（OCR /
+                    - generic [ref=f7e373]: Office 原生 /
+                    - generic [ref=f7e374]: 媒体解析）
+                  - generic [ref=f7e379]:
+                    - generic [ref=f7e380]: 内容标准化与信
+                    - generic [ref=f7e381]: 息增强
+                  - generic [ref=f7e386]:
+                    - generic [ref=f7e387]: 材料自动分类（
+                    - generic [ref=f7e388]: 双路径）
+                  - generic [ref=f7e393]:
+                    - generic [ref=f7e394]: "[人工确认（按需"
+                    - generic [ref=f7e395]: ）]
+                  - generic [ref=f7e396]: 特征提取
+                  - generic [ref=f7e406]:
+                    - generic [ref=f7e407]: 结果定义冻结与
+                    - generic [ref=f7e408]: 结果块定位
+                  - generic [ref=f7e413]:
+                    - generic [ref=f7e414]: 结构化抽取与字
+                    - generic [ref=f7e415]: 段校验
+                  - generic [ref=f7e416]: 数据关系校验
+                  - generic [ref=f7e422]: 人工复核
+                  - generic [ref=f7e428]: 发布
+                  - generic [ref=f7e438]:
+                    - generic [ref=f7e439]: 对外查询 / SSE
+                    - generic [ref=f7e440]: 通知交付
+              - paragraph [ref=f7e441]: 工作流共 28 个节点，按簇：输入准备 → OCR 决策 → 内容治理 → 业务分类（business_classify，唯一人工交互节点）→ 特征提取（feature_config_resolve / feature_extract）→ 抽取准备 → 坐标与上下文 → 结果生产。另有三条入口：Office 原生解析、压缩包批次、完整重处理。
+              - paragraph [ref=f7e442]: 受理单（Case）链路：创建受理单（固化影像树快照）→ 追加文档 → 五阶段工作台（解析识别 → 影像分类 → 数据提取 → 影像审查 → 结果确认）→ 整单提交（齐全性校验拦截）。
+            - generic [ref=f7e443]:
+              - heading "4.3 上下文图（系统边界） P1" [level=2] [ref=f7e444]:
+                - generic [ref=f7e445]: "4.3"
+                - text: 上下文图（系统边界）
+                - generic [ref=f7e446]: P1
+              - generic [ref=f7e447]: 图2 · 图
+              - document [ref=f7e450]:
+                - generic [ref=f7e452]:
+                  - generic [ref=f7e453]:
+                    - generic [ref=f7e454]: 外部依赖
+                    - generic [ref=f7e460]: 参与者
+                  - generic [ref=f7e480]:
+                    - generic [ref=f7e481]: 上传 / 审查 / 确认 / 发布
+                    - generic [ref=f7e487]: 页面 / REST 数据
+                    - generic [ref=f7e497]:
+                      - generic [ref=f7e498]: 目录 / 配置 / 规则 /
+                      - generic [ref=f7e499]: 样本管理
+                    - generic [ref=f7e504]:
+                      - generic [ref=f7e505]: 文件上传或引用 /
+                      - generic [ref=f7e506]: 创建受理单 / POST 查询
+                    - generic [ref=f7e507]: SSE 事件
+                    - generic [ref=f7e513]: 工作流调度
+                    - generic [ref=f7e519]: 提交解析 / 回摄结果
+                    - generic [ref=f7e525]: PDF 预处理
+                    - generic [ref=f7e531]: 模型调用
+                    - generic [ref=f7e537]: 向量读写（带租户硬过滤）
+                    - generic [ref=f7e543]: 持久化（含发件箱）
+                    - generic [ref=f7e549]: Pub/Sub 广播 / SSE
+                    - generic [ref=f7e555]: 文件与媒体对象存取
+                    - generic [ref=f7e561]: 用途素材未明示【TBD-09】
+                  - generic [ref=f7e567]:
+                    - generic [ref=f7e572]:
+                      - generic [ref=f7e573]: 业务受理/审查/
+                      - generic [ref=f7e574]: 复核人员
+                    - generic [ref=f7e579]:
+                      - generic [ref=f7e580]: 分类/配置管理
+                      - generic [ref=f7e581]: 员
+                    - generic [ref=f7e586]:
+                      - generic [ref=f7e587]: 被辅助系统（尽
+                      - generic [ref=f7e588]: 调等）
+                    - generic [ref=f7e589]: 瀚海多模态服务
+                    - generic [ref=f7e599]:
+                      - generic [ref=f7e600]: 瀚海平台 Graph
+                      - generic [ref=f7e601]: Runtime（工作
+                      - generic [ref=f7e602]: 流）
+                    - generic [ref=f7e603]: MinerU（OCR）
+                    - generic [ref=f7e613]:
+                      - generic [ref=f7e614]: PDF
+                      - generic [ref=f7e615]: 补线/方向服务
+                    - generic [ref=f7e620]:
+                      - generic [ref=f7e621]: EasyAI（LLM /
+                      - generic [ref=f7e622]: Embedding /
+                      - generic [ref=f7e623]: 可选 Rerank）
+                    - generic [ref=f7e624]: Qdrant 向量库
+                    - generic [ref=f7e630]: MySQL
+                    - generic [ref=f7e636]: Redis
+                    - generic [ref=f7e642]: OSS / MinIO
+                    - generic [ref=f7e648]: Nacos
+              - paragraph [ref=f7e654]: 各依赖不可用时的行为见 7.1 依赖清单（多数未定义，【TBD-09】）。
+            - generic [ref=f7e655]:
+              - heading "4.4 核心实体与关系 P1" [level=2] [ref=f7e656]:
+                - generic [ref=f7e657]: "4.4"
+                - text: 核心实体与关系
+                - generic [ref=f7e658]: P1
+              - generic [ref=f7e659]: 图3 · 图
+              - document [ref=f7e662]:
+                - generic [ref=f7e664]:
+                  - generic [ref=f7e668]:
+                    - generic [ref=f7e669]: 创建受理单时固化结构快照
+                    - generic [ref=f7e675]: 包含
+                    - generic [ref=f7e681]: 压缩包展开/文档内单影像
+                    - generic [ref=f7e687]: 每次处理新建，不覆盖历史
+                    - generic [ref=f7e697]:
+                      - generic [ref=f7e698]: 配置层级（基数按层级语义
+                      - generic [ref=f7e699]: 呈现）
+                    - generic [ref=f7e700]: sourceType x resultForm
+                    - generic [ref=f7e706]: 可配 unit
+                    - generic [ref=f7e712]: 单线修订，不可变
+                    - generic [ref=f7e718]: 一次成功工具调用一条
+                    - generic [ref=f7e724]: 只以完整 Draft 为主体
+                  - generic [ref=f7e730]:
+                    - generic [ref=f7e731]: IMAGE_TREE
+                    - generic [ref=f7e737]: CASE
+                    - generic [ref=f7e743]: DOCUMENT
+                    - generic [ref=f7e753]:
+                      - generic [ref=f7e754]: DOCUMENT_ITE
+                      - generic [ref=f7e755]: M
+                    - generic [ref=f7e756]: RUN
+                    - generic [ref=f7e762]: MATERIAL
+                    - generic [ref=f7e772]:
+                      - generic [ref=f7e773]: RESULT_DEFINITI
+                      - generic [ref=f7e774]: "ON"
+                    - generic [ref=f7e775]: RESULT_BLOCK
+                    - generic [ref=f7e781]: RESULT_FIELD
+                    - generic [ref=f7e787]: AGENT_TASK
+                    - generic [ref=f7e793]: DRAFT
+                    - generic [ref=f7e799]: EVIDENCE
+                    - generic [ref=f7e805]: VALIDATION
+            - generic [ref=f7e811]:
+              - heading "4.5 全局业务原则（跨域通用，编号 GP） P1" [level=2] [ref=f7e812]:
+                - generic [ref=f7e813]: "4.5"
+                - text: 全局业务原则（跨域通用，编号 GP）
+                - generic [ref=f7e814]: P1
+              - generic [ref=f7e815]: 规则
+              - generic [ref=f7e816]:
+                - generic "点击查看可判定表述与出处" [ref=f7e817]: GP-01
+                - paragraph [ref=f7e818]: 显式失败**：配置缺失、模型不匹配、关键依赖不可用必须显式失败（fail fast）；出现静默换模型、静默换路径、补隐藏默认值即违反。
+              - generic [ref=f7e819]:
+                - generic "点击查看可判定表述与出处" [ref=f7e820]: GP-02
+                - paragraph [ref=f7e821]: Run 隔离**：每次处理生成新 Run（document_item_run_id）；历史结果静默混入当前结果、或重处理/重新抽取覆盖历史记录即违反。
+              - generic [ref=f7e822]:
+                - generic "点击查看可判定表述与出处" [ref=f7e823]: GP-03
+                - paragraph [ref=f7e824]: 配置快照**：运行期冻结配置快照与版本（策略/模型/Prompt/算法）；运行中修改配置影响了已执行阶段即违反。
+              - generic [ref=f7e825]:
+                - generic "点击查看可判定表述与出处" [ref=f7e826]: GP-04
+                - paragraph [ref=f7e827]: 发布固化**：发布后的结果不可再改；结果必须携带 publishedAt 与运行绑定的 schemaHash，缺任一即违反。
+              - generic [ref=f7e828]:
+                - generic "点击查看可判定表述与出处" [ref=f7e829]: GP-05
+                - paragraph [ref=f7e830]: 结果发布门禁**：结果发布前校验（字段校验、数据勾稽、就绪检查）失败必须阻止发布并显式给出缺失/阻断项清单；校验失败仍可发布、或清单缺失即违反。
+              - generic [ref=f7e831]:
+                - generic "点击查看可判定表述与出处" [ref=f7e832]: GP-06
+                - paragraph [ref=f7e833]: 业务结论非传输错误**：业务结论（如校验 NOT_PASSED、审查不通过）不是 HTTP 错误，接口仍返回 200，结论在响应体中；把业务结论实现为非 200 状态码即违反。
+              - generic [ref=f7e834]:
+                - generic "点击查看可判定表述与出处" [ref=f7e835]: GP-07
+                - paragraph [ref=f7e836]: 降级判定**：外部依赖不可控时，只有允许业务继续处理且显式记录原因才算降级；未记录原因的绕行即违反。
+            - heading "5 需求主体 P1" [level=2] [ref=f7e838]:
+              - generic [ref=f7e839]: "5"
+              - text: 需求主体
+              - generic [ref=f7e840]: P1
+            - generic [ref=f7e841]:
+              - heading "5.1 受理与文档接入【已实现】 P1" [level=2] [ref=f7e842]:
+                - generic [ref=f7e843]: "5.1"
+                - text: 受理与文档接入【已实现】
+                - generic [ref=f7e844]: P1
+              - paragraph [ref=f7e845]: 【为什么存在】：业务受理/审查人员需要按业务的影像树组织一批文档、控制齐全性并推进审查（场景 3.2）；被辅助系统需要以受理单为单位批量委托处理（场景 3.3）。
+              - paragraph [ref=f7e846]: 【叙述】：受理单是业务维度的容器，创建时固化影像树结构快照；文档经三个渠道进入，在受理单内按影像树节点归位，靠齐全性规则保证提交前不缺件。
+              - paragraph [ref=f7e847]: 【规则】
+              - paragraph [ref=f7e848]: "【异常路径】：business-task-list 列表与 /batches/{id} 页面已退役，出现即缺陷。"
+              - generic [ref=f7e849]: 规则
+              - generic [ref=f7e850]:
+                - generic "点击查看可判定表述与出处" [ref=f7e851]: FR-ACC-01
+                - paragraph [ref=f7e852]:
+                  - text: 受理单全系统唯一 caseNo；创建时固化影像树结构快照（影像树选定机制未定义【
+                  - mark [ref=f7e853] [cursor=pointer]:
+                    - text: TBD-17
+                    - superscript [ref=f7e854]: "64"
+                  - text: 】）；领域模型为受理单 → 文档 → 子文件，无关联表、无树版本。
+              - generic [ref=f7e855]:
+                - generic "点击查看可判定表述与出处" [ref=f7e856]: FR-ACC-02
+                - paragraph [ref=f7e857]: 接入渠道三：前端上传页（单文件）、受理单受理对话框、对外 API（见 5.7）。
+              - generic [ref=f7e858]:
+                - generic "点击查看可判定表述与出处" [ref=f7e859]: FR-ACC-03
+                - paragraph [ref=f7e860]: 影像节点配置「是否必需 + 是否参与齐全性校验」；免校验影像不阻断整单提交，但必须明示其免校验状态。
+              - generic [ref=f7e861]:
+                - generic "点击查看可判定表述与出处" [ref=f7e862]: FR-ACC-04
+                - paragraph [ref=f7e863]: 缺失必需影像时：详情页展示缺失清单；已上传影像仍可审查；整单提交被拦截并返回缺失影像清单。
+              - generic [ref=f7e864]:
+                - generic "点击查看可判定表述与出处" [ref=f7e865]: FR-ACC-05
+                - paragraph [ref=f7e866]: 业务阶段配置含编码/名称/说明/启用/默认执行阶段/是否允许续跑，编码唯一；阶段间无固定顺序；执行前校验前置条件（识别完成、数据提取完成），不满足即拦截。
+              - generic [ref=f7e867]:
+                - generic "点击查看可判定表述与出处" [ref=f7e868]: FR-ACC-06
+                - paragraph [ref=f7e869]: 同一阶段重复执行覆盖该阶段原结果；续跑接口按 caseNo + 阶段编码定位。
+              - generic [ref=f7e870]:
+                - generic "点击查看可判定表述与出处" [ref=f7e871]: FR-ACC-07
+                - paragraph [ref=f7e872]: 审查要点绑定影像节点或整树，且必须关联至少一个业务阶段；无阶段绑定的审查要点在配置校验时失败。
+              - generic [ref=f7e873]:
+                - generic "点击查看可判定表述与出处" [ref=f7e874]: FR-ACC-08
+                - paragraph [ref=f7e875]: 受理配置不建版本快照；修改配置不主动重算存量受理单，重新校验/提交/续跑时按最新配置执行。
+              - generic [ref=f7e876]:
+                - generic "点击查看可判定表述与出处" [ref=f7e877]: FR-ACC-09
+                - paragraph [ref=f7e878]: 工作台左侧「文档列表/影像树」双视图切换且保持同一当前影像；用户确认动作只有「确认影像分类」与「确认结果」两个，出现第三个确认动作即违反。
+              - generic [ref=f7e879]:
+                - generic "点击查看可判定表述与出处" [ref=f7e880]: FR-ACC-10
+                - paragraph [ref=f7e881]: "业务编号深链 /businessRef/:ref 定位受理单后跳 /cases/{caseId}；查无或失败时留在深链页内报错，不得猜测跳转、不得回退旧页面。"
+              - generic [ref=f7e882]:
+                - generic "点击查看可判定表述与出处" [ref=f7e883]: FR-ACC-11
+                - paragraph [ref=f7e884]: 影像中心 /library：受理单一级列表为分页视图，可与上传记录二级视图切换；支持按文件名/受理单号/业务编号/影像树名称多条件检索。
+              - generic [ref=f7e885]:
+                - generic "点击查看可判定表述与出处" [ref=f7e886]: FR-ACC-12
+                - paragraph [ref=f7e887]: 上传工作台 /upload：单文件上传（见 FR-ACC-02）；可查看最近 9 条文档并进入文档库。
+            - generic [ref=f7e888]:
+              - heading "5.2 文档解析与识别【已实现】 P1" [level=2] [ref=f7e889]:
+                - generic [ref=f7e890]: "5.2"
+                - text: 文档解析与识别【已实现】
+                - generic [ref=f7e891]: P1
+              - paragraph [ref=f7e892]: 【为什么存在】：分类与抽取都以机器可读的解析结果为前提；解析域决定每种文件形态如何变成标准解析数据（服务场景 3.2 第一步、3.5 的证据基础）。
+              - paragraph [ref=f7e893]: 【叙述】：按文件类型路由到 OCR、Office 原生或媒体解析三条链路；无论哪条链路，产出统一汇入 Document Evidence Profile，供分类与抽取共用。
+              - paragraph [ref=f7e894]: 【规则】
+              - paragraph [ref=f7e895]: 【异常路径】
+              - paragraph [ref=f7e896]: Profile 非 READY（部分 point 写失败）→ 该文档分类显式失败并持久化原因，不降级。
+              - paragraph [ref=f7e897]: 解析失败（OCR 提交失败、Office 内容未持久化）→ 显式失败状态，可从审阅页看到原因。
+              - paragraph [ref=f7e898]: 压缩包子文件独立分类，压缩包整体分类结果静默套用到子文件即违反。
+              - generic [ref=f7e899]: 规则
+              - generic [ref=f7e900]:
+                - generic "点击查看可判定表述与出处" [ref=f7e901]: FR-PAR-01
+                - paragraph [ref=f7e902]: 解析路由：PDF/图片 → OCR 链路（探测模型 → 候选模型路由 → MinerU 提交 → 结果摄取）；DOCX/XLSX/PPTX → Office 原生解析（五节点后汇入与 OCR 相同的分类抽取尾段）；压缩包 → 展开为子文件逐一派发；音视频 → 独立媒体解析路由，不进 OCR 流程。
+              - generic [ref=f7e903]:
+                - generic "点击查看可判定表述与出处" [ref=f7e904]: FR-PAR-02
+                - paragraph [ref=f7e905]: "Office 与非 Office 统一：都建立 Document Evidence Profile（版本 extraction-{documentItemRunId}，全部证据 embedding 完成才 READY），共用同一分类执行服务；前台出现「Office 特殊算法」标识即违反。"
+              - generic [ref=f7e906]:
+                - generic "点击查看可判定表述与出处" [ref=f7e907]: FR-PAR-03
+                - paragraph [ref=f7e908]: 审阅页提供 OCR 人工修复（识别修复编辑器）。
+            - generic [ref=f7e909]:
+              - heading "5.3 材料分类与样本库【已实现】 P1" [level=2] [ref=f7e910]:
+                - generic [ref=f7e911]: "5.3"
+                - text: 材料分类与样本库【已实现】
+                - generic [ref=f7e912]: P1
+              - paragraph [ref=f7e913]: 【为什么存在】：分类决定后续用哪套结果定义做抽取，是自动化链路的分岔点；样本库让已确认的判断沉淀为可复用资产（服务场景 3.2 影像分类阶段、3.4 配置与优化）。
+              - paragraph [ref=f7e914]: 【叙述】：双路径并行——路径 A 对所有材料做确定性计分，路径 B 与人工确认过的样本匹配；两者交叉仲裁出自动确认、人工复核或无匹配三种结果。
+              - paragraph [ref=f7e915]: 【规则】
+              - paragraph [ref=f7e916]: 【参数】
+              - generic [ref=f7e917]: 表3 ·
+              - table [ref=f7e918]:
+                - rowgroup [ref=f7e919]:
+                  - row [ref=f7e920]:
+                    - columnheader "参数" [ref=f7e921]
+                    - columnheader "值" [ref=f7e922]
+                - rowgroup [ref=f7e923]:
+                  - row [ref=f7e924]:
+                    - cell "通道权重（初始，全局可调）" [ref=f7e925]
+                    - cell "文件名 0.25 / OCR 关键词 0.60 / 描述语义 0.15" [ref=f7e926]
+                  - row [ref=f7e927]:
+                    - cell "负向证据最多扣分" [ref=f7e928]
+                    - cell "0.20" [ref=f7e929]
+                  - row [ref=f7e930]:
+                    - cell "自动确认线" [ref=f7e931]
+                    - cell "最终分 ≥ 0.60 且领先差 ≥ 0.08" [ref=f7e932]
+                  - row [ref=f7e933]:
+                    - cell "样本相似门槛" [ref=f7e934]
+                    - cell "S1 ≥ 0.90 且领先差 ≥ 0.08" [ref=f7e935]
+                  - row [ref=f7e936]:
+                    - cell "样本代表页上限" [ref=f7e937]
+                    - cell "12（默认，HANHAI_CLASSIFICATION_SAMPLE_MAX_PAGES）" [ref=f7e938]
+                  - row [ref=f7e939]:
+                    - cell "样本去重线" [ref=f7e940]
+                    - cell "0.98" [ref=f7e941]
+              - generic [ref=f7e942]: 规则
+              - generic [ref=f7e943]:
+                - generic "点击查看可判定表述与出处" [ref=f7e944]: FR-CLS-01
+                - paragraph [ref=f7e945]: 路径 A 冷启动评分为确定性计分内核，通道权重与确认线见参数表；Rerank 为显式配置项，启用后仅做有限重排，不改变确认语义。
+              - generic [ref=f7e946]:
+                - generic "点击查看可判定表述与出处" [ref=f7e947]: FR-CLS-02
+                - paragraph [ref=f7e948]: 路径 B 样本匹配：全文哈希 EXACT，或代表页双向余弦相似度 S1 ≥ 0.90 且领先差 ≥ 0.08（参数表）。
+              - generic [ref=f7e949]:
+                - generic "点击查看可判定表述与出处" [ref=f7e950]: FR-CLS-03
+                - paragraph [ref=f7e951]: 仲裁输出三种结果：AUTO_CONFIRMED / REVIEW_REQUIRED / NO_MATCH；双路径交叉冲突 → 一律 REVIEW_REQUIRED。
+              - generic [ref=f7e952]:
+                - generic "点击查看可判定表述与出处" [ref=f7e953]: FR-CLS-04
+                - paragraph [ref=f7e954]: 自动分类结果不自动入样本库；仅人工确认后进入样本库；样本库为四态管理（待确认 → 已启用等），入库前按去重线（0.98）去重。
+              - generic [ref=f7e955]:
+                - generic "点击查看可判定表述与出处" [ref=f7e956]: FR-CLS-05
+                - paragraph [ref=f7e957]: 受理单内文档的分类候选只来自「已启用材料目录」（2026-09-29 生效口径）；独立文档走全局目录。
+              - generic [ref=f7e958]:
+                - generic "点击查看可判定表述与出处" [ref=f7e959]: FR-CLS-06
+                - paragraph [ref=f7e960]: RECOGNITION_ONLY 工作模式的文档拒绝分类。
+              - generic [ref=f7e961]:
+                - generic "点击查看可判定表述与出处" [ref=f7e962]: FR-CLS-07
+                - paragraph [ref=f7e963]: 任务显式请求 requestedMaterialCode 时：校验材料存在、启用、媒体类型匹配后直接确定并跳过智能分类，且不得被自动分类覆盖；不匹配 → 明确失败。
+              - generic [ref=f7e964]:
+                - generic "点击查看可判定表述与出处" [ref=f7e965]: FR-CLS-08
+                - paragraph [ref=f7e966]: 分类执行审计入快照（Top 候选、分项贡献、得分），可在页面查询。
+              - generic [ref=f7e967]:
+                - generic "点击查看可判定表述与出处" [ref=f7e968]: FR-CLS-09
+                - paragraph [ref=f7e969]:
+                  - text: REVIEW_REQUIRED 的人工处置：工作台「确认影像分类」动作完成确认；确认后的分类终态命名与后续行为素材未定义【
+                  - mark [ref=f7e970] [cursor=pointer]:
+                    - text: TBD-04
+                    - superscript [ref=f7e971]: "58"
+                  - text: 】。
+            - generic [ref=f7e972]:
+              - heading "5.4 结构化抽取、校验与发布【已实现】 P1" [level=2] [ref=f7e973]:
+                - generic [ref=f7e974]: "5.4"
+                - text: 结构化抽取、校验与发布【已实现】
+                - generic [ref=f7e975]: P1
+              - paragraph [ref=f7e976]: 【为什么存在】：结构化结果是被辅助系统取数的最终交付物；抽取域把「文档内容」变成「可查询、可勾稽、可追溯的字段」（服务场景 3.5、3.3 取数）。
+              - paragraph [ref=f7e977]: 【叙述】：配置层级为材料分类 → 结果定义 → 结果块 → 结果字段；抽取分两阶段——先按来源定位（整份文档/表格/图形/章节），再在来源范围内召回字段；证据随字段留存，校验通过后人工复核发布。
+              - paragraph [ref=f7e978]: 【规则】
+              - generic [ref=f7e979]: 规则
+              - generic [ref=f7e980]:
+                - generic "点击查看可判定表述与出处" [ref=f7e981]: FR-EXT-01
+                - paragraph [ref=f7e982]: 结果块 sourceType：DOCUMENT（整份）/ TABLE / GRAPH / SECTION；后三者必填目标名称（可选别名、定位提示），缺失即阻断发布或执行。
+              - generic [ref=f7e983]:
+                - generic "点击查看可判定表述与出处" [ref=f7e984]: FR-EXT-02
+                - paragraph [ref=f7e985]: 结果块 resultForm：SINGLE（单条，0-1 行）/ LIST（明细多行）；旧 blockType（FIELDS 等）已废弃，系统内存在 FIELDS 来源类型即违反。
+              - generic [ref=f7e986]:
+                - generic "点击查看可判定表述与出处" [ref=f7e987]: FR-EXT-03
+                - paragraph [ref=f7e988]: 通用结构规则固化在代码；业务名称/别名/定位提示来自配置，硬编码「资产负债表」这类业务词即违反。
+              - generic [ref=f7e989]:
+                - generic "点击查看可判定表述与出处" [ref=f7e990]: FR-EXT-04
+                - paragraph [ref=f7e991]: 禁止跨结果块扁平合并后全文召回；禁止扫描 Markdown/文件名定位来源。
+              - generic [ref=f7e992]:
+                - generic "点击查看可判定表述与出处" [ref=f7e993]: FR-EXT-05
+                - paragraph [ref=f7e994]: 目标不存在、多候选无法唯一、证据范围不成立、配置不完整、region 类型不匹配 → 显式失败并记录（任务/定义/块/来源/目标名/原因）；出现全文回退或默认选首项即违反。
+              - generic [ref=f7e995]:
+                - generic "点击查看可判定表述与出处" [ref=f7e996]: FR-EXT-06
+                - paragraph [ref=f7e997]: LLM 协议：SINGLE 只收对象、LIST 只收完整记录数组；禁止按列提取后拼接；结构不符明确失败，不自动包装、不取首项。
+              - generic [ref=f7e998]:
+                - generic "点击查看可判定表述与出处" [ref=f7e999]: FR-EXT-07
+                - paragraph [ref=f7e1000]: embedding 不可用 → 明确失败，不静默降级。
+              - generic [ref=f7e1001]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1002]: FR-EXT-08
+                - paragraph [ref=f7e1003]: 字段级证据保留 block ID、region ID、页码、坐标、原文；LIST 保留记录内字段关联，按列拆散存储即违反。
+              - generic [ref=f7e1004]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1005]: FR-EXT-09
+                - paragraph [ref=f7e1006]: "单位约定：字段可配 unit（≤128 字符，语义标签非换算规则）；配置单位与材料实际单位 sourceUnit 均确定、不一致且值非零 → 字段值包装 {value, unitWarning{code:UNIT_MISMATCH, configuredUnit, sourceUnit, message}}，value 保持原始值不换算。"
+              - generic [ref=f7e1007]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1008]: FR-EXT-10
+                - paragraph [ref=f7e1009]: 字段校验（result_field_validate）与数据关系勾稽（等值/合计/加减，支持误差容差与空值策略，由规则管理页配置、规则引擎执行）失败 → 阻止发布（GP-05）。
+              - generic [ref=f7e1010]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1011]: FR-EXT-11
+                - paragraph [ref=f7e1012]: 发布：人工复核后固化，带 publishedAt 与 schemaHash（GP-04）。
+            - generic [ref=f7e1013]:
+              - heading "5.5 特征提取与媒体数据【已实现】 P1" [level=2] [ref=f7e1014]:
+                - generic [ref=f7e1015]: "5.5"
+                - text: 特征提取与媒体数据【已实现】
+                - generic [ref=f7e1016]: P1
+              - paragraph [ref=f7e1017]: 【为什么存在】：音视频与影像材料除文本抽取外还需要客观特征事实（画面、转写、质量信号）供业务侧使用与展示（服务场景 3.2 数据提取阶段、3.5 审阅）。
+              - paragraph [ref=f7e1018]: 【叙述】：每材料两个独立开关控制是否做特征提取与结构化抽取；特征只记录事实与证据、不产业务结论；音视频先转成与 OCR 等价的标准解析数据再进统一抽取。
+              - paragraph [ref=f7e1019]: 【规则】
+              - paragraph [ref=f7e1020]: 【枚举】
+              - generic [ref=f7e1021]: 表4 ·
+              - table [ref=f7e1022]:
+                - rowgroup [ref=f7e1023]:
+                  - row [ref=f7e1024]:
+                    - columnheader "枚举" [ref=f7e1025]
+                    - columnheader "取值" [ref=f7e1026]
+                - rowgroup [ref=f7e1027]:
+                  - row [ref=f7e1028]:
+                    - cell "特征模式" [ref=f7e1029]
+                    - cell "DETERMINISTIC（不调模型）/ MODEL / HYBRID" [ref=f7e1030]
+                  - row [ref=f7e1031]:
+                    - cell "作用范围" [ref=f7e1032]
+                    - cell "MEDIA / PAGE / REGION / FRAME / VIDEO_SEGMENT / AUDIO_SEGMENT" [ref=f7e1033]
+                  - row [ref=f7e1034]:
+                    - cell "媒体内容单元（6 类）" [ref=f7e1035]
+                    - cell "PAGE / TRANSCRIPT_SEGMENT / SCENE_SEGMENT / VIDEO_FRAME / MEDIA_METADATA / OCR_TEXT" [ref=f7e1036]
+                  - row [ref=f7e1037]:
+                    - cell "媒体定位字段" [ref=f7e1038]
+                    - cell "frameNo / startMs / endMs / speaker 等（素材口径为「含……等」，非穷举）" [ref=f7e1039]
+              - generic [ref=f7e1040]: 规则
+              - generic [ref=f7e1041]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1042]: FR-FET-01
+                - paragraph [ref=f7e1043]: 旧「材料核验」（material_verification）已整体移除（任务、API、前端、两张核验表不存在）；再按旧口径测核验结论或出现相关入口即为缺陷。
+              - generic [ref=f7e1044]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1045]: FR-FET-02
+                - paragraph [ref=f7e1046]: 每材料两个独立开关：featureExtractionEnabled（关 → 记 SKIPPED_DISABLED）、dataExtractionEnabled（关 → 仍做媒体解析展示，仅跳过结构化抽取）；配置缺失/非法/模型不匹配 → 显式配置错误，不允许默认关闭。
+              - generic [ref=f7e1047]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1048]: FR-FET-03
+                - paragraph [ref=f7e1049]: 特征模式与作用范围两组枚举的取值见本章「枚举」表。
+              - generic [ref=f7e1050]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1051]: FR-FET-04
+                - paragraph [ref=f7e1052]: 特征结果只记事实/值/置信度/证据，不产生通过/不通过、风险等级等业务结论（智能验证规则属后续迭代，当前不存在）。
+              - generic [ref=f7e1053]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1054]: FR-FET-05
+                - paragraph [ref=f7e1055]: 模型治理：配置只存 modelRouteRef，模型目录声明能力（IMAGE_VISION / VIDEO_FRAME_VISION / ASR），运行时校验匹配；不匹配显式失败，静默换模型即违反。
+              - generic [ref=f7e1056]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1057]: FR-FET-06
+                - paragraph [ref=f7e1058]: 音视频先生成与 OCR 等价的标准解析数据（内容单元与定位字段见本章「枚举」表），再进统一抽取；字段来源可配。
+              - generic [ref=f7e1059]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1060]: FR-FET-07
+                - paragraph [ref=f7e1061]: 媒体预览：播放器 + 转写点读跳转 + 抽样帧定位；GET .../media-preview 返回 1 小时有效对象存储 URL 且响应禁缓存。
+              - generic [ref=f7e1062]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1063]: FR-FET-08
+                - paragraph [ref=f7e1064]: 特征证据 GET .../feature-evidence 按当前处理批次 + 特征配置哈希查询；配置 A→B→A 时按 hash 复用旧证据，误取最新配置证据即违反。
+              - generic [ref=f7e1065]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1066]: FR-FET-09
+                - paragraph [ref=f7e1067]: 特征依据展示模型实际输入：视频显示实际采用帧与输入拼图（点击定位时间）、音频显示所用转写文本、PDF 特征范围当前为首页并显示页码（现状口径）。
+            - generic [ref=f7e1068]:
+              - heading "5.6 影像合规审查【部分实现】 P1" [level=2] [ref=f7e1069]:
+                - generic [ref=f7e1070]: "5.6"
+                - text: 影像合规审查【部分实现】
+                - generic [ref=f7e1071]: P1
+              - paragraph [ref=f7e1072]: 【为什么存在】：整单提交前需要按规则集对影像与数据做合规性判断，拦截缺件与不合格影像（服务场景 3.2 影像审查阶段）。
+              - paragraph [ref=f7e1073]: 【叙述】：当前已实现基于影像树规则集 + 业务阶段的两类校验场景，核心机制是「事实变化自动补算」；完整审查引擎（六态/严重度/建议/受控检查类型）为目标态未落地，是否纳入本版需求口径见【TBD-10】。
+            - generic [ref=f7e1074]:
+              - heading "5.6.1 当前实现行为（可测范围） P1" [level=2] [ref=f7e1075]:
+                - generic [ref=f7e1076]: 5.6.1
+                - text: 当前实现行为（可测范围）
+                - generic [ref=f7e1077]: P1
+              - generic [ref=f7e1078]: 规则
+              - generic [ref=f7e1079]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1080]: FR-REV-01
+                - paragraph [ref=f7e1081]: "校验场景：IMAGE_REVIEW（影像审查）与 DATA_VALIDATION（数据校验），入口 /cases/{caseId}/image-validation、/validation-report/{scene}。"
+              - generic [ref=f7e1082]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1083]: FR-REV-02
+                - paragraph [ref=f7e1084]: 按规则依赖自动补算：新增影像、影像分类确认、提取工作版本变化、人工修正等事实变化 → 自动重判受影响影像；无用户「开始审查」按钮（出现即违反现行口径）。
+              - generic [ref=f7e1085]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1086]: FR-REV-03
+                - paragraph [ref=f7e1087]: 补算任务与输入变更同事务持久化；连续变更合并待办并使旧领取令牌失效。
+              - generic [ref=f7e1088]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1089]: FR-REV-04
+                - paragraph [ref=f7e1090]: 规则级输入指纹跳过未变化规则。
+              - generic [ref=f7e1091]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1092]: FR-REV-05
+                - paragraph [ref=f7e1093]: 缺依赖 → 待处理而非失败。
+            - generic [ref=f7e1094]:
+              - heading "5.6.2 完整审查引擎（目标态，未实现，当前不可测） P1" [level=2] [ref=f7e1095]:
+                - generic [ref=f7e1096]: 5.6.2
+                - text: 完整审查引擎（目标态，未实现，当前不可测）
+                - generic [ref=f7e1097]: P1
+              - paragraph [ref=f7e1098]: 【状态与枚举（目标态）】
+              - generic [ref=f7e1099]: 表5 ·
+              - table [ref=f7e1100]:
+                - rowgroup [ref=f7e1101]:
+                  - row [ref=f7e1102]:
+                    - columnheader "类别" [ref=f7e1103]
+                    - columnheader "取值" [ref=f7e1104]
+                - rowgroup [ref=f7e1105]:
+                  - row [ref=f7e1106]:
+                    - cell "审查点六态" [ref=f7e1107]
+                    - cell "PASS / FAIL / UNDETERMINED / NOT_APPLICABLE / NOT_EXECUTED / ERROR" [ref=f7e1108]
+                  - row [ref=f7e1109]:
+                    - cell "运行六态" [ref=f7e1110]
+                    - cell "PENDING / RUNNING / COMPLETED / COMPLETED_WITH_ERRORS / FAILED / CANCELLED" [ref=f7e1111]
+                  - row [ref=f7e1112]:
+                    - cell "严重度（3 级）" [ref=f7e1113]
+                    - cell "INFO / WARNING / BLOCKING" [ref=f7e1114]
+                  - row [ref=f7e1115]:
+                    - cell "建议编码（6 项）" [ref=f7e1116]
+                    - cell "NO_ACTION / SUPPLEMENT_MATERIAL / REUPLOAD_DOCUMENT / RECAPTURE_IMAGE / CORRECT_PAGE_ORDER / BLOCK_IMAGE_SUBMISSION" [ref=f7e1117]
+                  - row [ref=f7e1118]:
+                    - cell "受控检查类型（14 种）" [ref=f7e1119]
+                    - cell "字段必填/枚举/格式/比较、日期、数值/公式勾稽、存在性、质量信号、视觉断言（素材按类目概列，14 条明细未逐项展开）" [ref=f7e1120]
+              - generic [ref=f7e1121]: 规则
+              - generic [ref=f7e1122]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1123]: FR-REV-06
+                - paragraph [ref=f7e1124]: 审查点六态与运行六态取值见下表；汇总优先级：ERROR > NOT_EXECUTED > BLOCKING FAIL > UNDETERMINED > PASS，前三类不得计为通过。
+              - generic [ref=f7e1125]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1126]: FR-REV-07
+                - paragraph [ref=f7e1127]: 严重度与建议编码取值见下表；模型只产视觉事实与受控摘要，不改状态/严重度/建议；证据不足 → UNDETERMINED，不造证据。
+              - generic [ref=f7e1128]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1129]: FR-REV-08
+                - paragraph [ref=f7e1130]: 14 种受控检查类型的类目见下表。
+              - generic [ref=f7e1131]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1132]: FR-REV-09
+                - paragraph [ref=f7e1133]: 运行幂等（同 case + 输入版本 + 策略版本仅一个有效运行）；策略生命周期 DRAFT → PUBLISHED → DEPRECATED；API 只读。
+            - generic [ref=f7e1134]:
+              - heading "5.7 对外 API 交付【已实现】 P1" [level=2] [ref=f7e1135]:
+                - generic [ref=f7e1136]: "5.7"
+                - text: 对外 API 交付【已实现】
+                - generic [ref=f7e1137]: P1
+              - paragraph [ref=f7e1138]: 【为什么存在】：被辅助系统（尽调等）以机器方式委托处理与取数，是对外交付的主通道（服务场景 3.3）。
+              - paragraph [ref=f7e1139]: 【叙述】：文件两种来源二选一进入，受理单创建后按固定路径 POST 查询与按分类取数，写操作全程幂等；对外契约不暴露任何内部主键。
+            - generic [ref=f7e1140]:
+              - heading "5.7.1 接入与受理 P1" [level=2] [ref=f7e1141]:
+                - generic [ref=f7e1142]: 5.7.1
+                - text: 接入与受理
+                - generic [ref=f7e1143]: P1
+              - generic [ref=f7e1144]: 规则
+              - generic [ref=f7e1145]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1146]: FR-API-01
+                - paragraph [ref=f7e1147]: 文件两种来源，提交时二选一：平台文件引用（调用方先经平台上传取得 platformFileId，多模态按当前请求 Authorization 拉取并校验大小与 SHA-256）；多模态上传（POST /external/files/upload，multipart + Idempotency-Key → 返回 uploadId 与 expiresAt，过期作废；过期后的调用行为【TBD-05】）。
+              - generic [ref=f7e1148]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1149]: FR-API-02
+                - paragraph [ref=f7e1150]: "创建：POST /external/cases/create（JSON body {businessRef, request, documents[]}）；每个 document 只能含 platformFileId 或 uploadId 之一，两者同传或都缺 → 400；materialCode 为可选预分类提示；受理单绑定影像树的选定机制未定义【TBD-17】；压缩包用 archiveEntries 逐条目给分类。原 multipart 创建接口保留供平滑迁移。"
+              - generic [ref=f7e1151]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1152]: FR-API-03
+                - paragraph [ref=f7e1153]: 追加：POST /external/cases/documents/append。
+              - generic [ref=f7e1154]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1155]: FR-API-04
+                - paragraph [ref=f7e1156]: 工作模式三种：FULL_PROCESS / RECOGNITION_ONLY / AUTO_EXTRACT；创建必传 workMode；影像树/校验/审查开关按模式约束；创建后配置冻结，追加不改配置。
+              - generic [ref=f7e1157]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1158]: FR-API-05
+                - paragraph [ref=f7e1159]: 影像分类确认（对外入口，对应工作台「确认影像分类」）：POST /external/cases/documents/classification-confirmation。
+            - generic [ref=f7e1160]:
+              - heading "5.7.2 固定路径与 POST 查询 P1" [level=2] [ref=f7e1161]:
+                - generic [ref=f7e1162]: 5.7.2
+                - text: 固定路径与 POST 查询
+                - generic [ref=f7e1163]: P1
+              - paragraph [ref=f7e1164]: 【POST 查询接口清单（FR-API-08）】
+              - generic [ref=f7e1165]: 表6 ·
+              - table [ref=f7e1166]:
+                - rowgroup [ref=f7e1167]:
+                  - row [ref=f7e1168]:
+                    - columnheader "接口（POST …/query）" [ref=f7e1169]
+                    - columnheader "类别" [ref=f7e1170]
+                - rowgroup [ref=f7e1171]:
+                  - row [ref=f7e1172]:
+                    - cell "cases/query" [ref=f7e1173]
+                    - cell "资源查询" [ref=f7e1174]
+                  - row [ref=f7e1175]:
+                    - cell "cases/progress/query" [ref=f7e1176]
+                    - cell "资源查询" [ref=f7e1177]
+                  - row [ref=f7e1178]:
+                    - cell "cases/documents/query" [ref=f7e1179]
+                    - cell "资源查询" [ref=f7e1180]
+                  - row [ref=f7e1181]:
+                    - cell "requests/query" [ref=f7e1182]
+                    - cell "资源查询" [ref=f7e1183]
+                  - row [ref=f7e1184]:
+                    - cell "recognition-result" [ref=f7e1185]
+                    - cell "单文档结果接口" [ref=f7e1186]
+                  - row [ref=f7e1187]:
+                    - cell "markdown-result" [ref=f7e1188]
+                    - cell "单文档结果接口" [ref=f7e1189]
+                  - row [ref=f7e1190]:
+                    - cell "classification-result" [ref=f7e1191]
+                    - cell "单文档结果接口" [ref=f7e1192]
+                  - row [ref=f7e1193]:
+                    - cell "image-feature-result" [ref=f7e1194]
+                    - cell "单文档结果接口" [ref=f7e1195]
+                  - row [ref=f7e1196]:
+                    - cell "extraction-results" [ref=f7e1197]
+                    - cell "单文档结果接口" [ref=f7e1198]
+                  - row [ref=f7e1199]:
+                    - cell "data-validation-result" [ref=f7e1200]
+                    - cell "单文档结果接口" [ref=f7e1201]
+                  - row [ref=f7e1202]:
+                    - cell "image-review-result" [ref=f7e1203]
+                    - cell "单文档结果接口" [ref=f7e1204]
+              - generic [ref=f7e1205]: 规则
+              - generic [ref=f7e1206]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1207]: FR-API-06
+                - paragraph [ref=f7e1208]: 所有对外 URL 固定路径，不得含 businessRef / documentRef / materialCode / 请求号等标识，标识只放 body；出现 query string → 400 INVALID_REQUEST。
+              - generic [ref=f7e1209]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1210]: FR-API-07
+                - paragraph [ref=f7e1211]: "旧动态路径（GET /external/cases/{businessRef}/... 形态）不注册，返回 404，无兼容转发。"
+              - generic [ref=f7e1212]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1213]: FR-API-08
+                - paragraph [ref=f7e1214]: 查询一律 POST <资源>/query，全部 11 个查询接口见本节末「POST 查询接口清单」表。
+              - generic [ref=f7e1215]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1216]: FR-API-09
+                - paragraph [ref=f7e1217]: 查询不是写操作：不要求 Idempotency-Key、不写请求台账、不返回 Idempotent-Replayed。
+              - generic [ref=f7e1218]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1219]: FR-API-10
+                - paragraph [ref=f7e1220]: 文档清单去分页：body 只允许 businessRef，一次返回全部文档，无 page/size 字段；businessRef 查无时的返回语义【TBD-06】。
+              - generic [ref=f7e1221]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1222]: FR-API-11
+                - paragraph [ref=f7e1223]: 识别结果接口保留分页：page 缺省 0、size 缺省 20、size 1..100，非法 → 400 INVALID_PAGE_ARGUMENT。
+              - generic [ref=f7e1224]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1225]: FR-API-12
+                - paragraph [ref=f7e1226]: Markdown 下载：POST query，成功响应为 text/markdown 文件流（非 JSON 信封）。
+              - generic [ref=f7e1227]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1228]: FR-API-13
+                - paragraph [ref=f7e1229]: SSE /external/events/stream 保持 GET，重连用 Last-Event-ID（机制见 5.8）。
+            - generic [ref=f7e1230]:
+              - heading "5.7.3 按分类取数（3 个只读接口） P1" [level=2] [ref=f7e1231]:
+                - generic [ref=f7e1232]: 5.7.3
+                - text: 按分类取数（3 个只读接口）
+                - generic [ref=f7e1233]: P1
+              - generic [ref=f7e1234]: 规则
+              - generic [ref=f7e1235]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1236]: FR-API-14
+                - paragraph [ref=f7e1237]: "POST /external/cases/classifications/{extraction-results | image-feature-results | image-review-results}/query；body 必含 businessRef + materialCode；提取结果可另传 documentRef + fileOrdinal 精确查一份影像，两参数必须成对，否则 400；fileOrdinal 越界行为【TBD-08】。"
+              - generic [ref=f7e1238]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1239]: FR-API-15
+                - paragraph [ref=f7e1240]: 匹配单位是子文件（fileOrdinal 从 1 起）；只匹配最终分类完全相等的子文件——候选/待确认分类不算命中；多命中全部返回，顺序固定（文档创建序 → 文档内子文件序）。
+              - generic [ref=f7e1241]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1242]: FR-API-16
+                - paragraph [ref=f7e1243]: 命中 0 份 → 200 + 空 items 数组（不是 404）；分类不存在 → MATERIAL_NOT_FOUND，两者严格区分。
+              - generic [ref=f7e1244]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1245]: FR-API-17
+                - paragraph [ref=f7e1246]: 集合接口单项化：某影像未完成/失败不影响其他影像返回；单项带 executionStatus / publicationStatus / withheldReason（AWAITING_FINAL_CONFIRMATION / RESULT_NOT_READY / RESULT_FAILED）；已发布项必须返回正式数据且不再带 withheldReason。
+              - generic [ref=f7e1247]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1248]: FR-API-18
+                - paragraph [ref=f7e1249]: 提取结果保留结果块结构（results → blocks → rows → fields，resultForm 仅 SINGLE/LIST）；已发布项必须带 publishedAt 与 schemaHash；无法可靠投影时仅该项标 FAILED / EXTRACTION_BLOCK_INVALID，用当前 schema 补造即违反。
+            - generic [ref=f7e1250]:
+              - heading "5.7.4 材料目录与 schema（尽调适配） P1" [level=2] [ref=f7e1251]:
+                - generic [ref=f7e1252]: 5.7.4
+                - text: 材料目录与 schema（尽调适配）
+                - generic [ref=f7e1253]: P1
+              - generic [ref=f7e1254]: 规则
+              - generic [ref=f7e1255]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1256]: FR-API-19
+                - paragraph [ref=f7e1257]: "POST /external/materials/query：body 必须空对象 {}；不分页；只返回 MATERIAL + ENABLED + PUBLISHED + selectable 的分类，每项含 responseSchemaAvailable 布尔。"
+              - generic [ref=f7e1258]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1259]: FR-API-20
+                - paragraph [ref=f7e1260]: POST /external/materials/response-schema/query：按 materialCode 取已发布结构 + schemaHash；非启用 / 未发布 / 空结构 → 分别显式失败（404/409），不返回部分 schema。
+              - generic [ref=f7e1261]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1262]: FR-API-20a
+                - paragraph [ref=f7e1263]: 尽调侧自行预展平成 CellMapper 报文；多模态不生成、不保存 tables/unpublished 报文，不接受 process_id / node_code / 影像树节点 ID / 材料主键入参。
+              - generic [ref=f7e1264]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1265]: FR-API-20b
+                - paragraph [ref=f7e1266]: 现状：材料目录接口仍返回 materialTypeId（内部诊断字段，不得作为关联键使用）；「移除该字段」的需求与代码现状冲突，按哪个口径定稿【TBD-11】。
+              - generic [ref=f7e1267]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1268]: FR-API-20c
+                - paragraph [ref=f7e1269]: 现状：response-schema 实际返回 dataResults 树（带 $_ 描述键）；旧需求描述的 resultDefinitions 结构口径作废，不再适用。
+            - generic [ref=f7e1270]:
+              - heading "5.7.5 幂等与请求可靠性 P1" [level=2] [ref=f7e1271]:
+                - generic [ref=f7e1272]: 5.7.5
+                - text: 幂等与请求可靠性
+                - generic [ref=f7e1273]: P1
+              - generic [ref=f7e1274]: 规则
+              - generic [ref=f7e1275]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1276]: FR-API-21
+                - paragraph [ref=f7e1277]: 写操作（上传、创建、追加、分类确认）必带 Idempotency-Key；作用域 tenant_id + idempotency_key；查询/重试/取消还须匹配 X-Assisted-System-Id；终态记录保留 30 天后 404。
+              - generic [ref=f7e1278]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1279]: FR-API-22
+                - paragraph [ref=f7e1280]: 内容摘要 = 身份 + 请求体 + 每个文件「文件名:大小:SHA-256」；同键同内容 → 重放首次结果；同键不同内容 → 409 IDEMPOTENCY_CONFLICT；businessRef 已存在且换新键 → 409 BUSINESS_REF_EXISTS。
+              - generic [ref=f7e1281]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1282]: FR-API-23
+                - paragraph [ref=f7e1283]: 中断恢复：PROCESSING 超过 15 分钟 → 启动时 + 定时扫描恢复：未建单记失败允许重试；已建单未收件复用原单续收；已有文档补记受理成功且识别由既有调度继续。
+              - generic [ref=f7e1284]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1285]: FR-API-24
+                - paragraph [ref=f7e1286]: requestStatus=SUCCEEDED 只代表受理成功，不等于识别完成（进度须查 progress/query）。
+              - generic [ref=f7e1287]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1288]: FR-API-25
+                - paragraph [ref=f7e1289]: 取消 POST /external/requests/close（body requestKey + businessRef）：未建单 → CANCELLED 且同键不可再建；已建单 → 不停止执行（executionStopped=false）；终态原样返回；记录不存在 → 404，把 404 解释为「从未受理」或据此触发取消即违反。
+            - generic [ref=f7e1290]:
+              - heading "5.7.6 通知与错误码 P1" [level=2] [ref=f7e1291]:
+                - generic [ref=f7e1292]: 5.7.6
+                - text: 通知与错误码
+                - generic [ref=f7e1293]: P1
+              - paragraph [ref=f7e1294]: 【分类域错误码（FR-API-28）】
+              - generic [ref=f7e1295]: 表7 ·
+              - table [ref=f7e1296]:
+                - rowgroup [ref=f7e1297]:
+                  - row [ref=f7e1298]:
+                    - columnheader "错误码" [ref=f7e1299]
+                    - columnheader "注记" [ref=f7e1300]
+                - rowgroup [ref=f7e1301]:
+                  - row [ref=f7e1302]:
+                    - cell "INVALID_MATERIAL_CODE" [ref=f7e1303]
+                    - cell "—" [ref=f7e1304]
+                  - row [ref=f7e1305]:
+                    - cell "FILE_NOT_FOUND" [ref=f7e1306]
+                    - cell "—" [ref=f7e1307]
+                  - row [ref=f7e1308]:
+                    - cell "MATERIAL_NOT_FOUND" [ref=f7e1309]
+                    - cell "—" [ref=f7e1310]
+                  - row [ref=f7e1311]:
+                    - cell "MATERIAL_NOT_PUBLISHED" [ref=f7e1312]
+                    - cell "—" [ref=f7e1313]
+                  - row [ref=f7e1314]:
+                    - cell "MATERIAL_SCHEMA_NOT_PUBLISHED" [ref=f7e1315]
+                    - cell "—" [ref=f7e1316]
+                  - row [ref=f7e1317]:
+                    - cell "MATERIAL_FILE_MISMATCH" [ref=f7e1318]
+                    - cell "—" [ref=f7e1319]
+                  - row [ref=f7e1320]:
+                    - cell "MATERIAL_SCHEMA_INVALID" [ref=f7e1321]
+                    - cell "422" [ref=f7e1322]
+                  - row [ref=f7e1323]:
+                    - cell "EXTRACTION_BLOCK_INVALID" [ref=f7e1324]
+                    - cell "422，仅单项" [ref=f7e1325]
+              - generic [ref=f7e1326]: 规则
+              - generic [ref=f7e1327]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1328]: FR-API-26
+                - paragraph [ref=f7e1329]: SSE 按认证租户 + X-Assisted-System-Id 订阅全量受理单（无单据级订阅参数）；RESULT_AVAILABLE 事件必带 resourcePath（固定 /api/multimodal/external/cases/progress/query）、resourceMethod=POST、businessRef，缺任一不得发布；调用方按 eventId 幂等消费。
+              - generic [ref=f7e1330]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1331]: FR-API-27
+                - paragraph [ref=f7e1332]: 统一响应信封：success / code / message / data / timestamp / traceId / errorCode；调用方按 HTTP 状态 + errorCode 分支，不得解析 message。
+              - generic [ref=f7e1333]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1334]: FR-API-28
+                - paragraph [ref=f7e1335]: 分类域错误码固定为下表 8 个。
+              - generic [ref=f7e1336]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1337]: FR-API-29
+                - paragraph [ref=f7e1338]: 响应禁止出现内部主键（caseId / documentItemId / runId）与内部存储地址（全接口响应扫描可判定）。
+            - generic [ref=f7e1339]:
+              - heading "5.8 实时通知与事件交付【已实现】 P1" [level=2] [ref=f7e1340]:
+                - generic [ref=f7e1341]: "5.8"
+                - text: 实时通知与事件交付【已实现】
+                - generic [ref=f7e1342]: P1
+              - paragraph [ref=f7e1343]: 【为什么存在】：前端页面与外部系统都依赖事件驱动刷新与取数时机（服务所有页面用户与被辅助系统；场景 3.3 的 SSE、3.4 的进度刷新）。
+              - paragraph [ref=f7e1344]: 【叙述】：业务事务内写发件箱，定时领取后经 Redis Pub/Sub 广播，各实例以 SSE 推送；消费端去重后重读 REST 权威资源。
+              - paragraph [ref=f7e1345]: 【规则】
+              - paragraph [ref=f7e1346]: 【参数】
+              - generic [ref=f7e1347]: 表8 ·
+              - table [ref=f7e1348]:
+                - rowgroup [ref=f7e1349]:
+                  - row [ref=f7e1350]:
+                    - columnheader "参数" [ref=f7e1351]
+                    - columnheader "值" [ref=f7e1352]
+                - rowgroup [ref=f7e1353]:
+                  - row [ref=f7e1354]:
+                    - cell "发件箱领取间隔 / 批量 / 租约" [ref=f7e1355]
+                    - cell "200ms / 100 条 / 30 秒（实现现状口径）" [ref=f7e1356]
+                  - row [ref=f7e1357]:
+                    - cell "事件重放单次上限" [ref=f7e1358]
+                    - cell "500 条" [ref=f7e1359]
+                  - row [ref=f7e1360]:
+                    - cell "心跳 / 连接超时" [ref=f7e1361]
+                    - cell "15 秒 / 30 分钟" [ref=f7e1362]
+                  - row [ref=f7e1363]:
+                    - cell "前端重连退避上限" [ref=f7e1364]
+                    - cell "10 秒" [ref=f7e1365]
+              - generic [ref=f7e1366]: 规则
+              - generic [ref=f7e1367]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1368]: FR-RTN-01
+                - paragraph [ref=f7e1369]: 链路：业务事务内写 MySQL 发件箱 → 定时领取 → Redis Pub/Sub 广播 → 各实例 SSE 推送 → 前端去重合并后重读 REST 权威资源（领取间隔 200ms、批 100、租约 30 秒为实现现状参数）。
+              - generic [ref=f7e1370]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1371]: FR-RTN-02
+                - paragraph [ref=f7e1372]: subject 三类：DOCUMENT（聚合）、DOCUMENT_ITEM（子文件）、CLASSIFICATION_TASK（分类优化任务）；外部 SSE 按租户 + 被辅助系统订阅。
+              - generic [ref=f7e1373]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1374]: FR-RTN-03
+                - paragraph [ref=f7e1375]: 内部 SSE GET /api/realtime/events?subjects=...：支持 Last-Event-ID 断线重放（单次上限 500 条，超限行为【TBD-07】）；至少一次投递、eventId 去重、15 秒心跳、连接超时 30 分钟；前端退避重连最大 10 秒。
+              - generic [ref=f7e1376]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1377]: FR-RTN-04
+                - paragraph [ref=f7e1378]: 订阅鉴权：无权限 403、不存在 404、非法请求 400。
+              - generic [ref=f7e1379]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1380]: FR-RTN-05
+                - paragraph [ref=f7e1381]: 基础设施不完整 → 启动失败（缺 Redis 配置时服务不得启动）；HANHAI_REALTIME_ENABLED=false 为显式停用。
+            - generic [ref=f7e1382]:
+              - heading "5.9 智能分类助手与分类优化 Agent【部分实现】 P1" [level=2] [ref=f7e1383]:
+                - generic [ref=f7e1384]: "5.9"
+                - text: 智能分类助手与分类优化 Agent【部分实现】
+                - generic [ref=f7e1385]: P1
+              - paragraph [ref=f7e1386]: 【为什么存在】：分类质量靠配置调优，人工试错成本高；Agent 以受控工具 + 强制验证产出可审草案，替代人工盲调（服务场景 3.4）。
+              - paragraph [ref=f7e1387]: 【叙述】：当前迭代只交付 CREATE_CLASSIFICATION（新增分类）与 OPTIMIZE_CLASSIFICATION（优化分类）两类任务；任务创建即冻结全部输入，Agent 只能在冻结输入上检索证据、生成草案修订，系统强制验证把关，达门槛后才交人工裁决。
+            - generic [ref=f7e1388]:
+              - heading "5.9.1 当前实现行为（可测范围） P1" [level=2] [ref=f7e1389]:
+                - generic [ref=f7e1390]: 5.9.1
+                - text: 当前实现行为（可测范围）
+                - generic [ref=f7e1391]: P1
+              - generic [ref=f7e1392]: 规则
+              - generic [ref=f7e1393]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1394]: FR-AGT-01
+                - paragraph [ref=f7e1395]: 任务创建与目标冻结：创建时冻结案例样本与文档运行版本、目标分类（优化类必填）、当前执行与人工确认结果、配置基线、用户问题与期望、算法/模型/策略版本、轮次与成本预算。
+              - generic [ref=f7e1396]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1397]: FR-AGT-02
+                - paragraph [ref=f7e1398]: Agent 不得改选案例/分类/目标；改变目标必须新建任务；输入漂移（重新 OCR、Profile 漂移、基线/模型版本变化）→ 显式阻断或要求重建任务。
+              - generic [ref=f7e1399]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1400]: FR-AGT-03
+                - paragraph [ref=f7e1401]: 旧模式拒绝：结果定义任务类型、旧模式枚举 → 显式拒绝；不存在 AUTO_APPLY。
+              - generic [ref=f7e1402]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1403]: FR-AGT-04
+                - paragraph [ref=f7e1404]: 数据模型六表（opt_task / opt_agent_task / opt_evidence / opt_draft / opt_validation / opt_event）承载的行为约束：Draft 完整不可变、单线修订；同内容重复修订被拒绝（UNIQUE task_id + draft_hash）；一次成功信息获取工具调用 = 一条不可变 Evidence，失败调用只写 Event 不产生伪 Evidence；Validation 只以完整 Draft 为主体且不可变；Event append-only 幂等。
+              - generic [ref=f7e1405]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1406]: FR-AGT-05
+                - paragraph [ref=f7e1407]: "仅注册三项 LLM 工具：search_current_case_classification_evidence（冻结当前案例内向量发现 + 权威原文回读 + 确定性表达式核验；参数 queries:[{text,dimension}]，dimension 支持 OCR 正向/描述语义/负向对比；字符串数组、非法维度 → Planner 拒绝并重写计划）、search_classification_knowledge（受控分类/信贷知识检索，结果持久化为 Evidence）、create_classification_draft_revision（生成新 Draft；越权字段、无变化修订 → 拒绝）。"
+              - generic [ref=f7e1408]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1409]: FR-AGT-06
+                - paragraph [ref=f7e1410]: 系统强制验证：LLM 计划不得选择验证工具；每产生新 Draft 自动执行两项必验——当前案例路径 A 真实试算（Top1/排名/得分/领先差/分项贡献/基线对比）+ 分类回归（覆盖目标分类、主要竞争分类、受表达式变化影响分类；空回归集 → 返回待人工确认风险，不返回 PASSED）。
+              - generic [ref=f7e1411]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1412]: FR-AGT-07
+                - paragraph [ref=f7e1413]: 完成门槛：最新 Draft 两项必验全部 PASSED、hash 匹配且输入无漂移 → READY_FOR_REVIEW；LLM 自报完成无效。
+              - generic [ref=f7e1414]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1415]: FR-AGT-08
+                - paragraph [ref=f7e1416]: 失败与预算：验证失败不是任务失败；失败 Draft + 结构化反馈（errorCode / suggestedFocus）进入下一轮；预算未耗尽自动继续，耗尽 → 结构化阻断（不隐藏续跑）。
+              - generic [ref=f7e1417]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1418]: FR-AGT-09
+                - paragraph [ref=f7e1419]: 无进展两级策略：第一次重复 → 拒绝原计划、强制改证据问题或修改方向；第二次连续重复 → 结构化阻断，不消耗轮次空跑。
+              - generic [ref=f7e1420]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1421]: FR-AGT-10
+                - paragraph [ref=f7e1422]: 界面：工作台三栏（左运行上下文 / 中 Agent 运行信息 / 右草案产物；窄屏按此序堆叠）；创建页只显示「新增分类 / 优化分类」；进度刷新 SSE 事件驱动，无固定间隔轮询心跳。
+            - generic [ref=f7e1423]:
+              - heading "5.9.2 待实现增强【TBD-12：是否纳入本版范围】 P1" [level=2] [ref=f7e1424]:
+                - generic [ref=f7e1425]: 5.9.2
+                - text: 待实现增强【TBD-12：是否纳入本版范围】
+                - generic [ref=f7e1426]: P1
+              - paragraph [ref=f7e1427]: 竞争证据分析：Job 详情「为什么会这样分类」区域（Top 3 候选分项对比、命中表达式与来源页、Top1-Top2 分差、决策状态与确认线、材料关系 6 类枚举、配置问题 7 类根因枚举）。
+              - paragraph [ref=f7e1428]: 联动优化：1 个目标分类 + 最多 2 个竞争分类的多材料草案；基线哈希不匹配 → 草案校验失败；任一已确认样本回归退化 → 整草案 FAILED；确认多材料原子应用，任一失败全部回滚。
+              - paragraph [ref=f7e1429]: Pi 服务端 Loop 试点、分类执行性能优化项（批量特征加载、embedding 分批、multi-query 召回、分段计时指标）。
+            - generic [ref=f7e1430]:
+              - heading "5.9.3 未实现（当前不可测，出现相关入口即为缺陷） P1" [level=2] [ref=f7e1431]:
+                - generic [ref=f7e1432]: 5.9.3
+                - text: 未实现（当前不可测，出现相关入口即为缺陷）
+                - generic [ref=f7e1433]: P1
+              - paragraph [ref=f7e1434]: 人工控制与生命周期：显式暂停/恢复/取消/归档状态流、查看任务不触发恢复、浏览器断开不取消后台任务、人工退回（execution_no 递增、trigger=HUMAN_FEEDBACK）、人工修订（新 Draft 必须重跑全部验证）。
+              - paragraph [ref=f7e1435]: 界面收口残留：处理区按轮折叠与步骤图标、Draft/Evidence/Validation/人工操作新响应模型接入、「查看已发布分类」入口。
+            - generic [ref=f7e1436]:
+              - heading "5.10 配置与规则管理【已实现】 P1" [level=2] [ref=f7e1437]:
+                - generic [ref=f7e1438]: "5.10"
+                - text: 配置与规则管理【已实现】
+                - generic [ref=f7e1439]: P1
+              - paragraph [ref=f7e1440]: 【为什么存在】：分类、抽取、校验、审查的行为全部由配置驱动，管理员需要集中维护并可安全迁移（服务场景 3.4；全部自动化行为的地基）。
+              - paragraph [ref=f7e1441]: 【规则】
+              - paragraph [ref=f7e1442]: 【服务端参数域清单（FR-CFG-04）】
+              - generic [ref=f7e1443]: 表9 ·
+              - table [ref=f7e1444]:
+                - rowgroup [ref=f7e1445]:
+                  - row [ref=f7e1446]:
+                    - columnheader "服务端参数域（.env.local）" [ref=f7e1447]
+                - rowgroup [ref=f7e1448]:
+                  - row [ref=f7e1449]:
+                    - cell "环境 / Graph / 数据源 / 租户" [ref=f7e1450]
+                  - row [ref=f7e1451]:
+                    - cell "Redis 与实时通知" [ref=f7e1452]
+                  - row [ref=f7e1453]:
+                    - cell "MinerU 并发" [ref=f7e1454]
+                  - row [ref=f7e1455]:
+                    - cell "PDF 预处理" [ref=f7e1456]
+                  - row [ref=f7e1457]:
+                    - cell "抽取 Token 预算" [ref=f7e1458]
+                  - row [ref=f7e1459]:
+                    - cell "EasyAI 模型与预算" [ref=f7e1460]
+                  - row [ref=f7e1461]:
+                    - cell "Embedding 向量契约" [ref=f7e1462]
+                  - row [ref=f7e1463]:
+                    - cell "Rerank" [ref=f7e1464]
+                  - row [ref=f7e1465]:
+                    - cell "Qdrant" [ref=f7e1466]
+                  - row [ref=f7e1467]:
+                    - cell "样本代表页" [ref=f7e1468]
+                  - row [ref=f7e1469]:
+                    - cell "MinIO" [ref=f7e1470]
+                  - row [ref=f7e1471]:
+                    - cell "分类优化草案发布门禁（HANHAI_COP_*）" [ref=f7e1472]
+              - generic [ref=f7e1473]: 规则
+              - generic [ref=f7e1474]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1475]: FR-CFG-01
+                - paragraph [ref=f7e1476]: 规则管理页三块：规则场景、规则集、字段关系规则（等值/合计/加减勾稽，支持误差容差与空值策略）；提供 rule-designer 画布式设计器。
+              - generic [ref=f7e1477]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1478]: FR-CFG-02
+                - paragraph [ref=f7e1479]: 发布前由规则引擎强校验，失败阻止发布。
+              - generic [ref=f7e1480]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1481]: FR-CFG-03
+                - paragraph [ref=f7e1482]: 影像树校验规则绑定影像树 / 材料 / 业务阶段；数据校验与影像审查按文档查询，业务结论 NOT_PASSED 时 HTTP 仍 200（GP-06）。
+              - generic [ref=f7e1483]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1484]: FR-CFG-04
+                - paragraph [ref=f7e1485]: 服务端参数走 .env.local，覆盖域见本节末「服务端参数域清单」表。
+              - generic [ref=f7e1486]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1487]: FR-CFG-05
+                - paragraph [ref=f7e1488]: 通用识别配置（全局）：探测模型与页数、候选模型路由（文件名规则 + 结构条件）、OCR provider 参数、增强模型与页预算、分类权重与确认阈值/最低领先差。
+              - generic [ref=f7e1489]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1490]: FR-CFG-06
+                - paragraph [ref=f7e1491]: 材料级配置四类（材料配置中心）：智能分类（语义判断/关键识别词/别名/负向证据 + 案例验证 + 效果统计）、材料校验、结果定义（含就绪检查与执行阻断项）、样本库（四态）。
+              - generic [ref=f7e1492]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1493]: FR-CFG-07
+                - paragraph [ref=f7e1494]: 配置迁移：JSON 导出/导入，导入触发全量向量重建。
+              - generic [ref=f7e1495]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1496]: FR-CFG-08
+                - paragraph [ref=f7e1497]: 保存 ≠ 可运行：保存成功但缺失关联或存在执行阻断项时，执行必须显式停止，不补默认值；跑出半成品结果即违反。
+              - generic [ref=f7e1498]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1499]: FR-CFG-09
+                - paragraph [ref=f7e1500]: 向量域治理：仅保留 Document Evidence Profile、分类时动态特征向量、Agent Knowledge（启动自动对账，manifest + active marker 一致即 READY 不重复 embedding）、确认样本向量；「全量重建向量」按钮与四个遗留向量域已删除，出现即缺陷。
+            - generic [ref=f7e1501]:
+              - heading "6 非功能需求 P1" [level=2] [ref=f7e1502]:
+                - generic [ref=f7e1503]: "6"
+                - text: 非功能需求
+                - generic [ref=f7e1504]: P1
+              - generic [ref=f7e1505]: 规则
+              - generic [ref=f7e1506]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1507]: NFR-01
+                - paragraph [ref=f7e1508]: 失败可见性（可靠性）：所有显式失败均持久化原因且页面/接口可见；存在无记录的静默降级路径即违反。
+              - generic [ref=f7e1509]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1510]: NFR-02
+                - paragraph [ref=f7e1511]: 审计与追溯：分类执行审计快照、Agent 六表 append-only 事件、发布可追溯（Draft + Validation + 人工确认）三条审计链缺一即违反。
+              - generic [ref=f7e1512]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1513]: NFR-03
+                - paragraph [ref=f7e1514]: 多租户与数据隔离（安全）：证据搜索、SSE 订阅、外部请求按租户与被辅助系统隔离；向量查询带租户硬过滤，跨租户能查到数据即违反。
+              - generic [ref=f7e1515]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1516]: NFR-04
+                - paragraph [ref=f7e1517]: 对外契约安全：响应不得出现内部主键与内部存储地址（同 FR-API-29）；对外标识与内部标识严格分离。
+              - generic [ref=f7e1518]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1519]: NFR-05
+                - paragraph [ref=f7e1520]:
+                  - text: 性能：当前无既定 p50/p95 目标值，性能以端到端耗时观测为主；分类执行分段计时指标为待实现项（5.9.2）。目标值【
+                  - mark [ref=f7e1521] [cursor=pointer]:
+                    - text: TBD-02
+                    - superscript [ref=f7e1522]: "56"
+                  - text: 】。
+              - generic [ref=f7e1523]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1524]: NFR-06
+                - paragraph [ref=f7e1525]: 工程门禁（可维护性）：数据库 DDL 只走受控脚本、全字段中文注释、前端体积基线、Java 源码规模治理。
+              - generic [ref=f7e1526]:
+                - generic "点击查看可判定表述与出处" [ref=f7e1527]: NFR-07
+                - paragraph [ref=f7e1528]:
+                  - text: 合规（显式空位）：素材未提供任何合规约束（数据留存期限、监管报送、行业合规要求等均未述）；按「不凑模板」纪律不硬造条目，合规维度是否判定为不适用待【
+                  - mark [ref=f7e1529] [cursor=pointer]:
+                    - text: TBD-18
+                    - superscript [ref=f7e1530]: "80"
+                  - text: 】裁决，裁决前本维度保持显式空位。
+            - heading "7 约束、假设与开放问题 P1" [level=2] [ref=f7e1532]:
+              - generic [ref=f7e1533]: "7"
+              - text: 约束、假设与开放问题
+              - generic [ref=f7e1534]: P1
+            - generic [ref=f7e1535]:
+              - heading "7.1 外部依赖清单 P1" [level=2] [ref=f7e1536]:
+                - generic [ref=f7e1537]: "7.1"
+                - text: 外部依赖清单
+                - generic [ref=f7e1538]: P1
+              - generic [ref=f7e1539]: 表10 ·
+              - table [ref=f7e1540]:
+                - rowgroup [ref=f7e1541]:
+                  - row [ref=f7e1542]:
+                    - columnheader "依赖" [ref=f7e1543]
+                    - columnheader "用途" [ref=f7e1544]
+                    - columnheader "不可用时行为" [ref=f7e1545]
+                - rowgroup [ref=f7e1546]:
+                  - row [ref=f7e1547]:
+                    - cell "瀚海平台 Graph Runtime" [ref=f7e1548]
+                    - cell "工作流执行" [ref=f7e1549]
+                    - cell "【TBD-09】未定义（按 GP-01 属关键依赖则应显式失败）" [ref=f7e1550]
+                  - row [ref=f7e1551]:
+                    - cell "MinerU" [ref=f7e1552]
+                    - cell "OCR 解析" [ref=f7e1553]
+                    - cell "【TBD-09】未逐项定义；OCR 提交失败 → 文档显式失败状态（FR-PAR 异常路径）" [ref=f7e1554]
+                  - row [ref=f7e1555]:
+                    - cell "PDF 补线/方向服务" [ref=f7e1556]
+                    - cell "PDF 预处理" [ref=f7e1557]
+                    - cell "【TBD-09】未定义" [ref=f7e1558]
+                  - row [ref=f7e1559]:
+                    - cell "EasyAI（LLM/Embedding/可选 Rerank）" [ref=f7e1560]
+                    - cell "模型调用" [ref=f7e1561]
+                    - cell "embedding 不可用 → 明确失败不降级（FR-EXT-07）；LLM 部分【TBD-09】" [ref=f7e1562]
+                  - row [ref=f7e1563]:
+                    - cell "Qdrant" [ref=f7e1564]
+                    - cell "向量库" [ref=f7e1565]
+                    - cell "【TBD-09】未定义" [ref=f7e1566]
+                  - row [ref=f7e1567]:
+                    - cell "MySQL" [ref=f7e1568]
+                    - cell "持久化（含发件箱）" [ref=f7e1569]
+                    - cell "【TBD-09】未定义" [ref=f7e1570]
+                  - row [ref=f7e1571]:
+                    - cell "Redis" [ref=f7e1572]
+                    - cell "Pub/Sub、实时通知" [ref=f7e1573]
+                    - cell "基础设施不完整 → 启动失败（FR-RTN-05）" [ref=f7e1574]
+                  - row [ref=f7e1575]:
+                    - cell "OSS/MinIO" [ref=f7e1576]
+                    - cell "文件与媒体对象存储" [ref=f7e1577]
+                    - cell "【TBD-09】未定义" [ref=f7e1578]
+                  - row [ref=f7e1579]:
+                    - cell "Nacos" [ref=f7e1580]
+                    - cell "素材未明示用途" [ref=f7e1581]
+                    - cell "【TBD-09】用途与不可用行为均未定义" [ref=f7e1582]
+              - paragraph [ref=f7e1583]: 总口径（素材可支撑）：外部依赖不可控时，只有允许业务继续处理且显式记录原因才算降级（GP-07）。
+            - generic [ref=f7e1584]:
+              - heading "7.2 前提假设 P1" [level=2] [ref=f7e1585]:
+                - generic [ref=f7e1586]: "7.2"
+                - text: 前提假设
+                - generic [ref=f7e1587]: P1
+              - paragraph [ref=f7e1588]: 多租户运营，租户与被辅助系统标识（tenant_id、X-Assisted-System-Id）贯穿受理、幂等与订阅。
+              - paragraph [ref=f7e1589]: 被辅助系统（尽调等）具备平台文件上传能力或改用多模态上传；尽调侧自行完成 schema 预展平。
+              - paragraph [ref=f7e1590]: 服务端参数与配置体系（.env.local + 配置中心）可用且受控。
+              - paragraph [ref=f7e1591]: 前端支持独立运行与瀚海 portal 嵌入两种挂载形态；嵌入视图下页面背景已统一适配（2026-09-25）。
+            - generic [ref=f7e1592]:
+              - heading "7.3 开放问题 P1" [level=2] [ref=f7e1593]:
+                - generic [ref=f7e1594]: "7.3"
+                - text: 开放问题
+                - generic [ref=f7e1595]: P1
+              - paragraph [ref=f7e1596]: 全部开放问题集中列于附录 A（TBD-01 ~ TBD-18），不带入定稿。需求口径类（TBD-10/11/12）影响本文档写法，优先裁决。
+            - heading "8 术语表与变更记录 P1" [level=2] [ref=f7e1598]:
+              - generic [ref=f7e1599]: "8"
+              - text: 术语表与变更记录
+              - generic [ref=f7e1600]: P1
+            - generic [ref=f7e1601]:
+              - heading "8.1 术语表 P1" [level=2] [ref=f7e1602]:
+                - generic [ref=f7e1603]: "8.1"
+                - text: 术语表
+                - generic [ref=f7e1604]: P1
+              - paragraph [ref=f7e1605]: 术语表共 27 条词条,见平台术语表面板(点击词条定位正文)。
+            - generic [ref=f7e1606]:
+              - heading "8.2 变更记录 P1" [level=2] [ref=f7e1607]:
+                - generic [ref=f7e1608]: "8.2"
+                - text: 变更记录
+                - generic [ref=f7e1609]: P1
+              - generic [ref=f7e1610]: 表11 ·
+              - table [ref=f7e1611]:
+                - rowgroup [ref=f7e1612]:
+                  - row [ref=f7e1613]:
+                    - columnheader "版本" [ref=f7e1614]
+                    - columnheader "日期" [ref=f7e1615]
+                    - columnheader "变更" [ref=f7e1616]
+                    - columnheader "依据" [ref=f7e1617]
+                - rowgroup [ref=f7e1618]:
+                  - row [ref=f7e1619]:
+                    - cell "草稿 draft-v1（未打版本号）" [ref=f7e1620]
+                    - cell "2026-10-14" [ref=f7e1621]
+                    - cell "初稿：由素材《瀚海多模态服务需求总览（测试参考）》V1.1 整理成八层骨架；开放问题以 TBD-01~16 列出待确认" [ref=f7e1622]
+                    - cell "素材 V1.1（2026-10-08）" [ref=f7e1623]
+              - paragraph [ref=f7e1624]: "---"
+            - generic [ref=f7e1625]:
+              - heading "9 术语表" [level=2] [ref=f7e1626]:
+                - generic [ref=f7e1627]: "9"
+                - text: 术语表
+              - table [ref=f7e1628]:
+                - rowgroup [ref=f7e1629]:
+                  - row [ref=f7e1630]:
+                    - columnheader "术语" [ref=f7e1631]
+                    - columnheader "释义" [ref=f7e1632]
+                    - columnheader "出现章节" [ref=f7e1633]
+                - rowgroup [ref=f7e1634]:
+                  - row [ref=f7e1635]:
+                    - cell "业务受理/审查人员" [ref=f7e1636]
+                    - cell "用户类（3.1）：创建受理单、上传/追加文档、确认影像分类、推进五阶段工作台、发起整单提交" [ref=f7e1637]
+                    - cell [ref=f7e1638]:
+                      - link "3.1" [ref=f7e1639] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.2" [ref=f7e1640] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.1" [ref=f7e1641] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1642]:
+                    - cell "文档复核人员" [ref=f7e1643]
+                    - cell "用户类（3.1）：审阅抽取结果、原文证据核对、字段编辑、OCR 识别修复、确认发布" [ref=f7e1644]
+                    - cell [ref=f7e1645]:
+                      - link "3.1" [ref=f7e1646] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.5" [ref=f7e1647] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1648]:
+                    - cell "分类/配置管理员" [ref=f7e1649]
+                    - cell "用户类（3.1）：维护材料目录/影像树/业务阶段/规则/样本库，发起并裁决分类优化任务" [ref=f7e1650]
+                    - cell [ref=f7e1651]:
+                      - link "3.1" [ref=f7e1652] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.4" [ref=f7e1653] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.3" [ref=f7e1654] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1655]:
+                    - cell "受理单（Case / MultimodalCase）" [ref=f7e1656]
+                    - cell "业务维度容器，唯一 caseNo，创建时固化影像树结构快照" [ref=f7e1657]
+                    - cell "—" [ref=f7e1658]
+                  - row [ref=f7e1659]:
+                    - cell "影像树" [ref=f7e1660]
+                    - cell "受理单内文档的组织树，节点对应影像并配置受理要求" [ref=f7e1661]
+                    - cell [ref=f7e1662]:
+                      - link "2.4" [ref=f7e1663] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.1" [ref=f7e1664] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.2" [ref=f7e1665] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.2" [ref=f7e1666] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.1" [ref=f7e1667] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.6" [ref=f7e1668] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.1" [ref=f7e1669] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.4" [ref=f7e1670] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.10" [ref=f7e1671] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1672]:
+                    - cell "文档（Document）" [ref=f7e1673]
+                    - cell "一次提交进入的文件单元（单文件或压缩包）" [ref=f7e1674]
+                    - cell "—" [ref=f7e1675]
+                  - row [ref=f7e1676]:
+                    - cell "子文件（Document Item，素材亦称「子文档」）" [ref=f7e1677]
+                    - cell "压缩包展开或文档内的单份影像；fileOrdinal 从 1 起" [ref=f7e1678]
+                    - cell "—" [ref=f7e1679]
+                  - row [ref=f7e1680]:
+                    - cell "Run（处理批次，document_item_run_id）" [ref=f7e1681]
+                    - cell "每次处理生成的独立执行记录，不覆盖历史" [ref=f7e1682]
+                    - cell "—" [ref=f7e1683]
+                  - row [ref=f7e1684]:
+                    - cell "Document Evidence Profile" [ref=f7e1685]
+                    - 'cell "文档证据档案（版本 extraction-{runId}），全部证据 embedding 完成才 READY" [ref=f7e1686]'
+                    - cell [ref=f7e1687]:
+                      - link "5.2" [ref=f7e1688] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.10" [ref=f7e1689] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1690]:
+                    - cell "材料分类（materialCode）" [ref=f7e1691]
+                    - cell "材料目录中的分类项，决定结果定义" [ref=f7e1692]
+                    - cell "—" [ref=f7e1693]
+                  - row [ref=f7e1694]:
+                    - cell "双路径分类" [ref=f7e1695]
+                    - cell "路径 A 冷启动评分 + 路径 B 确认样本匹配，交叉仲裁" [ref=f7e1696]
+                    - cell "—" [ref=f7e1697]
+                  - row [ref=f7e1698]:
+                    - cell "AUTO_CONFIRMED / REVIEW_REQUIRED / NO_MATCH" [ref=f7e1699]
+                    - cell "分类仲裁三态" [ref=f7e1700]
+                    - cell [ref=f7e1701]:
+                      - link "5.3" [ref=f7e1702] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1703]:
+                    - cell "样本库" [ref=f7e1704]
+                    - cell "人工确认后沉淀的确认样本（四态管理，去重线 0.98）" [ref=f7e1705]
+                    - cell [ref=f7e1706]:
+                      - link "1" [ref=f7e1707] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.1" [ref=f7e1708] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.3" [ref=f7e1709] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.10" [ref=f7e1710] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1711]:
+                    - cell "结果定义 / 结果块 / 结果字段" [ref=f7e1712]
+                    - cell "抽取配置层级；结果块由 sourceType × resultForm 描述" [ref=f7e1713]
+                    - cell "—" [ref=f7e1714]
+                  - row [ref=f7e1715]:
+                    - cell "schemaHash" [ref=f7e1716]
+                    - cell "与运行绑定的结果结构哈希，随发布携带" [ref=f7e1717]
+                    - cell [ref=f7e1718]:
+                      - link "3.2" [ref=f7e1719] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.3" [ref=f7e1720] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.5" [ref=f7e1721] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.5" [ref=f7e1722] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.4" [ref=f7e1723] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.3" [ref=f7e1724] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.4" [ref=f7e1725] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1726]:
+                    - cell "影像分类确认" [ref=f7e1727]
+                    - cell "工作台「确认影像分类」动作；对外接口名 classification-confirmation，同一动作两个入口" [ref=f7e1728]
+                    - cell [ref=f7e1729]:
+                      - link "5.6.1" [ref=f7e1730] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.1" [ref=f7e1731] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1732]:
+                    - cell "发布 / 固化" [ref=f7e1733]
+                    - cell "发布是人工确认动作，固化是其效果：发布后结果不可再改" [ref=f7e1734]
+                    - cell "—" [ref=f7e1735]
+                  - row [ref=f7e1736]:
+                    - cell "结果发布门禁" [ref=f7e1737]
+                    - cell "GP-05：结果发布前校验（字段校验、数据勾稽、就绪检查）失败必须阻止发布并给出缺失/阻断项清单" [ref=f7e1738]
+                    - cell [ref=f7e1739]:
+                      - link "4.5" [ref=f7e1740] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1741]:
+                    - cell "草案发布门禁" [ref=f7e1742]
+                    - cell "分类优化 Agent 草案的发布控制（参数 HANHAI_COP_*，见 5.9 / FR-CFG-04）；与结果发布门禁是两个独立机制，互不共用" [ref=f7e1743]
+                    - cell [ref=f7e1744]:
+                      - link "3.4" [ref=f7e1745] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.10" [ref=f7e1746] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1747]:
+                    - cell "工作模式" [ref=f7e1748]
+                    - cell "FULL_PROCESS / RECOGNITION_ONLY / AUTO_EXTRACT" [ref=f7e1749]
+                    - cell [ref=f7e1750]:
+                      - link "3.3" [ref=f7e1751] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.3" [ref=f7e1752] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.1" [ref=f7e1753] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1754]:
+                    - cell "被辅助系统（尽调等）" [ref=f7e1755]
+                    - cell "经对外 API 与 SSE 消费结果的下游系统，以 X-Assisted-System-Id 标识" [ref=f7e1756]
+                    - cell [ref=f7e1757]:
+                      - link "1" [ref=f7e1758] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "2.2" [ref=f7e1759] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.1" [ref=f7e1760] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.3" [ref=f7e1761] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7" [ref=f7e1762] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "7.2" [ref=f7e1763] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1764]:
+                    - cell "Idempotency-Key" [ref=f7e1765]
+                    - cell "写操作幂等键，作用域 tenant_id + key，终态保留 30 天" [ref=f7e1766]
+                    - cell [ref=f7e1767]:
+                      - link "3.3" [ref=f7e1768] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.1" [ref=f7e1769] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.2" [ref=f7e1770] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.5" [ref=f7e1771] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1772]:
+                    - cell "Draft / Evidence / Validation / Event" [ref=f7e1773]
+                    - cell "Agent 域四类不可变记录：草案修订 / 证据 / 验证 / 追加事件" [ref=f7e1774]
+                    - cell "—" [ref=f7e1775]
+                  - row [ref=f7e1776]:
+                    - cell "READY_FOR_REVIEW" [ref=f7e1777]
+                    - cell "Agent 任务完成门槛态（两项必验 PASSED + hash 匹配 + 无漂移）" [ref=f7e1778]
+                    - cell [ref=f7e1779]:
+                      - link "3.4" [ref=f7e1780] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.9.1" [ref=f7e1781] [cursor=pointer]:
+                        - /url: javascript:void 0
+                  - row [ref=f7e1782]:
+                    - cell "就绪检查 / 阻断项" [ref=f7e1783]
+                    - cell "结果定义上的配置项，属结果发布门禁（GP-05）的校验组成；阻断项存在时执行显式停止" [ref=f7e1784]
+                    - cell "—" [ref=f7e1785]
+                  - row [ref=f7e1786]:
+                    - cell "勾稽校验" [ref=f7e1787]
+                    - cell "数据关系校验（等值/合计/加减，含误差与空值策略）" [ref=f7e1788]
+                    - cell "—" [ref=f7e1789]
+                  - row [ref=f7e1790]:
+                    - cell "SSE" [ref=f7e1791]
+                    - cell "Server-Sent Events；内部 /api/realtime/events 与外部 /external/events/stream 两条通道" [ref=f7e1792]
+                    - cell [ref=f7e1793]:
+                      - link "2.2" [ref=f7e1794] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.1" [ref=f7e1795] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.3" [ref=f7e1796] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "3.4" [ref=f7e1797] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.1" [ref=f7e1798] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.2" [ref=f7e1799] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.3" [ref=f7e1800] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "4.5" [ref=f7e1801] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.2" [ref=f7e1802] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.7.6" [ref=f7e1803] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.8" [ref=f7e1804] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.9.1" [ref=f7e1805] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "5.10" [ref=f7e1806] [cursor=pointer]:
+                        - /url: javascript:void 0
+                      - link "6" [ref=f7e1807] [cursor=pointer]:
+                        - /url: javascript:void 0
+        - complementary [ref=f7e1808]:
+          - generic [ref=f7e1809]:
+            - generic [ref=f7e1810]:
+              - generic [ref=f7e1811]: 待处理 18 / 18
+              - generic [ref=f7e1812]:
+                - button "对照" [ref=f7e1813] [cursor=pointer]
+                - button "逐条" [ref=f7e1814] [cursor=pointer]
+            - generic [ref=f7e1815]:
+              - generic [ref=f7e1816]: 全局
+              - generic [ref=f7e1817]:
+                - generic "本系统解决什么业务痛点、创造什么价值？（背景层核心缺口，素材全篇未述。影响：2.1 节为空，无法评判后续功能的必要性。）" [ref=f7e1818] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1820]
+                  - generic [ref=f7e1824]: ▸
+                - generic [ref=f7e1825]:
+                  - generic [ref=f7e1826]: "#55"
+                  - generic [ref=f7e1827]: ·
+                  - generic [ref=f7e1828]: 待确认 TBD-01
+              - generic [ref=f7e1829]:
+                - generic "四个用户类（受理/审查、复核、配置管理、被辅助系统）各自的特征与使用频率是什么？影响：3.1 表缺列。" [ref=f7e1830] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1832]
+                  - generic [ref=f7e1836]: ▸
+                - generic [ref=f7e1837]:
+                  - generic [ref=f7e1838]: "#57"
+                  - generic [ref=f7e1839]: ·
+                  - generic [ref=f7e1840]: 待确认 TBD-03
+              - generic [ref=f7e1841]:
+                - generic "uploadId 超过 expiresAt 后再用于创建受理单，返回什么错误（错误码/HTTP 状态）？素材仅写「过期作废」。" [ref=f7e1842] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1844]
+                  - generic [ref=f7e1848]: ▸
+                - generic [ref=f7e1849]:
+                  - generic [ref=f7e1850]: "#59"
+                  - generic [ref=f7e1851]: ·
+                  - generic [ref=f7e1852]: 待确认 TBD-05
+              - generic [ref=f7e1853]:
+                - 'generic "`cases/documents/query` 的 businessRef 无对应受理单时返回什么（404 还是 200+空列表）？素材未定义。" [ref=f7e1854] [cursor=pointer]':
+                  - button "定位到正文" [ref=f7e1856]
+                  - generic [ref=f7e1860]: ▸
+                - generic [ref=f7e1861]:
+                  - generic [ref=f7e1862]: "#60"
+                  - generic [ref=f7e1863]: ·
+                  - generic [ref=f7e1864]: 待确认 TBD-06
+              - generic [ref=f7e1865]:
+                - generic "Last-Event-ID 距今事件超过单次 500 条上限时，行为是什么（只回最近 500 条 / 断开让客户端全量重读 / 其他）？素材未定义。" [ref=f7e1866] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1868]
+                  - generic [ref=f7e1872]: ▸
+                - generic [ref=f7e1873]:
+                  - generic [ref=f7e1874]: "#61"
+                  - generic [ref=f7e1875]: ·
+                  - generic [ref=f7e1876]: 待确认 TBD-07
+              - generic [ref=f7e1877]:
+                - generic "fileOrdinal 超出该文档实际子文件数（或与 documentRef 不匹配但成对出现）时返回什么？素材未定义。" [ref=f7e1878] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1880]
+                  - generic [ref=f7e1884]: ▸
+                - generic [ref=f7e1885]:
+                  - generic [ref=f7e1886]: "#62"
+                  - generic [ref=f7e1887]: ·
+                  - generic [ref=f7e1888]: 待确认 TBD-08
+              - generic [ref=f7e1889]:
+                - generic "Graph Runtime、MinerU、PDF 服务、LLM、Qdrant、MySQL、OSS、Nacos 各自不可用时，逐项行为是什么（哪些属「关键依赖」fail fast，哪些允许显式降级续跑）？素材只给 Redis（启动失败）与 embedding（明确失败）两个个例和一条总原则。" [ref=f7e1890] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1892]
+                  - generic [ref=f7e1896]: ▸
+                - generic [ref=f7e1897]:
+                  - generic [ref=f7e1898]: "#63"
+                  - generic [ref=f7e1899]: ·
+                  - generic [ref=f7e1900]: 待确认 TBD-09
+              - generic [ref=f7e1901]:
+                - generic "本文档按哪种口径定稿？" [ref=f7e1902] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1904]
+                  - generic [ref=f7e1908]: ▸
+                - generic [ref=f7e1909]:
+                  - generic [ref=f7e1910]: "#73"
+                  - generic [ref=f7e1911]: ·
+                  - generic [ref=f7e1912]: 待确认 TBD-10
+              - generic [ref=f7e1913]:
+                - generic "需求要求移除、代码保留（素材第 9 章第 6 条）。" [ref=f7e1914] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1916]
+                  - generic [ref=f7e1920]: ▸
+                - generic [ref=f7e1921]:
+                  - generic [ref=f7e1922]: "#74"
+                  - generic [ref=f7e1923]: ·
+                  - generic [ref=f7e1924]: 待确认 TBD-11
+              - generic [ref=f7e1925]:
+                - generic "分类助手增强（竞争证据分析、联动优化、Pi Loop、性能优化项）是否纳入本版需求？" [ref=f7e1926] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1928]
+                  - generic [ref=f7e1932]: ▸
+                - generic [ref=f7e1933]:
+                  - generic [ref=f7e1934]: "#75"
+                  - generic [ref=f7e1935]: ·
+                  - generic [ref=f7e1936]: 待确认 TBD-12
+              - generic [ref=f7e1937]:
+                - generic "理解为本文档供三方共读——用户方（业务/尽调方代表）看背景、场景与范围；开发看行为规则与约束；测试看可判定断言。是否准确？" [ref=f7e1938] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1940]
+                  - generic [ref=f7e1944]: ▸
+                - generic [ref=f7e1945]:
+                  - generic [ref=f7e1946]: "#76"
+                  - generic [ref=f7e1947]: ·
+                  - generic [ref=f7e1948]: 待确认 TBD-13
+              - generic [ref=f7e1949]:
+                - generic "理解为本版覆盖素材全部功能域（5.1~5.10）+ 非功能 + 对外契约，不含内部模块架构设计与测试用例设计本身。是否准确？" [ref=f7e1950] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1952]
+                  - generic [ref=f7e1956]: ▸
+                - generic [ref=f7e1957]:
+                  - generic [ref=f7e1958]: "#77"
+                  - generic [ref=f7e1959]: ·
+                  - generic [ref=f7e1960]: 待确认 TBD-14
+              - generic [ref=f7e1961]:
+                - generic "2.4 的五条「明确不做」是否完整？是否还有其他明确不做的事项及原因？" [ref=f7e1962] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1964]
+                  - generic [ref=f7e1968]: ▸
+                - generic [ref=f7e1969]:
+                  - generic [ref=f7e1970]: "#78"
+                  - generic [ref=f7e1971]: ·
+                  - generic [ref=f7e1972]: 待确认 TBD-15
+              - generic [ref=f7e1973]:
+                - generic "素材中「子文件/子文档」统一为「子文件」、「分类确认（API）/确认影像分类（工作台）」认定为同一动作两入口、「被辅助系统/尽调/外部系统」统一为「被辅助系统（尽调等）」。是否与业务方实际叫法一致？" [ref=f7e1974] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1976]
+                  - generic [ref=f7e1980]: ▸
+                - generic [ref=f7e1981]:
+                  - generic [ref=f7e1982]: "#79"
+                  - generic [ref=f7e1983]: ·
+                  - generic [ref=f7e1984]: 待确认 TBD-16
+              - generic [ref=f7e1985]: 章节 c6
+              - generic [ref=f7e1986]:
+                - generic "请给出可度量/可判定的成功标准（如分类准确率、抽取准确率、人工复核工作量、端到端时效 p50/p95）。素材明确当前无既定性能目标。影响：2.3 与 NFR-05 无法判定。" [ref=f7e1987] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e1989]
+                  - generic [ref=f7e1993]: ▸
+                - generic [ref=f7e1994]:
+                  - generic [ref=f7e1995]: "#56"
+                  - generic [ref=f7e1996]: ·
+                  - generic [ref=f7e1997]: 待确认 TBD-02
+              - generic [ref=f7e1998]:
+                - generic "素材全文无合规内容。整理者理解为合规维度对本系统不适用（无数据留存期限、监管报送、行业合规等约束）——是否准确？若适用，请给出具体合规约束。影响：NFR-07 当前为显式空位。" [ref=f7e1999] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e2001]
+                  - generic [ref=f7e2005]: ▸
+                - generic [ref=f7e2006]:
+                  - generic [ref=f7e2007]: "#80"
+                  - generic [ref=f7e2008]: ·
+                  - generic [ref=f7e2009]: 待确认 TBD-18
+              - generic [ref=f7e2010]: 章节 c5-3
+              - generic [ref=f7e2011]:
+                - generic "REVIEW_REQUIRED 的文档经人工「确认影像分类」后，分类终态叫什么、后续行为是什么（是否入样本库候选、是否可再改）？素材未定义。影响：FR-CLS-09 状态链断头。" [ref=f7e2012] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e2014]
+                  - generic [ref=f7e2018]: ▸
+                - generic [ref=f7e2019]:
+                  - generic [ref=f7e2020]: "#58"
+                  - generic [ref=f7e2021]: ·
+                  - generic [ref=f7e2022]: 待确认 TBD-04
+              - generic [ref=f7e2023]: 章节 c5-1
+              - generic [ref=f7e2024]:
+                - generic "创建受理单时绑定哪棵影像树、由谁或哪个参数选定（按业务线自动映射，还是创建请求 request 显式传参；对外 API 与前端受理是否同一机制）？素材未定义。影响：FR-ACC-01、FR-API-02 创建契约、场景 3.2 第一步。" [ref=f7e2025] [cursor=pointer]:
+                  - button "定位到正文" [ref=f7e2027]
+                  - generic [ref=f7e2031]: ▸
+                - generic [ref=f7e2032]:
+                  - generic [ref=f7e2033]: "#64"
+                  - generic [ref=f7e2034]: ·
+                  - generic [ref=f7e2035]: 待确认 TBD-17

@@ -1,4 +1,5 @@
 """基线/草案/版本读取与草案提交(校验闸门 + 覆盖语义)。"""
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
@@ -81,18 +82,36 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
         existing = {(q.kind, q.payload.get("q", "")): q for q in olds}
         for q in questions:
             key = (q["kind"], q["payload"]["q"])
-            if key in existing:
-                old_q = existing[key]
-                if old_q.status == "withdrawn" and old_q.source == "agent":
-                    old_q.status = "pending"
-                    db.add(old_q)
-                continue
             anchor = dict(q["anchor"])
             if anchor.get("rule_no") and not anchor.get("chapter_id"):
                 for ch in payload.model_dump()["chapters"]:
                     if anchor["rule_no"] in ch["rule_nos"]:
                         anchor["chapter_id"] = ch["id"]
                         break
+            elif not anchor.get("chapter_id"):
+                # 无规则号可锚:题号在正文以【TBD-xx】标注出现的章 → 锚到该章(批注卡挂章节旁,定位可滚)
+                tno = anchor.get("seg") or ""
+                pat = re.compile(tno + r"(?!\d)") if tno else None
+                for ch in payload.model_dump()["chapters"]:
+                    blob = ch["background"] + ' '.join(
+                        str(b.get("text", "")) + ' ' + ' '.join(str(c) for r in b.get("rows", []) for c in r)
+                        + ' ' + ' '.join(b.get("flows", []) + b.get("items", []))
+                        for b in ch["blocks"])
+                    if pat and pat.search(blob):   # 【TBD-xx】/(见 TBD-xx)/裸 TBD-xx 均命中
+                        anchor.update({"chapter_id": ch["id"], "chapter": True})
+                        break
+                    hit_rule = next((no for no in ch["rule_nos"]
+                                     if pat.search(payload.model_dump()["rules"].get(no, {}).get("text", ""))), None)
+                    if hit_rule:                    # 标注在规则行内 → 锚到该规则(正文规则行高亮)
+                        anchor.update({"chapter_id": ch["id"], "rule_no": hit_rule, "seg": tno})
+                        break
+            if key in existing:
+                old_q = existing[key]
+                if old_q.status == "withdrawn" and old_q.source == "agent":
+                    old_q.status = "pending"
+                    old_q.anchor = anchor   # 复活同时刷新锚定(重导可能改进了锚定策略)
+                    db.add(old_q)
+                continue
             nq = Question(project_id=pid, kind=q["kind"], payload=q["payload"],
                           anchor=anchor, status="pending", source="agent")
             db.add(nq)

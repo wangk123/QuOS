@@ -322,3 +322,10 @@ mark.anno.resolved sup{color:var(--ok)}
 .diagram-box .mmd{background:#FAFBFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow-x:auto;display:flex;justify-content:center}
 .diagram-box .mmd svg{max-width:100%}
 .diagram-box .mmd-src{background:#F8FAFC;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px;font-family:var(--mono);font-size:.78rem;white-space:pre-wrap;color:var(--muted)}
+
+/* ── 目录宽度拖拽把手 ── */
+.toc-resize{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:5}
+.toc-resize:hover,.doc-toc.resizing .toc-resize{background:var(--primary-soft)}
+.doc-toc{position:sticky}
+.doc-toc .toc-resize::after{content:"";position:absolute;top:50%;right:2px;width:2px;height:34px;transform:translateY(-50%);border-radius:2px;background:var(--border)}
+.toc-resize:hover::after{background:var(--primary)}

@@ -5,6 +5,29 @@ import type { BlockP, ChapterP, DocPayload, Material, Question } from '../../api
 import { flattenChapters, termChapters, GLOSSARY_CH_ID } from '../../utils/chapters'
 import DiagramView from './DiagramView.vue'
 
+/* 目录宽度拖拽:右缘把手,180~420px 限界,localStorage 记忆 */
+const TOC_KEY = 'quos.toc-width'
+const TOC_MIN = 180
+const TOC_MAX = 420
+const tocW = ref(Number(localStorage.getItem(TOC_KEY)) || 218)
+const dragging = ref(false)
+function startDrag(e: MouseEvent) {
+  e.preventDefault()
+  dragging.value = true
+  const x0 = e.clientX, w0 = tocW.value
+  const move = (ev: MouseEvent) => {
+    tocW.value = Math.min(TOC_MAX, Math.max(TOC_MIN, w0 + ev.clientX - x0))
+  }
+  const up = () => {
+    dragging.value = false
+    localStorage.setItem(TOC_KEY, String(tocW.value))
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+
 const props = defineProps<{
   payload: DocPayload
   annos: Question[]
@@ -103,7 +126,11 @@ function onClickBody(e: MouseEvent) {
 
 <template>
   <div class="docpaper" @click="onClickBody">
-    <aside v-if="tocMode !== 'hidden'" class="doc-toc" :class="tocMode" @mouseleave="emit('toc-hide')"><slot name="toc" /></aside>
+    <aside v-if="tocMode !== 'hidden'" class="doc-toc" :class="tocMode" :style="{ width: tocW + 'px' }"
+           @mouseleave="!dragging && emit('toc-hide')">
+      <slot name="toc" />
+      <div class="toc-resize" title="拖拽调整目录宽度" @mousedown="startDrag" />
+    </aside>
     <button v-else class="toc-handle" type="button" aria-label="展开目录" title="悬浮展开章节目录"
             @mouseenter="emit('toc-show')" @click="emit('toc-show')">›</button>
     <div class="doc-main">
