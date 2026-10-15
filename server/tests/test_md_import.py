@@ -195,3 +195,26 @@ def test_questions_extracted_from_appendix():
     assert qs[1]["anchor"].get("rule_no") is None or "FR-306" == qs[1]["anchor"].get("rule_no")
     assert not any('附录' in c.title for c in p.chapters)          # 附录不进正文
     assert any(c.rule_nos == ['FR-101'] for c in p.chapters)
+
+
+def test_detect_format_issues():
+    from app.services.md_import import detect_format_issues
+    bad = '''## 4 系统总览
+
+```
+A ──▶ ┌────┐
+      │ SYS │
+```
+
+```mermaid
+flowchart LR
+  A[用户(内部)] --> B[系统]
+```
+
+> 这段重要说明放在引用块里会丢。
+'''
+    ws = detect_format_issues(bad)
+    assert any('盒子图' in w for w in ws)
+    assert any('半角括号' in w for w in ws)
+    assert any('引用块' in w for w in ws)
+    assert not detect_format_issues('- FR-101 正常规则。\n> 注:说明性引导行不算实质内容。')

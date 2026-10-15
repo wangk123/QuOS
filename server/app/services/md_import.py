@@ -242,6 +242,31 @@ def md_to_payload(md: str, materials: dict[int, object],
     return payload, _extract_questions(md)
 
 
+def detect_format_issues(md: str) -> list[str]:
+    """导入时的格式契约检测:违规进导入响应 format_warnings,导入即知,不等渲染后返工。"""
+    warns = []
+    in_fence, lang = False, ''
+    fence: list[str] = []
+    for ln in md.splitlines():
+        st = ln.strip()
+        fm = re.match(r'^```(\w+)?\s*$', st)
+        if fm:
+            if in_fence:
+                body = '\n'.join(fence)
+                if lang == 'mermaid' and re.search(r'\[[^\]\n]*\([^)\n]*\)[^\]\n]*\]', body):
+                    warns.append('R1:mermaid 节点文本含半角括号()(形状语法冲突,整图渲染会失败)')
+                if not lang and '┌' in body:
+                    warns.append('R1:存在 ASCII 盒子图(网页必错位,应重画为 mermaid 或线性箭头链)')
+            in_fence, lang, fence = not in_fence, (fm.group(1) or '').lower(), []
+            continue
+        if in_fence:
+            fence.append(ln)
+            continue
+        if st.startswith('>') and len(st) > 8 and not re.match(r'^>\s*(题型|说明|注[:：])', st):
+            warns.append('R5:引用块(>)承载实质内容,导入时会被丢弃: ' + st.lstrip('> ')[:30])
+    return warns
+
+
 _TBD_INLINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$')          # 行内题型(云风控式)
 _TBD_GROUPED = re.compile(r'^-\s*\*\*(TBD-\d+)[^*]*\*\*[:：]\s*(.+)$')                 # 分组题型(瀚海式)
 _GROUP_TITLE = re.compile(r'^#{2,4}\s*(填空|选择|确认)')
