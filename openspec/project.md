@@ -26,9 +26,10 @@ AI 加工完全外部化:外部 agent 结合项目内 skill(`.agents/skills/`)�
 - 题目四种题型:选择题 / 确认题 / 填空题 / 批量扫
 - 主产物为章节式需求文档(给人读),规则条目库为锚点层(给机器引用)
 - v1(`server/app` 的 LLM 编排与树/证据/规则存储)整体废弃,旧数据不迁移
+- 接口与 CLI 变更须按根目录 AGENTS.md 开发规则同步维护 docs/api.md 与 server/app/cli.py(含 skill 对接指引)
 
 ## 权威文档
 
-- 需求基线:`docs/requirements.md`(v1 遗留,随 v2 实施逐步替换)
+- 需求基线:`docs/requirements.md`(v2.0.0,2026-10-15 按 specs 现状重组;specs 为行为权威,本文为人的阅读基线)
 - 开发规范:`docs/development.md`
 - 架构决策:`docs/adr/`

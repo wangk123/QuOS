@@ -6,16 +6,35 @@
 
 ## 调用顺序（短事务：唤起 → 拉取 → 加工 → 提交 → 退出）
 
-1. `GET /api/v1/projects/{pid}/materials` — 拉材料清单（含 parsed_text，出处核对与 quote 复制的唯一来源）；
-2. `GET /api/v1/projects/{pid}/doc/baseline` — 拉当前基线（无定稿返回 `{"empty":true}`，冷启动；有则增量加工）；
+1. `GET /api/v1/projects/{pid}/materials` — 拉材料清单（含 parsed_text，出处核对与 quote 复制的唯一来源）。CLI：`uv run --directory server python -m app.cli materials PID`（找 pid 用 `projects`）；
+2. `GET /api/v1/projects/{pid}/doc/baseline` — 拉当前基线（无定稿返回 `{"empty":true}`，冷启动；有则增量加工）。CLI：`uv run --directory server python -m app.cli baseline PID`；
 3. 加工（按 req-organize 全流程 + 写作纪律）产出 DocPayload：`{meta, overview, glossary, new_terms, chapters, rules}`。章节含 `id/title/pri/parent(可选,父章节id)/background/blocks/rule_nos`，blocks 是正文块有序列表，每块 `{type: para|states|table|figure|exceptions, text?, title?, columns?, rows?, flows?, items?}`；rules 每条含 `no/text/violation/quote/material_id/status/replaced_by`；
 4. 本地预检：按 req-review 判据过一遍（含五查第 3-5 查与可读性检查），打回项修完再进下一步；
 5. 提交草案（二选一）：
-   - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — body `{"markdown": "<md 全文>", "rules_meta": {可选 "<规则号>": {"violation": "...", "quote": "..."}}}`。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md 文档即可**，不用手拼 JSON；
-   - `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（手工构造 payload 时用；quote 必须从材料 parsed_text 原文复制，NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）；
-6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）；
-7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）；
+   - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — body `{"markdown": "<md 全文>", "rules_meta": {可选 "<规则号>": {"violation": "...", "quote": "..."}}}`。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md 文档即可**，不用手拼 JSON。CLI：`uv run --directory server python -m app.cli import-draft PID --md 文档.md [--meta meta.json]`；
+   - `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（手工构造 payload 时用；quote 必须从材料 parsed_text 原文复制，NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）。CLI：`uv run --directory server python -m app.cli submit-draft PID --file payload.json`；
+6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）。CLI：`uv run --directory server python -m app.cli post-questions PID --file items.json`；
+7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）。CLI：`uv run --directory server python -m app.cli questions PID --status answered`；
 8. 全部批注收敛后提示用户在平台上「定稿发版」（版本号/说明由人定，agent 无发版权）。
+
+## CLI 调用
+
+对接平台**优先用 CLI**（相对手拼 curl）：大内容（md 全文、payload、批注数组）一律文件传参，不经 shell 转义；422 拒收明细完整输出 stdout（JSON 机器可读），配合「校验报告处理纪律」修复重交。在**仓库根**执行，完整形式 `uv run --directory server python -m app.cli <cmd>`（`--base` 可覆盖基址，默认 `http://127.0.0.1:8000`；不设命令别名）。
+
+| 命令 | 用途 |
+|---|---|
+| `projects` | 项目列表（找 pid） |
+| `materials PID` | 材料清单（parsed_text 出处源） |
+| `baseline PID` | 当前基线（冷启动判断） |
+| `draft PID` | 当前 reviewing 草案 |
+| `import-draft PID --md FILE [--meta FILE]` | markdown 草案导入（推荐提交路径） |
+| `submit-draft PID --file FILE` | 手工 DocPayload 提交 |
+| `questions PID [--status STATUS]` | 批注列表 |
+| `post-questions PID --file FILE` | 批量提交消歧批注 |
+| `versions PID` | 版本列表 |
+| `changes PID [--version V]` | 条款级变更记录 |
+
+输出约定：成功响应 JSON 出 stdout、退出码 0；HTTP 错误（422/404/409）响应体 JSON 仍出 stdout、stderr 一行状态、退出码 1；连接失败（服务未起）退出码 2。参数细节看 `--help`；端点契约（参数/请求体/响应字段）见 `docs/api.md`。
 
 ## 校验报告处理纪律
 
