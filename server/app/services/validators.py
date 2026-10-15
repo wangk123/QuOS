@@ -184,9 +184,10 @@ def check_draft(
                          "ctx": r.text[:80]},
                 anchor={"chapter_id": "", "rule_no": no, "seg": r.text[:20]},
             ))
-    # 空壳章=既无正文块也无规则(纯背景句不算正文);有叙述无规则的章不再出题
+    # 空壳章=既无正文块也无规则且无子章(纯容器父章由子章承载内容,合法)
+    parent_ids = {c.parent for c in payload.chapters if c.parent}
     for ch in payload.chapters:
-        if not ch.rule_nos and not ch.blocks:
+        if not ch.rule_nos and not ch.blocks and ch.id not in parent_ids:
             rpt.auto_questions.append(AutoQ(
                 kind="fill",
                 payload={"klabel": "内容缺口",

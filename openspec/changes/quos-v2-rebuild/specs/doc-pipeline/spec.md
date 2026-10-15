@@ -37,6 +37,15 @@
 - **WHEN** 规则的 violation 字段为空或与规则正文完全雷同
 - **THEN** 自动生成确认题请人补「怎样算违反」
 
+### Requirement: markdown 导入
+平台 SHALL 提供 POST /api/v1/projects/{pid}/doc/draft/import:接收 markdown 全文与可选 rules_meta(规则级精修 violation/quote),内置转换为 DocPayload(章节层级/规则编号三格式/正文块/表格/术语表/图与 mermaid 降级/行内标记清洗),quote 自动匹配项目材料文本(相似度达标挂出处,未达标留空走软警告),转换后走与手工提交完全相同的两级校验与覆盖落库。
+#### Scenario: 纯 markdown 导入自动挂出处
+- **WHEN** agent 提交 md 文档(未携带 rules_meta),其中规则文本与某材料句相似度达标
+- **THEN** 该规则自动挂该材料出处;未匹配规则 quote 留空,软警告不阻塞,由人工评审补
+#### Scenario: 携带精修值导入
+- **WHEN** 导入请求携带 rules_meta 中 FR-101 的 violation 与 quote
+- **THEN** 精修值优先于自动匹配,校验与落库结果与手工构造 payload 提交一致
+
 ### Requirement: 校验报告返回
 平台 SHALL 在草案提交响应中返回完整校验报告(hard_errors / soft_warnings / 自动生成的题目清单),供 agent 决定修正重交或留给人裁。
 #### Scenario: 硬错误修正重交

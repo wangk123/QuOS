@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
+from app.services.md_import import md_to_payload
 from app.services.validators import check_draft
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/doc", tags=["doc"])
@@ -58,6 +59,22 @@ def list_versions(pid: int, db: Session = Depends(get_session)):
             for v in vers]
 
 
+class ImportBody(BaseModel):
+    markdown: str
+    rules_meta: dict | None = None  # 可选 {规则号: {violation, quote}} 精修值
+
+
+@router.post("/draft/import")
+def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session)):
+    """markdown 直接导入:平台内置转换(md→DocPayload,quote 自动匹配材料),后续走与 POST /draft 完全相同的校验与落库。"""
+    _get_project(db, pid)
+    materials = {
+        m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
+    }
+    payload = md_to_payload(body.markdown, materials, body.rules_meta)
+    return _persist_draft(db, pid, payload)
+
+
 @router.post("/draft")
 def submit_draft(pid: int, body: dict, db: Session = Depends(get_session)):
     _get_project(db, pid)
@@ -80,6 +97,24 @@ def submit_draft(pid: int, body: dict, db: Session = Depends(get_session)):
         raise HTTPException(422, {"hard_errors": [
             {"code": e.code, "rule_no": e.rule_no, "detail": e.detail} for e in report.hard_errors
         ]})
+
+    return _persist_draft(db, pid, payload, report)
+
+
+def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None):
+    if report is None:
+        rules_existing = {
+            r.no: r.status for r in db.exec(select(Rule).where(Rule.project_id == pid)).all()
+        }
+        materials = {
+            m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
+        }
+        terms = {t.name for t in db.exec(select(Term).where(Term.project_id == pid)).all()}
+        report = check_draft(payload, rules_existing, materials, terms)
+        if report.hard_errors:
+            raise HTTPException(422, {"hard_errors": [
+                {"code": e.code, "rule_no": e.rule_no, "detail": e.detail} for e in report.hard_errors
+            ]})
 
     # ── 覆盖语义(事务):旧 reviewing → superseded,其 pending 批注撤回;answered 存续 ──
     old = db.exec(

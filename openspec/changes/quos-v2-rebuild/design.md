@@ -157,6 +157,8 @@ AI 编排(`server/app/ai/`)、树/证据/规则/画像存储、git 基线、MySQ
 
 - (2026-10-14 修订)章节正文 blocks 自由块 + parent 层级取代固定四槽;空壳章(无块无规则)才出 fill 题,删除零规则/状态机空逼填出题;块结构与 parent 闭合/成环为硬校验(BLOCK_*/CHAPTER_PARENT_*);术语定位由前端确定性匹配实现;agent 侧新增 req-review skill 作为提交前与人工评审前的强制评审门(可读性判据),req-organize 增写作纪律(规则收敛行为级/结构化内容成块/背景写动机/主链路落图)。
 
+- (2026-10-15 决策)md→payload 转换内置平台:新增 `POST /doc/draft/import`(body {markdown, rules_meta?})——外部 agent 产出保持 md 文档,平台负责转换(`app/services/md_import.py`:章节/规则三格式/块清洗/表格/术语表/图与 mermaid 降级)与 quote 自动匹配(规则文本↔素材句相似度≥0.45 挂出处,未匹配留空走软警告);rules_meta 可选携带精修 violation/quote;violation 无来源时模板兜底(与条文不相等,不触发雷同判定,质量由人工评审把关)。落库走与 POST /draft 完全相同的校验闸门与覆盖语义。外部转换脚本(sync_v5/sync_riskcloud 模式)退役。空壳章判定修正:无正文无规则**且无子章**才算空壳(纯容器父章合法)。
+
 ## 7. 留给实施计划(builder)的自由度
 
 - SQLModel 具体 column 类型与索引细节(遵循 §4.2 字段);

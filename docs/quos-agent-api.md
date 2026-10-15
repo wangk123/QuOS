@@ -10,7 +10,9 @@
 2. `GET /api/v1/projects/{pid}/doc/baseline` — 拉当前基线（无定稿返回 `{"empty":true}`，冷启动；有则增量加工）；
 3. 加工（按 req-organize 全流程 + 写作纪律）产出 DocPayload：`{meta, overview, glossary, new_terms, chapters, rules}`。章节含 `id/title/pri/parent(可选,父章节id)/background/blocks/rule_nos`，blocks 是正文块有序列表，每块 `{type: para|states|table|figure|exceptions, text?, title?, columns?, rows?, flows?, items?}`；rules 每条含 `no/text/violation/quote/material_id/status/replaced_by`；
 4. 本地预检：按 req-review 判据过一遍（含五查第 3-5 查与可读性检查），打回项修完再进下一步；
-5. `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（无包装层）。**quote 必须从材料 parsed_text 原文复制**（NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）；
+5. 提交草案（二选一）：
+   - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — body `{"markdown": "<md 全文>", "rules_meta": {可选 "<规则号>": {"violation": "...", "quote": "..."}}}`。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md 文档即可**，不用手拼 JSON；
+   - `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（手工构造 payload 时用；quote 必须从材料 parsed_text 原文复制，NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）；
 6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）；
 7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）；
 8. 全部批注收敛后提示用户在平台上「定稿发版」（版本号/说明由人定，agent 无发版权）。
@@ -30,7 +32,7 @@
 
 提交前用平台同款校验器本地预检（`server/app/services/validators.py` 的 `check_draft`，材料 parsed_text 从接口拉），quote 全部原文切片并在脚本里断言 `quote in material_text`——一次过 422 往返。参考重做脚本模式（2026-10-14 首例 91→68 条重做验证过）。
 
-**md→payload 转换清洗规则**（2026-10-15 云风控同步踩坑沉淀；正文块按纯文本渲染，markdown 语法必须在转换层剥净）：
+**md→payload 转换已内置平台**（2026-10-15，`POST /doc/draft/import`），以下清洗规则在 `server/app/services/md_import.py` 维护，外部转换脚本退役。历史沉淀（转换器实现依据）：
 - 行内 `**粗体**` → 中文括注【】；反引号删除；
 - 有序列表行（`1. `）每条独立成段，去编号；
 - figure 的 flows 只收含 `→`/`-->` 的行；` --label--> ` 转为 ` → label → `（label 变中间节点）；行首续链箭头剥除；mermaid 围栏内容不进 flows；
