@@ -9,6 +9,7 @@ from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
 from app.services.md_import import detect_format_issues, md_to_payload
+from app.services.mermaid_check import check_mermaid
 from app.services.validators import check_draft
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/doc", tags=["doc"])
@@ -73,10 +74,15 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
         m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
     }
     payload, questions = md_to_payload(body.markdown, materials, body.rules_meta)
+    # fail fast:格式契约违规与 mermaid 语法错误导入即拒收,agent 修复后重导(全程无人工)
+    hard = [{"code": "FORMAT_CONTRACT", "detail": w} for w in detect_format_issues(body.markdown)]
+    diagrams = [b.text for ch in payload.chapters for b in ch.blocks if b.type == "diagram"]
+    for src, err in zip(diagrams, check_mermaid(diagrams)):
+        if err:
+            hard.append({"code": "MERMAID_SYNTAX", "detail": err + " | 源码: " + src[:60]})
+    if hard:
+        raise HTTPException(422, {"hard_errors": hard})
     out = _persist_draft(db, pid, payload)
-    fmt_warns = detect_format_issues(body.markdown)
-    if fmt_warns:
-        out["format_warnings"] = fmt_warns   # 格式契约违规:导入即知
     # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
     if questions:
         # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——

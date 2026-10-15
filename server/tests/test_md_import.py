@@ -219,3 +219,13 @@ flowchart LR
     assert any('引用块' in w for w in ws)
     assert not detect_format_issues('- FR-101 正常规则。\n> 注:说明性引导行不算实质内容。')
     assert not detect_format_issues('```mermaid\nflowchart LR\n  A --> B[(MongoDB auth_challenge)]\n```')  # 圆柱节点合法
+
+
+def test_mermaid_check_real():
+    from app.services.mermaid_check import check_mermaid
+    rs = check_mermaid([
+        "flowchart LR\n  A[x] --> B[系统]",
+        "flowchart LR\n  A[用户(内部)] --> B",
+    ])
+    assert rs[0] is None                      # 合法(或无法判定)通过
+    assert rs[1] and "Parse error" in rs[1]   # 半角括号真语法错误

@@ -47,13 +47,17 @@ watchEffect(async () => {
 <template>
   <div class="diagram-box">
     <div v-if="svg && !failed" class="mmd" v-html="svg" />
-    <!-- 降级:flows 回退节点流程条;源码回退代码块 -->
-    <div v-else-if="flows" class="flowbox">
-      <template v-for="(n, i) in (flows.join(' → ').split('→'))" :key="i">
-        <span v-if="i" class="farr">→</span>
-        <span class="fnode">{{ n.trim() }}</span>
-      </template>
-    </div>
-    <pre v-else-if="source" class="mmd-src">{{ source }}</pre>
+    <!-- 降级为 bug 兜底(常态路径:导入时语法校验已拒收),显示时必须显式标注 -->
+    <template v-else>
+      <div v-if="source" class="mmd-degraded">⚠ 此图渲染失败,已降级显示源码——请修正 markdown 后重新导入</div>
+      <div v-else class="mmd-degraded">⚠ 图渲染失败,降级为流程条显示</div>
+      <div v-if="flows" class="flowbox">
+        <template v-for="(n, i) in (flows.join(' → ').split('→'))" :key="i">
+          <span v-if="i" class="farr">→</span>
+          <span class="fnode">{{ n.trim() }}</span>
+        </template>
+      </div>
+      <pre v-else-if="source" class="mmd-src">{{ source }}</pre>
+    </template>
   </div>
 </template>
