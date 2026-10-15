@@ -1,0 +1,89 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e56]:
+    - complementary [ref=f1e57]:
+      - generic [ref=f1e58]: QuOS
+      - generic [ref=f1e62]: 项目
+      - link "项目总览" [ref=f1e63] [cursor=pointer]:
+        - /url: "#/projects"
+      - link "多模态 草" [ref=f1e66] [cursor=pointer]:
+        - /url: "#/p/3/review"
+        - generic [ref=f1e67]: 多模态
+        - generic "草案评审中" [ref=f1e68]: 草
+      - link "云风控" [ref=f1e69] [cursor=pointer]:
+        - /url: "#/p/4/review"
+      - link "材料 2" [ref=f1e71] [cursor=pointer]:
+        - /url: "#/p/4/materials"
+        - generic [ref=f1e72]: 材料
+        - generic [ref=f1e73]: "2"
+      - link "文档评审" [ref=f1e74] [cursor=pointer]:
+        - /url: "#/p/4/review"
+      - link "版本" [ref=f1e76] [cursor=pointer]:
+        - /url: "#/p/4/versions"
+      - generic [ref=f1e78]:
+        - generic [ref=f1e79]: v2
+        - text: 质量工作台
+    - generic [ref=f1e80]:
+      - banner [ref=f1e81]:
+        - generic [ref=f1e82]:
+          - link "QuOS" [ref=f1e83] [cursor=pointer]:
+            - /url: "#/projects"
+          - generic [ref=f1e84]: /
+          - link "云风控" [ref=f1e85] [cursor=pointer]:
+            - /url: "#/p/4/review"
+          - generic [ref=f1e86]: /
+          - generic [ref=f1e87]: 材料
+      - generic [ref=f1e88]:
+        - generic [ref=f1e90]:
+          - heading "材料" [level=1] [ref=f1e91]
+          - generic [ref=f1e92]: 证据池:hash 去重;解析文本供出处核对;被规则引用的材料不可删除
+        - button "上传材料" [ref=f1e93] [cursor=pointer]:
+          - generic [ref=f1e94]: 拖拽文件到此处、点击选择,或 Ctrl+V 粘贴
+          - generic [ref=f1e95]: PDF / Markdown / TXT / 图片 · 支持直接粘贴截图与文本 · hash 相同的重复文件将被拒绝
+        - table [ref=f1e97]:
+          - rowgroup [ref=f1e98]:
+            - row [ref=f1e99]:
+              - columnheader "文件" [ref=f1e100]
+              - columnheader "类型" [ref=f1e101]
+              - columnheader "SHA-256(前 12)" [ref=f1e102]
+              - columnheader "大小" [ref=f1e103]
+              - columnheader "上传时间" [ref=f1e104]
+              - columnheader "状态" [ref=f1e105]
+              - columnheader [ref=f1e106]
+          - rowgroup [ref=f1e107]:
+            - row [ref=f1e108] [cursor=pointer]:
+              - cell "粘贴文本_1015_095735.txt" [ref=f1e109]
+              - cell "TXT" [ref=f1e115]
+              - cell "4fb0cf839360" [ref=f1e117]
+              - cell "1 KB" [ref=f1e118]
+              - cell "2026-10-15 01:57" [ref=f1e119]
+              - cell "已解析" [ref=f1e120]
+              - cell [ref=f1e123]:
+                - button "删除材料" [ref=f1e124]
+            - row [ref=f1e128] [cursor=pointer]:
+              - cell "粘贴图片_1015_095747.png" [ref=f1e129]
+              - cell "PNG" [ref=f1e135]
+              - cell "c414cd0e204d" [ref=f1e137]
+              - cell "1 KB" [ref=f1e138]
+              - cell "2026-10-15 01:57" [ref=f1e139]
+              - cell "图片 · 无文本" [ref=f1e140]
+              - cell [ref=f1e143]:
+                - button "删除材料" [ref=f1e144]
+  - generic [ref=f1e162]:
+    - generic [ref=f1e163]: "!"
+    - text: 被规则 R-TEST 引用,先处理规则出处再删除
+  - generic [ref=f1e165]:
+    - generic [ref=f1e166]: "!"
+    - text: 被规则 R-TEST 引用,先处理规则出处再删除
+  - generic [ref=f1e168]:
+    - generic [ref=f1e169]: "!"
+    - text: 被规则 R-TEST 引用,先处理规则出处再删除
+  - dialog [ref=f1e149]:
+    - generic [ref=f1e150]:
+      - heading "删除材料" [level=3] [ref=f1e151]
+      - button "关闭" [ref=f1e152] [cursor=pointer]
+    - generic [ref=f1e155]:
+      - paragraph [ref=f1e156]: 确定删除 粘贴图片_1015_095747.png ?
+      - paragraph [ref=f1e157]: 删除后不可恢复;已定稿版本的快照不受影响。被规则引用时将拒绝删除。
+    - generic [ref=f1e158]:
+      - button "取消" [ref=f1e159] [cursor=pointer]
+      - button "删除" [active] [ref=f1e160] [cursor=pointer]
