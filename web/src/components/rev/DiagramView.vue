@@ -6,7 +6,8 @@ import mermaid from 'mermaid'
 const props = defineProps<{ flows?: string[]; source?: string; title?: string }>()
 
 mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false } })
-let seq = 0
+// 每实例随机 uid:组件级 seq 会让多张图 SVG id 相同,内嵌 #id 样式与箭头 marker 全局冲突(节点重叠/错位根因)
+const uid = 'mmd-' + Math.random().toString(36).slice(2, 10)
 
 const code = computed(() => {
   if (props.source) return props.source.replace(/^\s*```(mermaid)?|```\s*$/g, '').trim()
@@ -35,7 +36,7 @@ watchEffect(async () => {
   if (!src) return
   failed.value = false
   try {
-    const { svg: out } = await mermaid.render(`mmd-${++seq}`, src)
+    const { svg: out } = await mermaid.render(uid, src)
     svg.value = out
   } catch {
     failed.value = true

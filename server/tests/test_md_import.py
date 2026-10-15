@@ -76,7 +76,7 @@ flowchart LR
 
 
 def test_convert_chapters_and_hierarchy():
-    p = md_to_payload(MD, {})
+    p, qs = md_to_payload(MD, {})
     ids = {c['id']: c for c in (c.model_dump() for c in p.chapters)}
     assert ids['c3-1']['parent'] == 'c3'          # ### N.M 挂 ## N
     assert ids['c5-0']['parent'] == 'c5'
@@ -84,7 +84,7 @@ def test_convert_chapters_and_hierarchy():
 
 
 def test_rule_three_formats_and_inline_clean():
-    p = md_to_payload(MD, {3: mat()})
+    p, qs = md_to_payload(MD, {3: mat()})
     r = {k: v.model_dump() for k, v in p.rules.items()}
     # 三种行格式:- **编号** / - 编号 / 1. 编号（标签）
     assert set(r) == {'GP-01', 'FR-101', 'NFR-01'}
@@ -95,7 +95,7 @@ def test_rule_three_formats_and_inline_clean():
 
 
 def test_quote_auto_match_and_material():
-    p = md_to_payload(MD, {3: mat()})
+    p, qs = md_to_payload(MD, {3: mat()})
     r = {k: v.model_dump() for k, v in p.rules.items()}
     assert r['FR-101']['material_id'] == 3
     matched = [k for k, v in r.items() if v['quote']]
@@ -104,16 +104,16 @@ def test_quote_auto_match_and_material():
 
 
 def test_rules_meta_override():
-    p = md_to_payload(MD, {3: mat()},
-                      rules_meta={"FR-101": {"violation": "开关开启却未校验短信即放行",
-                                              "quote": "登录时需同时进行密码与短信验证码校验"}})
+    p, qs = md_to_payload(MD, {3: mat()},
+                          rules_meta={"FR-101": {"violation": "开关开启却未校验短信即放行",
+                                                  "quote": "登录时需同时进行密码与短信验证码校验"}})
     r = {k: v.model_dump() for k, v in p.rules.items()}
     assert r['FR-101']['violation'] == '开关开启却未校验短信即放行'
     assert r['FR-101']['quote'] in MATERIAL
 
 
 def test_violation_fallback_not_equal_text():
-    p = md_to_payload(MD, {})
+    p, qs = md_to_payload(MD, {})
     r = {k: v.model_dump() for k, v in p.rules.items()}
     for v in r.values():
         assert v['violation'].strip()              # 模板兜底非空
@@ -121,7 +121,7 @@ def test_violation_fallback_not_equal_text():
 
 
 def test_blocks_table_para_figure_mermaid():
-    p = md_to_payload(MD, {3: mat()})
+    p, qs = md_to_payload(MD, {3: mat()})
     d = [c.model_dump() for c in p.chapters]
     user_tbl = [b for c in d if c['title'] == '用户类清单' for b in c['blocks'] if b['type'] == 'table']
     assert user_tbl and user_tbl[0]['rows'][0][0] == '登录用户'
@@ -133,7 +133,7 @@ def test_blocks_table_para_figure_mermaid():
 
 
 def test_glossary_from_term_section():
-    p = md_to_payload(MD, {})
+    p, qs = md_to_payload(MD, {})
     names = [g.name for g in p.glossary]
     assert '短信验证码' in names and '短信验证码开关' in names
 
@@ -145,7 +145,7 @@ def test_match_quote_threshold():
 
 def test_container_parent_not_shell():  # 容器父章(仅子章)经 validators 不再出空壳题
     from app.services.validators import check_draft
-    p = md_to_payload(MD, {3: mat()})
+    p, qs = md_to_payload(MD, {3: mat()})
     rpt = check_draft(p, rules_existing={}, materials={3: mat()}, terms=set())
     shells = [q for q in rpt.auto_questions if '没有任何正文与规则' in q.payload['q']]
     assert not shells
@@ -166,9 +166,32 @@ flowchart LR
   SYS --> EXT[外部系统]
 ```
 """
-    p = md_to_payload(md, {})
+    p, _ = md_to_payload(md, {})
     d = [c.model_dump() for c in p.chapters]
     fig = next(b for c in d for b in c['blocks'] if b['type'] == 'figure')
     assert fig['flows'] == ['打开登录页 → 校验 → 登录成功', '未过期 → 进入系统']  # 续行合并
     dg = next(b for c in d for b in c['blocks'] if b['type'] == 'diagram')
     assert 'U[登录用户]' in dg['text'] and 'SYS[风控云]' in dg['text']  # mermaid 源码原样保留
+
+
+def test_questions_extracted_from_appendix():
+    md = """## 5 需求主体
+
+- FR-101 短信验证码开关开启时必须同时填写短信验证码。
+
+## 附录 A 待确认问题清单
+
+**TBD-01（填空）** 上线后用什么可度量指标判定成功？素材无量化口径。
+**TBD-04（选择）** 密码复杂度校验（FR-306）的适用范围：A. 仅过期强制改密；B. 所有改密入口。
+**TBD-06（确认）** 我理解「超过配置周期」= 90 自然日——对吗？
+
+## 附录 B 自查报告
+
+查 1 无发现。
+"""
+    p, qs = md_to_payload(md, {})
+    assert [q["kind"] for q in qs] == ["fill", "choice", "confirm"]
+    assert qs[0]["payload"]["klabel"] == "待确认 TBD-01"
+    assert qs[1]["anchor"].get("rule_no") is None or "FR-306" == qs[1]["anchor"].get("rule_no")
+    assert not any('附录' in c.title for c in p.chapters)          # 附录不进正文
+    assert any(c.rule_nos == ['FR-101'] for c in p.chapters)

@@ -188,7 +188,6 @@ function onClickBody(e: MouseEvent) {
           <span class="rno" :data-rule="rule.no" title="点击查看可判定表述与出处">{{ rule.no }}</span>
           <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
           <p v-html="rule.html" />
-          <span class="rv" :title="'违反判定'">{{ (det(rule.no)?.violation ?? '').slice(0, 14) || '—' }}</span>
           <!-- 规则详情 popover -->
           <div v-if="openRule === rule.no" class="popover" style="position: static; margin: 6px 0 0 46px; width: auto">
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px">

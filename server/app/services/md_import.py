@@ -148,6 +148,10 @@ def md_to_payload(md: str, materials: dict[int, object],
     for raw in lines:
         ln = raw.rstrip('\n')
 
+        if fence_lang == 'skip' and re.match(r'^##\s+\d', ln):
+            in_fence = False; fence_lang = ''   # 附录结束:回到正常编号二级标题
+        if in_fence and fence_lang == 'skip':
+            continue
         fm = re.match(r'^```(\w+)?\s*$', ln.strip())
         if fm:
             flush_para()
@@ -163,6 +167,9 @@ def md_to_payload(md: str, materials: dict[int, object],
             fence_buf.append(ln)
             continue
 
+        if ln.startswith('#') and '附录' in ln:
+            flush_para(); flush_table(); in_fence = True; fence_lang = 'skip'   # 附录整节跳过
+            continue
         m = _HEADING.match(ln)
         level = None
         if m:
@@ -217,7 +224,7 @@ def md_to_payload(md: str, materials: dict[int, object],
         para_buf.append(st)
     flush_para(); flush_table(); flush_fence()
 
-    return DocPayload.model_validate({
+    payload = DocPayload.model_validate({
         "meta": {"version": "draft", "date": date.today().isoformat(),
                  "scope": _clean_inline(next((l.strip('# ') for l in lines if l.startswith('# ')), ''))[:200]},
         "overview": {"intent": "", "boundary": ""},
@@ -226,3 +233,24 @@ def md_to_payload(md: str, materials: dict[int, object],
         "chapters": chapters,
         "rules": rules,
     })
+    return payload, _extract_questions(md)
+
+
+_TBD_LINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$', re.M)
+_KIND = {"填空": "fill", "确认": "confirm", "选择": "choice"}
+
+
+def _extract_questions(md: str) -> list[dict]:
+    """附录 A 待确认问题清单 → 批注元素 {kind, payload{klabel,q}, anchor}。
+    题面提到的规则号尽量锚定;附录本体与修改记录不进文档正文(由调用方跳过渲染)。"""
+    out = []
+    for no, ktype, q in _TBD_LINE.findall(md):
+        anchor = {"chapter_id": "", "seg": no}
+        m = re.search(r'((?:GP|FR|NFR)-[A-Za-z0-9-]+)', q)
+        if m:
+            anchor["rule_no"] = m.group(1)
+        out.append({"kind": _KIND[ktype],
+                    "payload": {"klabel": f"待确认 {no}", "q": q.strip(),
+                                "ctx": "md 导入:附录 A 待确认问题清单"},
+                    "anchor": anchor})
+    return out

@@ -71,8 +71,28 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
     materials = {
         m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
     }
-    payload = md_to_payload(body.markdown, materials, body.rules_meta)
-    return _persist_draft(db, pid, payload)
+    payload, questions = md_to_payload(body.markdown, materials, body.rules_meta)
+    out = _persist_draft(db, pid, payload)
+    # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
+    if questions:
+        existing = {(q.kind, q.payload.get("q", "")) for q in db.exec(
+            select(Question).where(Question.project_id == pid)).all()}
+        titles = {c["id"]: c["title"] for c in payload.model_dump()["chapters"]}
+        for q in questions:
+            key = (q["kind"], q["payload"]["q"])
+            if key in existing:
+                continue
+            existing.add(key)
+            anchor = dict(q["anchor"])
+            if anchor.get("rule_no") and not anchor.get("chapter_id"):
+                for ch in payload.model_dump()["chapters"]:
+                    if anchor["rule_no"] in ch["rule_nos"]:
+                        anchor["chapter_id"] = ch["id"]
+                        break
+            db.add(Question(project_id=pid, kind=q["kind"], payload=q["payload"],
+                            anchor=anchor, status="pending", source="agent"))
+        db.commit()
+    return out
 
 
 @router.post("/draft")
