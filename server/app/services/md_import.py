@@ -236,20 +236,32 @@ def md_to_payload(md: str, materials: dict[int, object],
     return payload, _extract_questions(md)
 
 
-_TBD_LINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$', re.M)
+_TBD_INLINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$')          # 行内题型(云风控式)
+_TBD_GROUPED = re.compile(r'^-\s*\*\*(TBD-\d+)[^*]*\*\*[:：]\s*(.+)$')                 # 分组题型(瀚海式)
+_GROUP_TITLE = re.compile(r'^#{2,4}\s*(填空|选择|确认)')
 _KIND = {"填空": "fill", "确认": "confirm", "选择": "choice"}
 
 
 def _extract_questions(md: str) -> list[dict]:
     """附录 A 待确认问题清单 → 批注元素 {kind, payload{klabel,q}, anchor}。
-    题面提到的规则号尽量锚定;附录本体与修改记录不进文档正文(由调用方跳过渲染)。"""
-    out = []
-    for no, ktype, q in _TBD_LINE.findall(md):
+    兼容两种写法:行内题型「**TBD-01（填空）** 题」与分组题型「### 填空题」下的「- **TBD-01 标题**：题」。
+    题面提到的规则号尽量锚定;附录本体不进文档正文(由调用方跳过渲染)。"""
+    out, group_kind = [], "fill"
+    for ln in md.splitlines():
+        st = ln.strip()
+        gm = _GROUP_TITLE.match(st)
+        if gm:
+            group_kind = _KIND[gm.group(1)]
+            continue
+        m = _TBD_INLINE.match(st) or _TBD_GROUPED.match(st)
+        if not m:
+            continue
+        no, ktype, q = m.group(1), (m.group(2) if m.lastindex == 3 else group_kind), m.group(m.lastindex)
         anchor = {"chapter_id": "", "seg": no}
-        m = re.search(r'((?:GP|FR|NFR)-[A-Za-z0-9-]+)', q)
-        if m:
-            anchor["rule_no"] = m.group(1)
-        out.append({"kind": _KIND[ktype],
+        rm = re.search(r'((?:GP|FR|NFR)-[A-Za-z0-9-]+)', q)
+        if rm:
+            anchor["rule_no"] = rm.group(1)
+        out.append({"kind": _KIND[ktype] if ktype in _KIND else ktype,
                     "payload": {"klabel": f"待确认 {no}", "q": q.strip(),
                                 "ctx": "md 导入:附录 A 待确认问题清单"},
                     "anchor": anchor})
