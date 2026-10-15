@@ -78,6 +78,12 @@ def md_to_payload(md: str, materials: dict[int, object],
                 cur['blocks'].append({"type": "diagram", "text": src})   # 源码原样入库,前端 mermaid 渲染
             fence_buf.clear()
             return
+        if not fence_lang and '┌' in ''.join(fence_buf):
+            # ASCII 盒子图:非 mermaid 语法,进 diagram 块后渲染必失败 → 降级等宽源码(换行/对齐保留)
+            src = '\n'.join(x.rstrip() for x in fence_buf).strip('\n')
+            cur['blocks'].append({"type": "diagram", "text": src})
+            fence_buf.clear()
+            return
         flows: list[str] = []
         for raw in fence_buf:
             st = re.sub(r'[│┌┐└┘├┤┬┴┼─]+', ' ', raw)               # 盒线字符剥除

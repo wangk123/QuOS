@@ -175,7 +175,7 @@ table.tbl{width:100%;border-collapse:collapse}
 .docpaper{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:34px 42px 44px;margin:0 auto;max-width:820px;transition:max-width .2s ease;display:flex;align-items:flex-start}
 .docpaper .doc-main{flex:1;min-width:0;padding-left:18px}
 /* 目录随正文同框:pinned 常驻时卡片左栏 sticky 固定、正文收缩让位 */
-.doc-toc{flex:none;width:218px;margin:-10px 0 -10px -16px;padding:10px 0 10px 4px;border-right:1px solid var(--border);position:sticky;top:0;max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain}
+.doc-toc{flex:none;width:218px;margin:-10px 0 -10px -16px;padding:10px 0 10px 4px;border-right:1px solid var(--border);position:sticky;top:0;max-height:calc(100vh - 130px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
 /* hover 悬浮浮层:负边距抵消占位(不挤正文),左缘盖住把手位置(光标无缝落入面板,mouseleave 才可靠),sticky 跟随滚动 */
 .doc-toc.hover{width:230px;margin:-12px -200px -12px -42px;border:1px solid var(--border);border-left:none;border-radius:0 10px 10px 0;background:var(--card);box-shadow:12px 0 28px rgba(16,24,40,.14),2px 0 8px rgba(16,24,40,.06);z-index:30}
 .rev-body.wide .docpaper{max-width:1140px}
