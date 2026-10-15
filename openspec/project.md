@@ -30,6 +30,6 @@ AI 加工完全外部化:外部 agent 结合项目内 skill(`.agents/skills/`)�
 
 ## 权威文档
 
-- 需求基线:`docs/requirements.md`(v1 遗留,随 v2 实施逐步替换)
+- 需求基线:`docs/requirements.md`(v2.0.0,2026-10-15 按 specs 现状重组;specs 为行为权威,本文为人的阅读基线)
 - 开发规范:`docs/development.md`
 - 架构决策:`docs/adr/`
