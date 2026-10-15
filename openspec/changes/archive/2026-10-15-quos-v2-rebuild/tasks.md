@@ -1,6 +1,6 @@
 # QuOS v2 平台重建 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 推倒重做 QuOS 为「接口 + 两级校验 + 批注式评审 + 版本管理」的平台,AI 加工外部化,前端照已定稿原型还原。
 
@@ -64,11 +64,11 @@ web/src/                      # Vue3 重写:router/侧栏骨架/项目总览/材
 **Interfaces:**
 - Produces: `engine`/`get_session()`(db.py);8 个 SQLModel 类 `Project/Material/DocDraft/DocVersion/ChangeLog/Question/Rule/Term`(字段严格按 design §4.2+§6:Question.anchor 平铺 `{chapter_id, rule_no?, seg?, chapter?}`,全部表含 created_at);payload pydantic:`DocPayload{meta, overview, glossary, new_terms, chapters, rules}`、`RuleInPayload{no, text, violation, quote, material_id, status, replaced_by}`——后续所有任务的输入契约。
 
-- [ ] **Step 1: 清场与依赖**
+- [x] **Step 1: 清场与依赖**
 
 保留 v1 的 `server/data/`(原始材料作验收用例,但删除各项目已生成的 json/md/git 仓库,只留 `evidence/files` 下的原始文件移至 `server/data/raw-backup/`);删除 `server/app/`、`server/tests/`、`server/reports/` 全部旧代码。`uv add sqlmodel python-multipart && uv remove pymysql && uv add --group dev pytest httpx`,`uv sync` 通过。
 
-- [ ] **Step 2: 写模型测试(先失败)**
+- [x] **Step 2: 写模型测试(先失败)**
 
 ```python
 # tests/test_models.py 关键断言
@@ -86,13 +86,13 @@ def test_docpayload_roundtrip():
 
 Run: `uv run pytest tests/test_models.py -v` → FAIL(模块不存在)
 
-- [ ] **Step 3: 实现 db.py / models.py / main.py / conftest.py**
+- [x] **Step 3: 实现 db.py / models.py / main.py / conftest.py**
 
 db.py: `create_engine(f"sqlite:///{DATA}/quos.db", connect_args=...)` + `PRAGMA journal_mode=WAL` event;conftest 用 in-memory engine + `create_all`(每测试独立库);main.py 挂 CORS(`http://localhost:5173`)与 `/api/v1/health`。
 
-- [ ] **Step 4: 跑测试通过** → `uv run pytest tests/test_models.py -v` PASS
+- [x] **Step 4: 跑测试通过** → `uv run pytest tests/test_models.py -v` PASS
 
-- [ ] **Step 5: Commit** `feat:v2 脚手架——SQLModel 8 表与 payload 契约`
+- [x] **Step 5: Commit** `feat:v2 脚手架——SQLModel 8 表与 payload 契约`
 
 ---
 
@@ -105,11 +105,11 @@ db.py: `create_engine(f"sqlite:///{DATA}/quos.db", connect_args=...)` + `PRAGMA 
 **Interfaces:**
 - Produces: `GET/POST/PATCH /api/v1/projects`、`POST /api/v1/projects/{id}/archive|restore`;总览字段 `stats{materials, pending_annos, version, draft_status}`(前端项目总览页与侧栏徽标消费)。
 
-- [ ] **Step 1: 失败测试**——`test_projects.py`:建项目(名称必填,空名 422)、改名、归档后列表默认不现/归档视图现、恢复;总览在空项目时 `stats={materials:0, pending_annos:0, version:null, draft_status:null}`。
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现** router + 简单聚合查询(材料数=count、待答=count pending、版本=最新 DocVersion.ver、草案=reviewing 存在性)。
-- [ ] **Step 4: 跑过** → PASS
-- [ ] **Step 5: Commit** `feat:项目 CRUD/归档/总览 API`
+- [x] **Step 1: 失败测试**——`test_projects.py`:建项目(名称必填,空名 422)、改名、归档后列表默认不现/归档视图现、恢复;总览在空项目时 `stats={materials:0, pending_annos:0, version:null, draft_status:null}`。
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现** router + 简单聚合查询(材料数=count、待答=count pending、版本=最新 DocVersion.ver、草案=reviewing 存在性)。
+- [x] **Step 4: 跑过** → PASS
+- [x] **Step 5: Commit** `feat:项目 CRUD/归档/总览 API`
 
 ---
 
@@ -123,11 +123,11 @@ db.py: `create_engine(f"sqlite:///{DATA}/quos.db", connect_args=...)` + `PRAGMA 
 - Produces: `extract(file_bytes, mime) -> str`;`POST /api/v1/projects/{pid}/materials`(multipart,响应含 id/filename/type/sha256/size/parsed_text/created_at)、`GET .../materials`(列表,agent 消费口)。
 - Consumes: Task1 模型、Task2 项目存在性(404)。
 
-- [ ] **Step 1: 失败测试**——上传 PDF:parsed_text 非空且含 PDF 内文本;上传 png:parsed_text==""(不报错);**同内容二次上传 → 409,响应带原 material id**;上传到不存在项目 → 404。
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现**——sha256 流式计算;落盘 `data/{pid}/materials/{sha256}{ext}`(同 hash 直接 409 不重写);extract 按 mime 分派(pypdf 提文本/md/txt utf-8 decode/其他文本类尽力;img 返回空串)。
-- [ ] **Step 4: 跑过** → PASS
-- [ ] **Step 5: Commit** `feat:材料上传/hash 去重/解析入库`
+- [x] **Step 1: 失败测试**——上传 PDF:parsed_text 非空且含 PDF 内文本;上传 png:parsed_text==""(不报错);**同内容二次上传 → 409,响应带原 material id**;上传到不存在项目 → 404。
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现**——sha256 流式计算;落盘 `data/{pid}/materials/{sha256}{ext}`(同 hash 直接 409 不重写);extract 按 mime 分派(pypdf 提文本/md/txt utf-8 decode/其他文本类尽力;img 返回空串)。
+- [x] **Step 4: 跑过** → PASS
+- [x] **Step 5: Commit** `feat:材料上传/hash 去重/解析入库`
 
 ---
 
@@ -144,7 +144,7 @@ db.py: `create_engine(f"sqlite:///{DATA}/quos.db", connect_args=...)` + `PRAGMA 
   - `Err{code, rule_no, detail}`;`AutoQ{kind, payload{klabel,q,ctx}, anchor}`(软警告→批注草稿,含 new_terms→confirm、术语写法不一致→confirm、violation 雷同→confirm、章节零规则/状态机空→fill)
 - Consumes: Task1 DocPayload。
 
-- [ ] **Step 1: 失败测试(必须覆盖 Review Focus 1-3)**
+- [x] **Step 1: 失败测试(必须覆盖 Review Focus 1-3)**
 
 ```python
 def test_normalize_handles_pdf_noise():
@@ -162,10 +162,10 @@ def test_voided_rule_requires_replaced_by(): ...
 def test_soft_terms_and_violation_clone(): ...       # new_terms→confirm;violation==text→confirm
 ```
 
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现**(纯函数,无 IO;唯一准许的库:标准库 difflib/unicodedata)
-- [ ] **Step 4: 跑过** → PASS;**加一条用真实 `server/data/raw-backup/` 内某 PDF 的解析文本做 locate_quote 的测试**(验收硬门槛锚定)
-- [ ] **Step 5: Commit** `feat:两级校验器——归一化定位/编号口径/软警告转批注`
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现**(纯函数,无 IO;唯一准许的库:标准库 difflib/unicodedata)
+- [x] **Step 4: 跑过** → PASS;**加一条用真实 `server/data/raw-backup/` 内某 PDF 的解析文本做 locate_quote 的测试**(验收硬门槛锚定)
+- [x] **Step 5: Commit** `feat:两级校验器——归一化定位/编号口径/软警告转批注`
 
 ---
 
@@ -179,11 +179,11 @@ def test_soft_terms_and_violation_clone(): ...       # new_terms→confirm;viola
 - Produces: `GET .../doc/baseline`(无定稿 `{"empty":true}`);`GET .../doc/draft`(reviewing 草案 payload+check_report,无则 empty);`GET .../doc/versions`;`POST .../doc/draft`——硬错误整体拒收(422,响应 `{hard_errors:[...]}`,不入库、**覆盖旧 reviewing 旧草案 pending 批注 withdrawn、answered 保留**)、通过则入库 reviewing 并落 soft 转出的自动批注(source=auto,带 anchor,题型+关键内容去重);同项目已有 reviewing 时新提交覆盖(事务内:旧草案置 superseded、其 pending 全 withdrawn)。
 - Consumes: Task4 check_draft。
 
-- [ ] **Step 1: 失败测试**——空项目 baseline empty;合法草案入库 reviewing + check_report;quote 不可定位 → 422 + hard_errors 含该 rule_no + nearest 片段 + 草案未入库;**覆盖语义**:旧草案 pending 批注(含 auto 与 agent 两种 source)→ withdrawn,answered 批注仍可 GET status=answered 查到(跨草案存续);重复编号(草案内)→ 422;material_id 不存在 → 422 单列错误码。
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现**(draft POST 全程单 session 事务)
-- [ ] **Step 4: 跑过** → PASS
-- [ ] **Step 5: Commit** `feat:基线/草案 API——校验闸门与覆盖语义`
+- [x] **Step 1: 失败测试**——空项目 baseline empty;合法草案入库 reviewing + check_report;quote 不可定位 → 422 + hard_errors 含该 rule_no + nearest 片段 + 草案未入库;**覆盖语义**:旧草案 pending 批注(含 auto 与 agent 两种 source)→ withdrawn,answered 批注仍可 GET status=answered 查到(跨草案存续);重复编号(草案内)→ 422;material_id 不存在 → 422 单列错误码。
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现**(draft POST 全程单 session 事务)
+- [x] **Step 4: 跑过** → PASS
+- [x] **Step 5: Commit** `feat:基线/草案 API——校验闸门与覆盖语义`
 
 ---
 
@@ -196,11 +196,11 @@ def test_soft_terms_and_violation_clone(): ...       # new_terms→confirm;viola
 - Produces: `POST .../questions`(批量,元素含 kind/payload/anchor;choice 校验 ≥2 选项、fill 必有题干,违者 422;batch_id 平台生成随响应返回;source=agent);`GET .../questions?status=pending|answered`(返回含 anchor/answer/answered_at);`POST /api/v1/questions/{qid}/answer`(answer 按题型:choice=选项 key / confirm=bool+note / fill=文本 / scan=逐项 dict;答后 pending→answered)。
 - Consumes: Task5 draft(批注挂 draft_id)。
 
-- [ ] **Step 1: 失败测试**——批量提交 3 条返回同 batch_id;choice 仅 1 选项 422;answer fill 文本后 GET answered 含该文本;不存在 qid → 404。
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现**
-- [ ] **Step 4: 跑过** → PASS
-- [ ] **Step 5: Commit** `feat:批注 API——批量提交/anchor/作答`
+- [x] **Step 1: 失败测试**——批量提交 3 条返回同 batch_id;choice 仅 1 选项 422;answer fill 文本后 GET answered 含该文本;不存在 qid → 404。
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现**
+- [x] **Step 4: 跑过** → PASS
+- [x] **Step 5: Commit** `feat:批注 API——批量提交/anchor/作答`
 
 ---
 
@@ -214,7 +214,7 @@ def test_soft_terms_and_violation_clone(): ...       # new_terms→confirm;viola
 - Produces: `POST .../doc/finalize` `{draft_id, version, note}` → 快照入库、ChangeLog 生成、Rule/Term 同步、auto 未答 withdrawn、draft→finalized;`POST .../doc/revert` `{version}` → 基线指针切换(历史保留);`GET .../changes?version=`。
 - Consumes: 全部前序。
 
-- [ ] **Step 1: 失败测试(Review Focus 4-6)**
+- [x] **Step 1: 失败测试(Review Focus 4-6)**
 
 ```python
 def test_finalize_custom_version_dup_409(): ...        # v2 已存在再发 v2 → 409
@@ -227,10 +227,10 @@ def test_revert_switches_baseline_not_delete(): ...    # revert v2 后 baseline=
 def test_changelog_only_rule_level(): ...              # 章节文本改动不产生 ChangeLog
 ```
 
-- [ ] **Step 2: 跑失败** → FAIL
-- [ ] **Step 3: 实现** snapshots.py(发版全程事务)
-- [ ] **Step 4: 跑过 + 后端全量回归** `uv run pytest -v` 全绿
-- [ ] **Step 5: Commit** `feat:发版——自定义版本号/变更记录/Term 重建/回退`
+- [x] **Step 2: 跑失败** → FAIL
+- [x] **Step 3: 实现** snapshots.py(发版全程事务)
+- [x] **Step 4: 跑过 + 后端全量回归** `uv run pytest -v` 全绿
+- [x] **Step 5: Commit** `feat:发版——自定义版本号/变更记录/Term 重建/回退`
 
 ---
 
@@ -243,9 +243,9 @@ def test_changelog_only_rule_level(): ...              # 章节文本改动不�
 **Interfaces:**
 - Produces: 路由 `#/projects`、`#/p/:pid/(materials|review|versions)`;`api.ts` 导出 typed fetch 封装(后续页共用);SideBar 消费 `GET /projects`(项目树+子导航+待答徽标)。
 
-- [ ] **Step 1: 实现**(样式全部取自原型 `:root` token 与侧栏/表格 CSS,中文注释)
-- [ ] **Step 2: 真机验收**——起后端+`npx vite dev`,强刷走查:项目列表/新建(空名前端拦截)/编辑/输名归档/恢复/归档 tab,对照原型逐项
-- [ ] **Step 3: Commit** `feat:前端骨架——侧栏项目树与项目总览页`
+- [x] **Step 1: 实现**(样式全部取自原型 `:root` token 与侧栏/表格 CSS,中文注释)
+- [x] **Step 2: 真机验收**——起后端+`npx vite dev`,强刷走查:项目列表/新建(空名前端拦截)/编辑/输名归档/恢复/归档 tab,对照原型逐项
+- [x] **Step 3: Commit** `feat:前端骨架——侧栏项目树与项目总览页`
 
 ---
 
@@ -254,9 +254,9 @@ def test_changelog_only_rule_level(): ...              # 章节文本改动不�
 **Files:**
 - Create: `web/src/views/MaterialsView.vue`、`web/src/components/MatDrawer.vue`
 
-- [ ] **Step 1: 实现**——上传区(拖拽+点击,响应 409 时 toast「已存在」指向原记录)、表格、行点击 drawer 展 parsed_text
-- [ ] **Step 2: 真机验收**——PDF/图片各传一份,解析状态流转,对照原型
-- [ ] **Step 3: Commit** `feat:材料页——上传/去重提示/解析预览`
+- [x] **Step 1: 实现**——上传区(拖拽+点击,响应 409 时 toast「已存在」指向原记录)、表格、行点击 drawer 展 parsed_text
+- [x] **Step 2: 真机验收**——PDF/图片各传一份,解析状态流转,对照原型
+- [x] **Step 3: Commit** `feat:材料页——上传/去重提示/解析预览`
 
 ---
 
@@ -269,12 +269,12 @@ def test_changelog_only_rule_level(): ...              # 章节文本改动不�
 - Consumes: `GET doc/draft`+`GET questions?status=pending`+`POST questions/{id}/answer`;组件 props/emits 由 ReviewView 统一编排。
 - 实现纪律(原型踩坑):输入类作答局部更新保焦点;列表重渲染后节点先取引用再挂事件(Vue 响应式天然规避,但批注卡局部更新逻辑照此思路)。
 
-- [ ] **Step 1: 实现三栏骨架**——固定视口独立滚动、页宽三档(MoreMenu 图形化选项)、工具条(草案状态+摘要+定稿发版+⋮);**无 reviewing 草案时渲染当前基线只读态**(复用三栏,工具条隐藏发版钮,版本下拉可切)
-- [ ] **Step 2: 实现正文渲染**——章节/批注高亮(未答琥珀、已答绿)/规则编号 popover(violation+quote+材料 hash)/章节缺口红字关联批注
-- [ ] **Step 3: 实现批注栏**——按章节分组、默认折叠(问题首行+编号·类型 meta)、展开作答四题型控件、定位按钮双向联动滚动高亮、答完自动收起转绿+正文同步、重新作答、对照/逐条两模式
-- [ ] **Step 4: 实现定稿发版弹窗**——自定义版本号(默认建议值、重复 409 前端提示)+发版说明+未处理批注数提示;确认后跳版本页
-- [ ] **Step 5: 真机验收**——对照原型逐屏:三栏滚动隔离、批注全交互、页宽、模式切换、发版流转
-- [ ] **Step 6: Commit** `feat:文档评审页——批注式评审照原型还原`
+- [x] **Step 1: 实现三栏骨架**——固定视口独立滚动、页宽三档(MoreMenu 图形化选项)、工具条(草案状态+摘要+定稿发版+⋮);**无 reviewing 草案时渲染当前基线只读态**(复用三栏,工具条隐藏发版钮,版本下拉可切)
+- [x] **Step 2: 实现正文渲染**——章节/批注高亮(未答琥珀、已答绿)/规则编号 popover(violation+quote+材料 hash)/章节缺口红字关联批注
+- [x] **Step 3: 实现批注栏**——按章节分组、默认折叠(问题首行+编号·类型 meta)、展开作答四题型控件、定位按钮双向联动滚动高亮、答完自动收起转绿+正文同步、重新作答、对照/逐条两模式
+- [x] **Step 4: 实现定稿发版弹窗**——自定义版本号(默认建议值、重复 409 前端提示)+发版说明+未处理批注数提示;确认后跳版本页
+- [x] **Step 5: 真机验收**——对照原型逐屏:三栏滚动隔离、批注全交互、页宽、模式切换、发版流转
+- [x] **Step 6: Commit** `feat:文档评审页——批注式评审照原型还原`
 
 ---
 
@@ -283,9 +283,9 @@ def test_changelog_only_rule_level(): ...              # 章节文本改动不�
 **Files:**
 - Create: `web/src/views/VersionsView.vue`、`web/src/components/ChangeRow.vue`
 
-- [ ] **Step 1: 实现**——时间线(草案评审中+历史定稿)、变更 diff 展开(新增/修改/作废+reason+approver)、「回退到此版」确认弹窗
-- [ ] **Step 2: 真机验收**——发一版看 diff,回退后基线切换,对照原型
-- [ ] **Step 3: Commit** `feat:版本页——时间线/变更 diff/回退`
+- [x] **Step 1: 实现**——时间线(草案评审中+历史定稿)、变更 diff 展开(新增/修改/作废+reason+approver)、「回退到此版」确认弹窗
+- [x] **Step 2: 真机验收**——发一版看 diff,回退后基线切换,对照原型
+- [x] **Step 3: Commit** `feat:版本页——时间线/变更 diff/回退`
 
 ---
 
@@ -294,15 +294,15 @@ def test_changelog_only_rule_level(): ...              # 章节文本改动不�
 **Files:**
 - Modify: `.agents/skills/req-organize/SKILL.md`(增补「平台对接」章节:五+二接口清单与调用顺序、校验报告处理纪律、断点续跑约定、payload 与 DocPayload 对齐)、`README.md`(架构图与启动说明 v2 化)、`docs/requirements.md`(头部标注 v2 基线指向)
 
-- [ ] **Step 1: 增补 skill 平台对接章节**(接口以 Task5/6/7 实测路由为准)
-- [ ] **Step 2: 端到端验收(design §2 Goals)**——`server/data/raw-backup/` 多模态原始材料:建项目→上传→agent 按 req-organize 加工(真实会话执行)→draft 过闸(至少触发一次硬错误修正重交与一次软警告转批注)→平台批注评审作答→agent 取答案收敛重交→人自定义号发版→版本页核对 ChangeLog/diff→回退演练;全程人只在闸门
-- [ ] **Step 3: 全量回归**——`uv run pytest -v` 全绿;前端真机四页走查
-- [ ] **Step 4: Commit** `feat:v2 M1 端到端闭环——skill 对接与验收`
+- [x] **Step 1: 增补 skill 平台对接章节**(接口以 Task5/6/7 实测路由为准)
+- [x] **Step 2: 端到端验收(design §2 Goals)**——`server/data/raw-backup/` 多模态原始材料:建项目→上传→agent 按 req-organize 加工(真实会话执行)→draft 过闸(至少触发一次硬错误修正重交与一次软警告转批注)→平台批注评审作答→agent 取答案收敛重交→人自定义号发版→版本页核对 ChangeLog/diff→回退演练;全程人只在闸门
+- [x] **Step 3: 全量回归**——`uv run pytest -v` 全绿;前端真机四页走查
+- [x] **Step 4: Commit** `feat:v2 M1 端到端闭环——skill 对接与验收`
 
 ---
 
 ## 执行完检查单(收尾)
 
-- [ ] `openspec validate quos-v2-rebuild` 通过;specs 与实现无冲突(发现即同步)
-- [ ] 变更记录:`git log --oneline` 每任务一 commit
-- [ ] 分支 `feature/quos-v2-rebuild` 未合并;合并方式等用户指示(squash 单条)
+- [x] `openspec validate quos-v2-rebuild` 通过;specs 与实现无冲突(发现即同步)
+- [x] 变更记录:`git log --oneline` 每任务一 commit
+- [x] 分支 `feature/quos-v2-rebuild` 未合并;合并方式等用户指示(squash 单条)
