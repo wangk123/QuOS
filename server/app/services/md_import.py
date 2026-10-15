@@ -45,47 +45,6 @@ def match_quote(rule_text: str, material_text: str) -> str:
     return best if best_ratio >= _QUOTE_MIN_RATIO else ''
 
 
-def _mermaid_to_table(buf: list[str]) -> dict | None:
-    """mermaid 图(网状,flows 装不下)→连线表:flowchart 边与 erDiagram 关系统一为「从/关系/到」三列。"""
-    def disp(tok: str) -> str:
-        m = re.match(r'^([\w-]+)\[([^\]]*)\]$', tok.strip())
-        if m and m.group(2):
-            names[m.group(1)] = m.group(2)
-            return m.group(2)
-        if m:
-            return m.group(1)
-        return names.get(tok.strip(), tok.strip())
-
-    names: dict[str, str] = {}
-    for ln in buf:                                    # 先收节点声明:U[登录用户] → 登录用户
-        for nid, label in re.findall(r'(\w+)\[([^\]]+)\]', ln):
-            names[nid] = label
-
-    rows = []
-    for ln in buf:
-        st = ln.strip()
-        if not st or re.match(r'^(flowchart|graph|erDiagram|subgraph|end|direction)\b', st):
-            continue
-        m = (re.match(r'^(.+?)\s*(?:-+>|-\.->)\s*\|([^|]*)\|\s*(.+)$', st)      # A -->|label| B
-             or re.match(r'^(.+?)\s*--([^->][^-]*)-->\s*(.+)$', st)              # A --label--> B
-             or re.match(r'^(\S+)\s+(?:-+>|-\.->)\s+(\S+)$', st)                 # A --> B(无label)
-             or re.match(r'^(\w+)\s+([|}o]+\s*-\s*[|}o]+)\s+(\w+)\s*:\s*"?(.+?)"?\s*$', st))  # er: A ||--o{ B : rel
-        if not m:
-            continue
-        g = m.groups()
-        if len(g) == 2:                                                          # A --> B(无label)
-            rows.append([disp(g[0]), '→', disp(g[1])])
-        elif len(g) == 3:                                                        # flowchart 带 label
-            rows.append([disp(g[0]), g[1].strip() or '→', disp(g[2])])
-        else:                                                                    # er 行:4 组
-            rows.append([disp(g[0]), re.sub(r'\s+', '', g[3]), disp(g[2])])
-    if not rows:
-        src = ' '.join(x.strip() for x in buf if x.strip())
-        return {"type": "para", "text": '【图·源码】' + _clean_inline(src)[:500]} if src else None
-    return {"type": "table", "title": "图·连线表（网状图线性化）",
-            "columns": ["从", "关系", "到"], "rows": rows}
-
-
 def md_to_payload(md: str, materials: dict[int, object],
                   rules_meta: dict | None = None) -> DocPayload:
     """md → DocPayload。materials: {id: Material}(quote 自动匹配;空 dict 时 quote 全空走软警告)。
@@ -114,9 +73,15 @@ def md_to_payload(md: str, materials: dict[int, object],
             fence_buf.clear()
             return
         if fence_lang == 'mermaid':
-            tbl = _mermaid_to_table(fence_buf)
-            if tbl:
-                cur['blocks'].append(tbl)
+            src = '\n'.join(x.rstrip() for x in fence_buf).strip()
+            if src:
+                cur['blocks'].append({"type": "diagram", "text": src})   # 源码原样入库,前端 mermaid 渲染
+            fence_buf.clear()
+            return
+        if not fence_lang and '┌' in ''.join(fence_buf):
+            # ASCII 盒子图:非 mermaid 语法,进 diagram 块后渲染必失败 → 降级等宽源码(换行/对齐保留)
+            src = '\n'.join(x.rstrip() for x in fence_buf).strip('\n')
+            cur['blocks'].append({"type": "diagram", "text": src})
             fence_buf.clear()
             return
         flows: list[str] = []
@@ -189,6 +154,10 @@ def md_to_payload(md: str, materials: dict[int, object],
     for raw in lines:
         ln = raw.rstrip('\n')
 
+        if fence_lang == 'skip' and re.match(r'^##\s+\d', ln):
+            in_fence = False; fence_lang = ''   # 附录结束:回到正常编号二级标题
+        if in_fence and fence_lang == 'skip':
+            continue
         fm = re.match(r'^```(\w+)?\s*$', ln.strip())
         if fm:
             flush_para()
@@ -204,6 +173,9 @@ def md_to_payload(md: str, materials: dict[int, object],
             fence_buf.append(ln)
             continue
 
+        if ln.startswith('#') and '附录' in ln:
+            flush_para(); flush_table(); in_fence = True; fence_lang = 'skip'   # 附录整节跳过
+            continue
         m = _HEADING.match(ln)
         level = None
         if m:
@@ -258,7 +230,7 @@ def md_to_payload(md: str, materials: dict[int, object],
         para_buf.append(st)
     flush_para(); flush_table(); flush_fence()
 
-    return DocPayload.model_validate({
+    payload = DocPayload.model_validate({
         "meta": {"version": "draft", "date": date.today().isoformat(),
                  "scope": _clean_inline(next((l.strip('# ') for l in lines if l.startswith('# ')), ''))[:200]},
         "overview": {"intent": "", "boundary": ""},
@@ -267,3 +239,64 @@ def md_to_payload(md: str, materials: dict[int, object],
         "chapters": chapters,
         "rules": rules,
     })
+    return payload, _extract_questions(md)
+
+
+def detect_format_issues(md: str) -> list[str]:
+    """导入时的格式契约检测:违规进导入响应 format_warnings,导入即知,不等渲染后返工。"""
+    warns = []
+    in_fence, lang = False, ''
+    fence: list[str] = []
+    for ln in md.splitlines():
+        st = ln.strip()
+        fm = re.match(r'^```(\w+)?\s*$', st)
+        if fm:
+            if in_fence:
+                body = '\n'.join(fence)
+                if lang == 'mermaid':
+                    for nm in re.finditer(r'\[[^\]\n]*\([^)\n]*\)[^\]\n]*\]', body):
+                        if not re.match(r'^\[\(.*\)\]$', nm.group(0)):  # [(x)]圆柱是合法形状
+                            warns.append('R1:mermaid 节点文本含半角括号()(形状语法冲突,整图渲染会失败): ' + nm.group(0)[:40])
+                            break
+                if not lang and '┌' in body:
+                    warns.append('R1:存在 ASCII 盒子图(网页必错位,应重画为 mermaid 或线性箭头链)')
+            in_fence, lang, fence = not in_fence, (fm.group(1) or '').lower(), []
+            continue
+        if in_fence:
+            fence.append(ln)
+            continue
+        if st.startswith('>') and len(st) > 8 and not re.match(r'^>\s*(题型|说明|注[:：])', st):
+            warns.append('R5:引用块(>)承载实质内容,导入时会被丢弃: ' + st.lstrip('> ')[:30])
+    return warns
+
+
+_TBD_INLINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$')          # 行内题型(云风控式)
+_TBD_GROUPED = re.compile(r'^-\s*\*\*(TBD-\d+)[^*]*\*\*[:：]\s*(.+)$')                 # 分组题型(瀚海式)
+_GROUP_TITLE = re.compile(r'^#{2,4}\s*(填空|选择|确认)')
+_KIND = {"填空": "fill", "确认": "confirm", "选择": "choice"}
+
+
+def _extract_questions(md: str) -> list[dict]:
+    """附录 A 待确认问题清单 → 批注元素 {kind, payload{klabel,q}, anchor}。
+    兼容两种写法:行内题型「**TBD-01（填空）** 题」与分组题型「### 填空题」下的「- **TBD-01 标题**：题」。
+    题面提到的规则号尽量锚定;附录本体不进文档正文(由调用方跳过渲染)。"""
+    out, group_kind = [], "fill"
+    for ln in md.splitlines():
+        st = ln.strip()
+        gm = _GROUP_TITLE.match(st)
+        if gm:
+            group_kind = _KIND[gm.group(1)]
+            continue
+        m = _TBD_INLINE.match(st) or _TBD_GROUPED.match(st)
+        if not m:
+            continue
+        no, ktype, q = m.group(1), (m.group(2) if m.lastindex == 3 else group_kind), m.group(m.lastindex)
+        anchor = {"chapter_id": "", "seg": no}
+        rm = re.search(r'((?:GP|FR|NFR)-[A-Za-z0-9-]+)', q)
+        if rm:
+            anchor["rule_no"] = rm.group(1)
+        out.append({"kind": _KIND[ktype] if ktype in _KIND else ktype,
+                    "payload": {"klabel": f"待确认 {no}", "q": q.strip(),
+                                "ctx": "md 导入:附录 A 待确认问题清单"},
+                    "anchor": anchor})
+    return out

@@ -3,6 +3,30 @@
 import { computed, ref } from 'vue'
 import type { BlockP, ChapterP, DocPayload, Material, Question } from '../../api'
 import { flattenChapters, termChapters, GLOSSARY_CH_ID } from '../../utils/chapters'
+import DiagramView from './DiagramView.vue'
+
+/* 目录宽度拖拽:右缘把手,180~420px 限界,localStorage 记忆 */
+const TOC_KEY = 'quos.toc-width'
+const TOC_MIN = 180
+const TOC_MAX = 420
+const tocW = ref(Number(localStorage.getItem(TOC_KEY)) || 218)
+const dragging = ref(false)
+function startDrag(e: MouseEvent) {
+  e.preventDefault()
+  dragging.value = true
+  const x0 = e.clientX, w0 = tocW.value
+  const move = (ev: MouseEvent) => {
+    tocW.value = Math.min(TOC_MAX, Math.max(TOC_MIN, w0 + ev.clientX - x0))
+  }
+  const up = () => {
+    dragging.value = false
+    localStorage.setItem(TOC_KEY, String(tocW.value))
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
 
 const props = defineProps<{
   payload: DocPayload
@@ -65,7 +89,7 @@ const chaptersHtml = computed<Rendered[]>(() => {
     rules: c.rule_nos.map((no2) => ({ no: no2, html: ruleHtml(no2, props.payload.rules[no2]?.text ?? '') })),
     blocks: (c.blocks ?? []).map((b) => {
       if (b.type === 'table') return { ...b, tno: `表${++tbl}` }
-      if (b.type === 'figure') return { ...b, fno: `图${++fig}` }
+      if (b.type === 'figure' || b.type === 'diagram') return { ...b, fno: `图${++fig}` }
       return { ...b }
     }),
   }))
@@ -102,7 +126,11 @@ function onClickBody(e: MouseEvent) {
 
 <template>
   <div class="docpaper" @click="onClickBody">
-    <aside v-if="tocMode !== 'hidden'" class="doc-toc" :class="tocMode" @mouseleave="emit('toc-hide')"><slot name="toc" /></aside>
+    <aside v-if="tocMode !== 'hidden'" class="doc-toc" :class="tocMode" :style="{ width: tocW + 'px' }"
+           @mouseleave="!dragging && emit('toc-hide')">
+      <slot name="toc" />
+      <div class="toc-resize" title="拖拽调整目录宽度" @mousedown="startDrag" />
+    </aside>
     <button v-else class="toc-handle" type="button" aria-label="展开目录" title="悬浮展开章节目录"
             @mouseenter="emit('toc-show')" @click="emit('toc-show')">›</button>
     <div class="doc-main">
@@ -167,12 +195,11 @@ function onClickBody(e: MouseEvent) {
         </template>
         <template v-else-if="b.type === 'figure'">
           <div class="sl">{{ b.fno }} · {{ b.title }}</div>
-          <div v-for="(f, fi) in b.flows" :key="fi" class="flowbox" style="margin-bottom: 6px">
-            <template v-for="(n, i) in flowNodes(f)" :key="i">
-              <span v-if="i" class="farr">→</span>
-              <span class="fnode" :class="{ term: /失败|超时|拒绝/.test(n) }">{{ n }}</span>
-            </template>
-          </div>
+          <DiagramView :flows="b.flows ?? []" />
+        </template>
+        <template v-else-if="b.type === 'diagram'">
+          <div class="sl">{{ b.fno }} · {{ b.title || '图' }}</div>
+          <DiagramView :source="b.text ?? ''" />
         </template>
         <template v-else-if="b.type === 'exceptions'">
           <div class="sl">异常路径</div>
@@ -188,7 +215,6 @@ function onClickBody(e: MouseEvent) {
           <span class="rno" :data-rule="rule.no" title="点击查看可判定表述与出处">{{ rule.no }}</span>
           <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
           <p v-html="rule.html" />
-          <span class="rv" :title="'违反判定'">{{ (det(rule.no)?.violation ?? '').slice(0, 14) || '—' }}</span>
           <!-- 规则详情 popover -->
           <div v-if="openRule === rule.no" class="popover" style="position: static; margin: 6px 0 0 46px; width: auto">
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px">

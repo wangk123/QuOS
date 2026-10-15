@@ -20,6 +20,7 @@
 ## 校验报告处理纪律
 
 - `POST draft` 硬错误 → 422，响应体 `{"detail":{"hard_errors":[{code, rule_no, detail}]}}`：**必须修正后重交，禁止绕过**。`QUOTE_NOT_FOUND` 的 detail.nearest 是材料内最相近片段，对照修正 quote；`BLOCK_*`/`CHAPTER_PARENT_*` 是正文块结构与层级错误，按 detail 修正；
+- **import 的格式硬校验**：ASCII 盒子图、mermaid 节点半角括号、引用块承载实质内容、mermaid 语法错误（平台用 node 端真实 parse 校验）→ 422 拒收（`FORMAT_CONTRACT`/`MERMAID_SYNTAX`，detail 带位置与修法）。**导入即验证、agent 自动修复重导，全程无人工**——渲染层不静默降级（与文档内容层 fail fast 原则一致）；前端源码降级仅为 bug 兜底且页面显式标注；
 - 软警告 → 平台自动转批注（source=auto，带 anchor），不阻塞入库；`new_terms` 由本 skill 自查申报（发现新词是 AI 职责，平台不猜词）；
 - 编号口径：active 复用基线同编号 = 修改路径放行；**复活已作废编号会被拒**；作废必须显式 `status:"voided"` + `replaced_by`；
 - 断点续跑：进度以平台状态为准（draft/questions/baseline），agent 不自记进度。

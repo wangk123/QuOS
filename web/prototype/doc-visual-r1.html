@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>QuOS · 需求文档阅读原型 R1（钉钉听记风格）</title>
+<!--
+  PROTOTYPE — 抛弃型高保真原型 · R1
+  目的:参考钉钉 AI 听记「智能切片主题模板」的展示手法,验证需求文档的阅读体验改造。
+  验证的 9 项手法（详见右上「原型说明」）:
+    ① 章级主题色+编号徽章（视觉切片） ② 行内强调（重点词/数字/标识符染色,扫读快车道）
+    ③ 文档头:一句话概要+关键词 chips+统计+读者路径 ④ 知识卡片网格（用户/场景/痛点）
+    ⑤ 规则卡:编号+条文+「怎样算违反」折叠+出处溯源 popover
+    ⑥ 参数表/流程链/状态链/异常路径可视化 ⑦ TBD 待办化（题型徽章+勾选框形态）
+    ⑧ 章末「规则速览」导航条（不重复内容,只做导航） ⑨ 左侧大纲滚动联动
+  数据:真实文档《风控云登录安全增强需求文档 draft-v2》的内容,出处 quote 为 mock 重构。
+  零依赖,浏览器直接打开。对应讨论:2026-10-15 钉钉听记文档分析会话。
+-->
+<style>
+:root{
+  --side-bg:#0C1425; --side-fg:#8A94A6; --side-fg-strong:#E7ECF3; --side-hover:#141F38; --side-active:#1D2B4D;
+  --side-border:#1B2740; --topbar:#FFFFFF; --bg:#F4F6F8; --card:#FFFFFF;
+  --fg:#111827; --fg-2:#374151; --muted:#6B7280; --faint:#9CA3AF;
+  --border:#E5E7EB; --border-2:#D1D5DB;
+  --primary:#2563EB; --primary-dark:#1D4ED8; --primary-soft:#EFF4FF;
+  --ok:#059669; --ok-soft:#ECFDF5; --warn:#D97706; --warn-soft:#FFFBEB;
+  --danger:#DC2626; --danger-soft:#FEF2F2;
+  --ring:0 0 0 3px rgba(37,99,235,.28);
+  --radius:8px; --radius-sm:5px;
+  --shadow:0 1px 2px rgba(16,24,40,.06); --shadow-lg:0 12px 32px rgba(16,24,40,.16);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--fg);line-height:1.65;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--primary)}
+:focus-visible{outline:none;box-shadow:var(--ring)}
+::selection{background:#DBEAFE}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
+.ic{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── 骨架:深色侧栏(平台感) + 文档画布 ── */
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.side{background:var(--side-bg);color:var(--side-fg);position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.side-logo{display:flex;align-items:center;gap:10px;padding:18px 18px 12px;color:var(--side-fg-strong);font-weight:700;font-size:1rem}
+.side-logo .mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#2563EB,#1D4ED8);display:grid;place-items:center;color:#fff;flex:none;font-size:.8rem}
+.side-doc{padding:2px 18px 14px;border-bottom:1px solid var(--side-border)}
+.side-doc .d-t{color:var(--side-fg-strong);font-size:.86rem;font-weight:600;line-height:1.4}
+.side-doc .d-s{color:#5B6779;font-size:.72rem;margin-top:3px}
+.toc{flex:1;overflow-y:auto;padding:12px 0 20px}
+.toc-title{padding:4px 18px 6px;font-size:.68rem;font-weight:700;letter-spacing:.12em;color:#5B6779;text-transform:uppercase}
+.toc a{display:flex;align-items:center;gap:9px;padding:7px 12px;margin:1px 8px;border-radius:var(--radius-sm);color:var(--side-fg);text-decoration:none;font-size:.84rem;min-height:34px;border-left:2px solid transparent;transition:background .15s,color .15s}
+.toc a:hover{background:var(--side-hover);color:var(--side-fg-strong)}
+.toc a.on{background:var(--side-active);color:#fff}
+.toc a .no{font-family:var(--mono);font-size:.68rem;color:#64748B;width:20px;flex:none}
+.toc a.on .no{color:#93C5FD}
+.toc a .cnt{margin-left:auto;font-size:.68rem;color:#64748B;background:#111C33;border-radius:99px;padding:0 7px;line-height:16px}
+.toc a.on .cnt{color:#93C5FD;background:rgba(37,99,235,.25)}
+.side-foot{padding:12px 18px;border-top:1px solid var(--side-border);font-size:.7rem;color:#5B6779}
+.side-foot .proto{display:inline-block;border:1px dashed #3A4763;color:#94A3B8;border-radius:99px;padding:1px 9px;margin-bottom:5px}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{background:var(--topbar);border-bottom:1px solid var(--border);height:54px;display:flex;align-items:center;gap:8px;padding:0 30px;position:sticky;top:0;z-index:40}
+.crumb{display:flex;align-items:center;gap:8px;font-size:.86rem;color:var(--muted)}
+.crumb b{color:var(--fg);font-weight:600}
+.crumb .sep{color:var(--border-2)}
+.topbar .spacer{flex:1}
+.content{padding:28px 34px 110px;max-width:1060px;width:100%;margin:0 auto}
+.paper{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+
+/* ── 评审要点横幅 ── */
+.review-banner{background:linear-gradient(135deg,#F0F6FF,#F5F3FF);border:1px solid #D6E2FB;border-radius:10px;padding:13px 18px;margin-bottom:22px;display:flex;gap:12px;align-items:flex-start}
+.review-banner .rb-i{color:var(--primary);margin-top:2px}
+.review-banner h4{font-size:.86rem;font-weight:700;color:#1E3A8A;margin-bottom:3px}
+.review-banner p{font-size:.8rem;color:var(--fg-2)}
+.review-banner .rb-x{margin-left:auto;background:none;border:none;color:var(--faint);font-size:1rem;padding:2px 6px}
+.review-banner .rb-x:hover{color:var(--fg)}
+
+/* ── 文档头 ── */
+.doc-head{padding:34px 40px 28px;border-bottom:1px solid var(--border)}
+.dh-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.73rem;font-weight:600;padding:2px 10px;border-radius:99px;background:#F3F4F6;color:var(--fg-2);border:1px solid var(--border);white-space:nowrap}
+.chip .dot{width:6px;height:6px;border-radius:99px;flex:none;background:var(--faint)}
+.chip.blue{background:var(--primary-soft);color:#1D4ED8;border-color:#DBE7FE}.chip.blue .dot{background:var(--primary)}
+.chip.warn{background:var(--warn-soft);color:#92400E;border-color:#FDE9C8}.chip.warn .dot{background:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:#065F46;border-color:#C8F1E2}.chip.ok .dot{background:var(--ok)}
+.chip.rose{background:var(--danger-soft);color:#991B1B;border-color:#FBD5D5}.chip.rose .dot{background:var(--danger)}
+.chip.ac{background:color-mix(in srgb,var(--ac) 10%,white);color:var(--acd);border-color:color-mix(in srgb,var(--ac) 24%,white)}
+.doc-head h1{font-size:1.66rem;font-weight:800;letter-spacing:-.015em;line-height:1.3}
+.dh-sum{margin-top:10px;font-size:.96rem;color:var(--fg-2);max-width:60ch}
+.dh-sum em{font-style:normal}
+.dh-kws{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.dh-meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);font-size:.78rem;color:var(--muted)}
+.dh-meta b{color:var(--fg-2);font-weight:600}
+.dh-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.stat{display:flex;align-items:baseline;gap:6px;background:#F8FAFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 13px}
+.stat .n{font-family:var(--mono);font-size:1.06rem;font-weight:700;color:#1D4ED8}
+.stat .l{font-size:.74rem;color:var(--muted)}
+.paths{margin-top:18px;background:#F8FAFC;border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px}
+.paths h5{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.08em;margin-bottom:8px}
+.path-row{display:flex;align-items:flex-start;gap:10px;padding:4px 0;flex-wrap:wrap}
+.path-row .who{font-size:.76rem;font-weight:700;color:var(--fg-2);width:88px;flex:none;padding-top:2px}
+.path-row .steps{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.path-row .steps a{font-size:.76rem;color:#1D4ED8;text-decoration:none;border-bottom:1px dashed #93C5FD;padding-bottom:1px}
+.path-row .steps a:hover{border-bottom-style:solid}
+.path-row .steps .ar{color:var(--faint);font-size:.72rem}
+.path-row .skip{font-size:.72rem;color:var(--faint);margin-left:4px}
+
+/* ── 章节 ── */
+.ch{padding:34px 40px 30px;border-bottom:1px solid var(--border)}
+.ch:last-child{border-bottom:none}
+.ch-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.ch-no{width:46px;height:46px;border-radius:11px;background:var(--ac);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:1.05rem;font-weight:700;flex:none;box-shadow:0 3px 10px color-mix(in srgb,var(--ac) 34%,transparent)}
+.ch-head h2{font-size:1.24rem;font-weight:750;letter-spacing:-.01em;line-height:1.35}
+.ch-sum{font-size:.84rem;color:var(--muted);margin-top:2px}
+.ch-meta{margin-left:auto;text-align:right;font-size:.72rem;color:var(--faint);white-space:nowrap;padding-top:8px}
+
+/* 导语卡(本段内容) */
+.lead{background:color-mix(in srgb,var(--ac) 6%,white);border:1px solid color-mix(in srgb,var(--ac) 20%,white);border-left:3px solid var(--ac);border-radius:var(--radius);padding:13px 17px;margin-bottom:20px;display:flex;gap:11px}
+.lead .ld-t{font-size:.7rem;font-weight:800;color:var(--acd);letter-spacing:.1em;white-space:nowrap;padding-top:3px}
+.lead p{font-size:.9rem;color:var(--fg-2)}
+
+/* 行内强调 */
+em.hl{font-style:normal;font-weight:650;color:var(--acd)}
+em.hl.num{font-family:var(--mono);font-size:.92em;background:color-mix(in srgb,var(--ac) 9%,white);border-radius:4px;padding:0 4px}
+code{font-family:var(--mono);font-size:.85em;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:4px;padding:1px 5px;color:#0F172A}
+
+/* 块级通用 */
+.blk{margin-bottom:20px}
+.blk:last-child{margin-bottom:0}
+.blk-t{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:700;color:var(--fg);margin-bottom:10px}
+.blk-t .ic{color:var(--ac);width:16px;height:16px}
+.para{font-size:.93rem;color:var(--fg-2)}
+
+/* 知识卡片 */
+.cards{display:grid;gap:12px}
+.cards.c2{grid-template-columns:repeat(2,1fr)}
+.cards.c3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.cards.c2,.cards.c3{grid-template-columns:1fr}}
+.kcard{border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;background:#FDFDFE;transition:border-color .15s,box-shadow .15s}
+.kcard:hover{border-color:color-mix(in srgb,var(--ac) 45%,var(--border));box-shadow:0 2px 10px rgba(16,24,40,.06)}
+.kcard .kc-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.kcard .kc-h .ic{color:var(--ac);width:17px;height:17px}
+.kcard .kc-h b{font-size:.87rem;font-weight:700}
+.kcard .kc-b{font-size:.82rem;color:var(--fg-2)}
+.kcard .kc-b ul{list-style:none}
+.kcard .kc-b li{padding:2px 0 2px 14px;position:relative}
+.kcard .kc-b li::before{content:"";position:absolute;left:0;top:.72em;width:5px;height:5px;border-radius:99px;background:color-mix(in srgb,var(--ac) 55%,white)}
+.kcard .kc-b li.warn::before{background:var(--warn)}
+.kcard .kc-f{margin-top:8px;font-size:.72rem;color:var(--faint)}
+.kcard .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+
+/* 故事卡(场景) */
+.scard{border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px;background:#FDFDFE}
+.scard .sc-h{display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap}
+.scard .sc-h b{font-size:.9rem}
+.scard .sc-n{font-size:.86rem;color:var(--fg-2)}
+.scard .sc-x{margin-top:10px;border-top:1px dashed var(--border);padding-top:9px}
+.scard .sc-x h6{font-size:.72rem;font-weight:700;color:var(--warn);letter-spacing:.06em;margin-bottom:5px;display:flex;gap:6px;align-items:center}
+.scard .sc-x ul{list-style:none}
+.scard .sc-x li{font-size:.8rem;color:var(--fg-2);padding:2px 0 2px 16px;position:relative}
+.scard .sc-x li::before{content:"!";position:absolute;left:2px;top:2px;font-size:.7rem;font-weight:800;color:var(--warn);font-family:var(--mono)}
+
+/* 规则卡 */
+.rules{display:flex;flex-direction:column;gap:9px}
+.rule{display:flex;gap:12px;border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;background:#fff;transition:border-color .15s}
+.rule:hover{border-color:color-mix(in srgb,var(--ac) 40%,var(--border))}
+.rule .r-no{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--acd);background:color-mix(in srgb,var(--ac) 10%,white);border:1px solid color-mix(in srgb,var(--ac) 26%,white);border-radius:6px;height:fit-content;padding:3px 8px;white-space:nowrap;flex:none;margin-top:2px}
+.rule .r-b{min-width:0;flex:1}
+.rule .r-t{font-size:.9rem;color:var(--fg)}
+.rule .r-ops{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.r-btn{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;color:var(--muted);background:#F8FAFC;border:1px solid var(--border);border-radius:99px;padding:2px 10px;transition:all .15s}
+.r-btn:hover{color:var(--acd);border-color:color-mix(in srgb,var(--ac) 40%,var(--border))}
+.r-btn .ic{width:12px;height:12px}
+.r-btn.open{color:var(--acd);background:color-mix(in srgb,var(--ac) 8%,white)}
+.rule .vio{display:none;margin-top:9px;background:color-mix(in srgb,var(--ac) 4%,white);border:1px dashed color-mix(in srgb,var(--ac) 30%,white);border-radius:var(--radius-sm);padding:8px 12px;font-size:.8rem;color:var(--fg-2)}
+.rule .vio::before{content:"违反情形 ·";font-size:.68rem;font-weight:800;color:var(--acd);letter-spacing:.06em;margin-right:6px}
+.rule .vio.show{display:block}
+/* GP 紧凑行 */
+.gp{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:.88rem}
+.gp:last-child{border-bottom:none}
+.gp .r-no{margin-top:0}
+
+/* 表格 */
+.tblwrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:.84rem}
+.tbl th{text-align:left;font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.06em;padding:9px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--ac) 5%,#FAFBFC);white-space:nowrap}
+.tbl td{padding:9px 14px;border-bottom:1px solid #F0F2F5;vertical-align:top;color:var(--fg-2)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td.bad{color:#991B1B}
+
+/* 流程链 */
+.flow{border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;background:#FDFDFE}
+.flow .f-step{display:flex;align-items:center;gap:10px}
+.flow .f-n{width:22px;height:22px;border-radius:99px;background:var(--ac);color:#fff;font-family:var(--mono);font-size:.66rem;font-weight:700;display:grid;place-items:center;flex:none}
+.flow .f-t{font-size:.86rem;color:var(--fg);padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:99px}
+.flow .f-t small{color:var(--muted);font-size:.72rem}
+.flow .f-ar{width:2px;height:14px;background:color-mix(in srgb,var(--ac) 40%,white);margin-left:10px;position:relative}
+.flow .f-ar::after{content:"";position:absolute;bottom:-1px;left:-2.5px;border:3px solid transparent;border-top-color:var(--ac)}
+.flow .fork{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:820px){.flow .fork{grid-template-columns:1fr}}
+.flow .arm{border:1px dashed color-mix(in srgb,var(--ac) 38%,white);border-radius:var(--radius);padding:11px 13px}
+.flow .arm .a-t{display:inline-flex;font-size:.72rem;font-weight:800;color:#fff;background:color-mix(in srgb,var(--ac) 72%,#334155);border-radius:99px;padding:2px 11px;margin-bottom:9px}
+.flow .arm .f-ar{margin-left:10px}
+.flow .note{margin-top:11px;font-size:.78rem;color:var(--muted)}
+
+/* 状态链 */
+.states{border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px;background:#FDFDFE}
+.states .st-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.state{font-size:.8rem;font-weight:700;padding:5px 14px;border-radius:99px;border:1.6px solid var(--ac);color:var(--acd);background:color-mix(in srgb,var(--ac) 7%,white)}
+.state.term{background:var(--ac);color:#fff}
+.st-ar{display:flex;flex-direction:column;align-items:center;gap:1px}
+.st-ar .a{width:26px;height:2px;background:color-mix(in srgb,var(--ac) 45%,white);position:relative}
+.st-ar .a::after{content:"";position:absolute;right:-1px;top:-2.5px;border:3px solid transparent;border-left-color:var(--ac)}
+.st-ar .l{font-size:.64rem;color:var(--muted);max-width:9ch;text-align:center;line-height:1.3}
+.states .st-note{margin-top:11px;display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--fg-2)}
+.states .st-note .state{border-style:dashed;font-weight:600}
+
+/* 异常路径 */
+.exc{border:1px solid #FDE9C8;background:var(--warn-soft);border-radius:var(--radius);padding:12px 16px}
+.exc h6{font-size:.72rem;font-weight:800;color:#92400E;letter-spacing:.08em;margin-bottom:7px;display:flex;gap:6px;align-items:center}
+.exc ol{list-style:none;counter-reset:x}
+.exc ol li{counter-increment:x;font-size:.84rem;color:var(--fg-2);padding:3px 0 3px 26px;position:relative}
+.exc ol li::before{content:counter(x);position:absolute;left:0;top:4px;width:17px;height:17px;border-radius:99px;background:#F5D98F;color:#92400E;font-family:var(--mono);font-size:.66rem;font-weight:700;display:grid;place-items:center}
+
+/* callout:边界/易误解/信息 */
+.callout{border-radius:var(--radius);padding:12px 16px;border:1px solid;display:flex;gap:10px}
+.callout .ic{width:16px;height:16px;margin-top:3px;flex:none}
+.callout h5{font-size:.8rem;font-weight:750;margin-bottom:3px}
+.callout p{font-size:.83rem;color:var(--fg-2)}
+.callout ul{list-style:none}
+.callout li{font-size:.83rem;color:var(--fg-2);padding:1px 0 1px 13px;position:relative}
+.callout li::before{content:"×";position:absolute;left:0;font-weight:800}
+.callout.edge{background:color-mix(in srgb,var(--ac) 5%,white);border-color:color-mix(in srgb,var(--ac) 26%,white)}
+.callout.edge .ic,.callout.edge h5{color:var(--acd)}
+.callout.edge li::before{color:var(--acd)}
+.callout.info{background:var(--primary-soft);border-color:#DBE7FE}.callout.info .ic,.callout.info h5{color:#1D4ED8}
+.callout.warn{background:var(--warn-soft);border-color:#FDE9C8}.callout.warn .ic,.callout.warn h5{color:#92400E}
+
+/* 上下文图(边界) */
+.ctx{display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:12px}
+@media(max-width:860px){.ctx{grid-template-columns:1fr}}
+.ctx .col{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:#FDFDFE}
+.ctx .col h6{font-size:.7rem;font-weight:800;letter-spacing:.08em;color:var(--muted);margin-bottom:9px;display:flex;gap:6px;align-items:center}
+.ctx .sys{background:color-mix(in srgb,var(--ac) 6%,white);border-color:color-mix(in srgb,var(--ac) 30%,white)}
+.ctx .sys h6{color:var(--acd)}
+.ctx .node{display:flex;align-items:baseline;gap:8px;padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;font-size:.8rem;margin-bottom:7px}
+.ctx .node:last-child{margin-bottom:0}
+.ctx .node b{font-size:.8rem}
+.ctx .node small{color:var(--muted);font-size:.7rem}
+
+/* TBD 待办 */
+.tbd-banner{display:flex;align-items:center;gap:10px;background:var(--danger-soft);border:1px solid #FBD5D5;border-radius:var(--radius);padding:10px 15px;margin-bottom:14px;font-size:.83rem;color:#991B1B;font-weight:600}
+.tbd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:860px){.tbd-grid{grid-template-columns:1fr}}
+.tbd{display:flex;gap:11px;border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;background:#fff}
+.tbd:hover{border-color:#FCA5A5}
+.tbd .box{width:17px;height:17px;border:1.8px solid #D1D5DB;border-radius:4px;flex:none;margin-top:3px}
+.tbd .b-b{min-width:0}
+.tbd .b-h{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.tbd .b-no{font-family:var(--mono);font-size:.72rem;font-weight:700;color:#991B1B}
+.tbd .b-q{font-size:.82rem;color:var(--fg-2)}
+.tbd .refs{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+
+/* 章末速览 */
+.recap{margin-top:22px;padding-top:13px;border-top:1px dashed var(--border);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.recap .rc-t{font-size:.7rem;font-weight:800;letter-spacing:.1em;color:var(--faint)}
+.recap a{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--acd);text-decoration:none;background:color-mix(in srgb,var(--ac) 8%,white);border:1px solid color-mix(in srgb,var(--ac) 22%,white);border-radius:99px;padding:2px 10px}
+.recap a:hover{background:color-mix(in srgb,var(--ac) 16%,white)}
+
+/* 术语别名 */
+.alias{display:inline-flex;align-items:center;gap:4px;font-size:.68rem;color:#92400E;background:var(--warn-soft);border:1px solid #FDE9C8;border-radius:99px;padding:0 8px;white-space:nowrap}
+
+/* ── 溯源 popover ── */
+.qpop{position:fixed;z-index:120;width:min(430px,90vw);background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:13px 16px;display:none}
+.qpop.show{display:block;animation:pop .16s ease}
+@keyframes pop{from{opacity:0;transform:scale(.97) translateY(3px)}}
+.qpop .qp-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.qpop .qp-h b{font-size:.8rem}
+.qpop blockquote{font-size:.83rem;color:var(--fg-2);border-left:3px solid var(--primary);background:#F8FAFF;padding:8px 12px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;line-height:1.6}
+.qpop .qp-f{display:flex;gap:8px;align-items:center;margin-top:9px;font-size:.7rem;color:var(--faint);flex-wrap:wrap}
+
+/* ── 弹窗 ── */
+.overlay{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:100;display:grid;place-items:center;animation:fadein .16s ease}
+@keyframes fadein{from{opacity:0}}
+.dialog{background:#fff;border-radius:12px;box-shadow:var(--shadow-lg);width:min(560px,92vw);max-height:82vh;overflow:auto;animation:pop .18s ease}
+.dialog .d-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 0}
+.dialog .d-head h3{font-size:1.02rem;font-weight:750}
+.dialog .d-body{padding:14px 22px 20px}
+.dialog .d-x{background:none;border:none;font-size:1.05rem;color:var(--faint);padding:2px 6px}
+.dialog .d-x:hover{color:var(--fg)}
+.dialog ol{padding-left:20px}
+.dialog ol li{font-size:.85rem;color:var(--fg-2);padding:3px 0}
+.dialog .mock-note{margin-top:14px;padding:9px 13px;background:var(--warn-soft);border:1px solid #FDE9C8;border-radius:var(--radius-sm);font-size:.78rem;color:#92400E}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 15px;min-height:34px;border-radius:var(--radius-sm);border:1px solid var(--border-2);background:#fff;font-weight:600;font-size:.84rem;color:var(--fg-2);transition:all .18s}
+.btn:hover{border-color:var(--primary);color:var(--primary-dark)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+</style>
+</head>
+<body>
+<!-- SVG 图标库 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 7.6-7 9-4-1.4-7-4.4-7-9V6z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="14" r="4"/><path d="M11 11L20 2M17 5l2.5 2.5M14 8l2.5 2.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c1.4-3.4 4-5 7-5s5.6 1.6 7 5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3"/><path d="M3 19c1.1-2.8 3.3-4.3 6-4.3s4.9 1.5 6 4.3M16 5.6a3 3 0 010 5.8M18.5 14.9c1.4.8 2.4 2.1 3 4.1"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5H2.5z"/><path d="M12 10v4.2M12 17.2v.2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3.5" width="6" height="5" rx="1.5"/><rect x="15" y="15.5" width="6" height="5" rx="1.5"/><path d="M9 6h4.5a3 3 0 013 3v6.5"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5zM4 20.5A2.5 2.5 0 016.5 18H20"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h13l-2.5 4L18 12H5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.8 5.8l12.4 12.4"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 24 24"><path d="M5 15a4 4 0 008 0c0-2.2-1.5-4-3.5-4L9.4 6A5.5 5.5 0 005 11.5zM14 15a4 4 0 008 0c0-2.2-1.5-4-3.5-4L18.4 6A5.5 5.5 0 0014 11.5z" transform="scale(.86)"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side">
+    <div class="side-logo"><span class="mark">Q</span>QuOS</div>
+    <div class="side-doc">
+      <div class="d-t">风控云登录安全增强 · 需求文档</div>
+      <div class="d-s">draft-v2 · 2026-10-15</div>
+    </div>
+    <nav class="toc" id="toc"><div class="toc-title">本文大纲</div></nav>
+    <div class="side-foot">
+      <span class="proto">原型 R1</span><br>
+      阅读体验改造 · 钉钉听记风格
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb"><span>云风控登录安全</span><span class="sep">/</span><b>文档 draft-v2</b></div>
+      <div class="spacer"></div>
+      <button class="btn" id="btn-info">原型说明</button>
+      <button class="btn" disabled title="原型不提供">导出</button>
+    </div>
+
+    <div class="content">
+      <div class="review-banner" id="rv-banner">
+        <svg class="ic rb-i"><use href="#i-eye"/></svg>
+        <div>
+          <h4>原型评审要点——请重点看这 9 处展示手法</h4>
+          <p>① 章级主题色+编号徽章（视觉切片）　② 行内强调染色（扫读快车道）　③ 文档头概要/关键词/统计/读者路径　④ 知识卡片网格　⑤ 规则卡+「怎样算违反」+出处溯源　⑥ 流程链/状态链/参数表可视化　⑦ TBD 待办化　⑧ 章末规则速览　⑨ 左侧大纲滚动联动</p>
+        </div>
+        <button class="rb-x" id="rv-close" title="收起">✕</button>
+      </div>
+
+      <div class="paper" id="paper"></div>
+    </div>
+  </main>
+</div>
+
+<!-- 出处溯源 popover -->
+<div class="qpop" id="qpop" role="dialog" aria-label="素材出处">
+  <div class="qp-h">
+    <svg class="ic" style="color:var(--primary);width:15px;height:15px"><use href="#i-quote"/></svg>
+    <b id="qpop-no"></b>
+    <span class="chip blue" style="margin-left:auto;font-size:.66rem">quote 匹配</span>
+  </div>
+  <blockquote id="qpop-text"></blockquote>
+  <div class="qp-f">
+    <span>来源:提测申请邮件(李文跃,2026-09-02)</span>
+    <span style="margin-left:auto">原型 mock 溯源数据</span>
+  </div>
+</div>
+
+<!-- 原型说明弹窗 -->
+<div class="overlay" id="dlg-info" style="display:none">
+  <div class="dialog" role="dialog" aria-label="原型说明">
+    <div class="d-head"><h3>原型说明 · R1</h3><button class="d-x" data-close>✕</button></div>
+    <div class="d-body">
+      <p style="font-size:.86rem;color:var(--fg-2);margin-bottom:10px">本页参考钉钉 AI 听记「智能切片主题模板」的展示手法,对需求文档阅读体验做的一次高保真原型。验证的 9 项手法:</p>
+      <ol>
+        <li><b>章级主题色 + 编号徽章</b>:每章一个主题色贯穿章内所有强调、卡片、规则徽章,视觉上形成「切片」</li>
+        <li><b>行内强调</b>:重点词/数字/标识符按章色染色,只扫彩色词即可 3 分钟过全篇</li>
+        <li><b>文档头</b>:一句话概要 + 关键词 chips + 统计 + <b>分读者阅读路径</b>(每类读者先读什么、可跳什么)</li>
+        <li><b>知识卡片</b>:痛点/用户类/场景用「图标+语义标题+要点」卡片网格,替代无分组长列表</li>
+        <li><b>规则卡</b>:编号徽章 + 条文 +「怎样算违反」可展开 + <b>出处</b>按钮弹出素材原文(quote 溯源,平台已有能力)</li>
+        <li><b>结构化块可视化</b>:参数表、主链路流程图(含分支)、状态链、异常路径编号列表</li>
+        <li><b>TBD 待办化</b>:16 项待确认问题按题型徽章 + 勾选框形态集中呈现,呼应钉钉文末待办</li>
+        <li><b>章末规则速览</b>:只做导航不重复内容(避免两处维护漂移)</li>
+        <li><b>左侧大纲滚动联动</b>:当前阅读章节高亮,可点击跳转</li>
+      </ol>
+      <div class="mock-note">⚠ 文档内容取自真实需求文档《风控云登录安全增强 draft-v2》;「出处」弹出的 quote 文本为原型 mock 重构,非素材原文精确切片。本页为零依赖静态原型,交互(违反展开/溯源弹出/滚动联动)仅作效果演示。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════ 数据(mock,内容源自 docs/reqdoc-riskcloud-login-security.md)══════════ */
+const META = {
+  title:'风控云登录安全增强功能',
+  status:'草稿 draft-v2', date:'2026-10-15',
+  sum:'在风控云原有密码登录之上叠加**图形验证码**与**短信验证码**两道校验压缩盗刷与撞库空间,以**密码过期强制修改**消除存量弱密码风险,并补齐**用户手机号维护**保证短信可达。',
+  kws:['图形验证码','短信验证码','密码过期','强制改密','手机号维护','Apollo','阿里云短信'],
+  scope:'风控云登录安全增强(验证码/密码过期/手机号维护)。不含:原密码登录主流程改造、菜单权限、风控业务功能本身',
+  src:'单一素材:提测申请邮件(李文跃,2026-09-02,2619 字符)',
+  paths:[
+    {who:'用户方',steps:['背景与目标','用户与场景','各功能域叙述'],skip:'可跳:参数表、术语表'},
+    {who:'开发',steps:['系统总览','全部 FR 规则','参数表','约束与依赖'],skip:''},
+    {who:'测试',steps:['场景异常分支','FR 违反情形','术语表'],skip:''},
+  ],
+};
+
+const CHAPTERS = [
+/* ── 01 背景与目标 ── */
+{ id:'ch1', no:'01', title:'背景与目标', ac:'#0284C7', acd:'#075985',
+  sum:'为什么做:三类已识别安全风险', meta:'痛点 ×3 · 边界 ×3',
+  blocks:[
+    {t:'lead',text:'风控云账号当前**仅凭密码即可登录**,叠加了三类已识别的安全风险。本章回答「问题不成立则一切功能都是无本之木」——先立痛点,再立目标与不做的边界。'},
+    {t:'cards',c:3,icon:'i-alert',title:'三类痛点',items:[
+      {icon:'i-phone',title:'短信接口盗刷',lines:['短信通道是**付费外部资源**,接口无防护时可能被恶意刷量']},
+      {icon:'i-key',title:'弱密码风险',lines:['弱密码易被**猜测或撞库**,单一密码因子是攻击入口']},
+      {icon:'i-clock',title:'密码长期有效',lines:['密码长期不修改,泄露后**长期有效**,存量风险持续累积']},
+    ]},
+    {t:'para',text:'**目标**:在登录链路上叠加**图形验证码**与**短信验证码**两道校验以压缩盗刷与撞库空间;通过**密码过期强制修改**与密码复杂度校验消除弱密码与长期不改密的存量风险;补齐用户手机号维护能力,保证短信验证码可达。'},
+    {t:'callout',kind:'warn',icon:'i-flag',title:'成功标准待补',text:'素材未给出可度量或可判定的验收指标(如盗刷量下降 X%、弱密码账号清零),待用户方补充后回填——<b>TBD-01</b>,本文档不编造。'},
+    {t:'callout',kind:'edge',icon:'i-ban',title:'明确不做什么(回归基线)',list:['不改造原有密码登录主流程、菜单权限及业务功能——素材明确「保持不变」','不涉及风控业务功能本身的安全改造','不含短信通道自身建设(阿里云短信为外部采购,仅做配置接入)']},
+  ]},
+
+/* ── 02 用户与场景 ── */
+{ id:'ch2', no:'02', title:'用户与场景', ac:'#0D9488', acd:'#0F766E',
+  sum:'谁在用、怎么用:4 类用户 · 5 条端到端场景', meta:'用户 ×4 · 场景 ×5',
+  blocks:[
+    {t:'lead',text:'每个**直接操作系统**的用户类至少一条端到端场景(纯下游消费方可免)。场景是「角色+触发+交互步骤+结果+异常分支」的完整故事,规则是这个故事沉淀出的约束。'},
+    {t:'cards',c:2,icon:'i-users',title:'用户类清单',items:[
+      {icon:'i-user',title:'U1 风控云登录用户',badges:['每个工作日登录','推测:TBD-02'],lines:['密码+验证码登录','接收短信验证码','完成强制改密']},
+      {icon:'i-gear',title:'U2 系统管理员',badges:['低频','推测:TBD-11'],lines:['查看并维护用户手机号']},
+      {icon:'i-gear',title:'U3 配置管理员/运维',badges:['上线及调参时'],lines:['维护 Apollo 短信/密码过期配置','维护短信密钥、执行上线前置检查']},
+      {icon:'i-check',title:'U4 测试人员',badges:['纯下游消费方'],lines:['按重点测试场景验证并反馈缺陷,免端到端场景']},
+    ]},
+    {t:'scenarios',title:'端到端场景',items:[
+      {tag:'场景 1',actor:'U1',badges:['开关开启','正常登录'],
+       text:'工作日早晨,运营人员输入账号与密码,页面要求先通过**图形验证码**——看不清可点击刷新(后端重新生成 **SVG**)。通过后「获取短信验证码」按钮可用,点击进入**倒计时**,页面提示脱敏号「已向 **138****2344** 发送短信」。他从手机收到 **6 位**验证码回填提交,密码与短信验证码均正确,登录成功进入菜单。',
+       ex:['图形验证码填错或已过期时,点击获取短信不生效','倒计时未结束再点按钮无法重发','当日该手机号发送次数达上限后不再发送','短信验证码填错、超时或尝试次数超限则登录被拒绝']},
+      {tag:'场景 2',actor:'U1',badges:['密码过期','强制改密'],
+       text:'某用户密码已连续数月未修改,超过配置周期。他照常输入密码、通过两道验证码,**账号仍可正常登录**——但登录成功瞬间前端弹出修改密码弹窗并**阻断后续操作**:不完成改密,菜单和业务页面都无法进入。填旧密码、符合复杂度的新密码,再获取短信(**此处免图形验证码**,同样有倒计时),回填提交,改密成功,正常使用系统。',
+       ex:['新密码缺少数字/大写字母/小写字母/复杂符号任一类时无法提交']},
+      {tag:'场景 3',actor:'U1',badges:['开关关闭','兼容登录'],
+       text:'短信通道故障期间,配置管理员在 Apollo 关闭短信验证码开关。用户登录不再出现短信环节,只需**账号、密码和图形验证码**即可登录;登录后菜单权限与业务功能与改造前**完全一致**。',
+       ex:['图形验证码错误时登录被拒绝(行为与改造前图形验证码逻辑一致)']},
+      {tag:'场景 4',actor:'U2',badges:['维护手机号'],
+       text:'某用户换了手机号收不到验证码,找系统管理员处理。管理员打开用户管理页面,找到该用户,**修改手机号并保存**;系统同步更新账号表。之后该用户登录获取短信、强制改密收短信,都发到**新号码**。页面提示与操作日志中,手机号一律**脱敏**显示。',
+       ex:['手机号格式校验失败与保存冲突时的行为素材未定义(TBD-12)']},
+      {tag:'场景 5',actor:'U3',badges:['上线配置'],
+       text:'上线前,配置管理员在 Apollo 完成短信开关、阿里云短信、限流与密码过期参数的配置并发布;**真实密钥由其维护,不进代码仓库**。确认阿里云 AccessKey 具备发送短信的**最小权限**、短信签名与模板 **SMS_512135018** 已审核可用、测试账号已配置有效手机号、MongoDB 账号可读写 **auth_challenge** 后,通知测试开始验证。',
+       ex:[]},
+    ]},
+  ]},
+
+/* ── 03 系统总览 ── */
+{ id:'ch3', no:'03', title:'系统总览', ac:'#4F46E5', acd:'#3730A3',
+  sum:'系统是什么 · 主链路 · 边界与数据流向', meta:'流程 ×1 · 实体 ×4',
+  blocks:[
+    {t:'lead',text:'一段话说清系统,一条主链路让读者**三十秒看懂主干**,一张上下文图标出系统边界:外部有谁、数据往哪流。'},
+    {t:'para',text:'风控云在原有账号密码登录之上叠加「**图形验证码 + 短信验证码**」两道校验:开关开启时密码与短信验证码**双因子**放行;关闭时退化为密码+图形验证码的兼容模式。配套引入密码过期强制修改与用户手机号维护。校验与账号能力由 **Guard** 认证及账号管理模块承接,短信经**阿里云**下发,开关与参数由 **Apollo** 管理。'},
+    {t:'flow',title:'主链路(开关开启:登录 → 强制改密)',
+     steps:['打开登录页,输入账号/密码','通过图形验证码校验','点击「获取短信验证码」<small>按账号倒计时 / 单手机号每日上限</small>','服务端生成 6 位验证码,阿里云下发<small>页面提示脱敏手机号</small>','输入短信验证码,校验<small>密码 ∧ 短信验证码 ∧ 尝试次数未超限</small>','登录成功'],
+     fork:{arms:[
+       {tag:'密码未过期 → 进入系统',steps:['直接进入风控云菜单']},
+       {tag:'密码过期 → 强制改密',steps:['前端弹改密弹窗<small>阻断后续操作</small>','旧密码 + 新密码<small>复杂度校验</small>','短信验证码<small>免图形验证码,有倒计时</small>','改密成功,进入系统']},
+     ]},
+     note:'开关关闭时退化为:打开登录页 → 输入账号/密码/图形验证码 → 校验通过 → 登录成功(密码过期则同上强制改密,改密短信要求见 TBD-05)。'},
+    {t:'ctx',title:'上下文(系统边界与数据流向)',
+     left:{h:'参与方',nodes:[['U1 登录用户','账号/密码/验证码 流入'],['U2 系统管理员','用户手机号变更 流入'],['U3 配置管理员','Apollo 开关/参数发布']]},
+     sys:{h:'风控云(本期范围)',nodes:[['前端 cloud','登录/改密交互'],['管理端 hsjry-risk-cloud-admin','用户管理'],['Guard 认证及账号管理','账号表读写']]},
+     right:{h:'外部依赖',nodes:[['阿里云短信服务','验证码短信下发 →'],['MongoDB auth_challenge','验证/挑战记录读写【实现反推】'],['用户手机','短信触达(页面仅示脱敏号)']]}},
+    {t:'table',title:'核心数据实体',cols:['实体','关键属性(素材可见)','关系'],rows:[
+      ['账号','密码(**MD5** 提交)、手机号、pwdUpdateTime','1 账号绑定 1 手机号;多账号可同手机号(TBD-15)'],
+      ['短信验证码记录','**6 位**数字、有效期、尝试次数','归属账号/手机号;存于 auth_challenge<em class="hl">【实现反推】</em>'.replace(/<em class="hl">(.*?)<\/em>/,'$1')],
+      ['图形验证码','**SVG**、有效期','一次性使用(错误/过期/重复使用即失效)'],
+      ['Apollo 配置项','见 05 章参数表','控制上述行为的开关与数值'],
+    ]},
+  ]},
+
+/* ── 04 登录身份校验 ── */
+{ id:'ch4', no:'04', title:'登录身份校验', ac:'#2563EB', acd:'#1D4ED8',
+  sum:'两种开关模式下的登录放行判定', meta:'规则 ×2(GP)+2(FR)',
+  blocks:[
+    {t:'lead',text:'服务 U1 的登录场景(场景 1/3)。原单一密码因子是盗刷与撞库风险的入口——登录需要几把钥匙,取决于 Apollo 短信验证码开关。'},
+    {t:'gp',title:'跨域通用规则',items:[
+      {no:'GP-01',text:'手机号在页面提示与日志中一律**脱敏**显示,不出现完整手机号',vio:'任何页面提示/日志中出现未脱敏的完整手机号',quote:'手机号在页面提示与日志中脱敏显示,如「已向138****2344号码发送短信」'},
+      {no:'GP-02',text:'短信验证码开关的启停**不改变**原有密码登录、菜单权限及业务功能的行为',vio:'开关切换后菜单权限或既有业务行为发生变化',quote:'短信验证码开关的启停不影响原有登录、菜单权限及业务功能'},
+    ]},
+    {t:'rules',title:'行为级规则',items:[
+      {no:'FR-101',text:'短信验证码开关开启时,密码登录必须**同时填写短信验证码**,密码与短信验证码均正确才能登录成功',vio:'开关开启时仅凭密码(未填短信验证码)即登录成功',quote:'短信验证码开关开启时,登录需输入账号密码及短信验证码,验证通过方可登录'},
+      {no:'FR-102',text:'开关关闭时,登录**不再要求**短信验证码,仅校验密码与图形验证码',vio:'开关关闭后登录页仍强制要求短信验证码',quote:'开关关闭后,登录退回账号密码+图形验证码原有逻辑'},
+    ]},
+    {t:'exc',title:'异常路径',items:[
+      '密码错误 → 登录失败(原有行为,本次不变)',
+      '短信验证码错误/过期/尝试次数超限 → 校验失败,登录拒绝(展开见 05 章 FR-206)',
+      '图形验证码错误 → 登录/获取短信被拒绝(见 FR-201)',
+    ]},
+  ]},
+
+/* ── 05 短信验证码 ── */
+{ id:'ch5', no:'05', title:'短信验证码获取与发送控制', ac:'#7C3AED', acd:'#6D28D9',
+  sum:'谁能发、多久一次、发多少、发给谁看', meta:'规则 ×7 · 参数 ×8',
+  blocks:[
+    {t:'lead',text:'服务 U1 的场景 1/2。短信通道是**付费且有盗刷风险**的外部资源,本章约束四件事:谁能发(图形验证码前置)、多久发一次(倒计时)、发多少(每日上限)、发给谁看(脱敏提示)。'},
+    {t:'flow',title:'本章主链路',steps:['图形验证码校验','触发短信<small>倒计时 / 每日限额双闸门</small>','服务端生成 6 位码','阿里云下发','脱敏提示','用户回填校验']},
+    {t:'rules',title:'行为级规则',items:[
+      {no:'FR-201',text:'获取登录短信前必须**先完成图形验证码校验**;图形验证码错误、过期或重复使用时不能发送短信',vio:'未通过图形验证码即触发短信下发成功',quote:'获取短信验证码前需先通过图形验证码校验;验证码错误、过期或重复使用时不能发送'},
+      {no:'FR-202',text:'图形验证码由后端生成 **SVG**,支持点击刷新',vio:'验证码图由前端本地生成,或点击刷新无效果',quote:'图形验证码由后端生成 SVG,点击图片可刷新'},
+      {no:'FR-203',text:'短信获取按钮按**账号**执行倒计时,倒计时期间不能重复发送',vio:'倒计时未结束时再次点击即重发成功',quote:'短信获取按钮倒计时 60 秒,期间不可重复发送'},
+      {no:'FR-204',text:'**单手机号每日**短信发送设上限,达到上限后不能继续向该手机号发送',vio:'同一手机号当日第 101 条(上限 100)仍被发出',quote:'同一手机号每日发送上限 100 次,达到上限后不再发送'},
+      {no:'FR-205',text:'短信发送成功后向用户显示**脱敏手机号**提示(样例「已向138****2344号码发送短信,请注意查收」)',vio:'发送成功提示中出现完整手机号',quote:'发送成功提示「已向138****2344号码发送短信,请注意查收」'},
+      {no:'FR-206',text:'短信验证码**错误、过期或超过最大尝试次数**时校验失败',vio:'第 6 次错误尝试(上限 5 次)仍校验通过;已过期验证码仍有效',quote:'短信验证码错误、过期或尝试次数超过 5 次时校验失败'},
+      {no:'FR-207',text:'短信验证码由**服务端生成**,为 **6 位数字**,短信模板参数仅包含 code',vio:'验证码由前端生成;模板短信携带 code 以外的参数',quote:'短信验证码为服务端生成的 6 位数字,短信模板参数仅包含 code'},
+    ]},
+    {t:'table',title:'参数表(Apollo,含义按参数命名推断【推测】,未经需求方确认)',cols:['参数','默认值','含义'],rows:[
+      ['<code>security.sms.enabled</code>','**true**','短信验证码开关'],
+      ['<code>security.sms.code-expire-seconds</code>','**300**','短信验证码有效期(秒)【推测】'],
+      ['<code>security.sms.captcha-expire-seconds</code>','**120**','图形验证码有效期(秒)【推测】'],
+      ['<code>security.sms.resend-interval-seconds</code>','**60**','重发倒计时(秒)= FR-203 时长'],
+      ['<code>security.sms.daily-limit</code>','**100**','单手机号每日上限 = FR-204 上限值'],
+      ['<code>security.sms.max-verify-attempts</code>','**5**','最大校验尝试次数 = FR-206 阈值'],
+      ['<code>security.sms.aliyun.*</code>','保密','阿里云通道(app-key/secret/sign/template-code=<code>SMS_512135018</code>)'],
+    ]},
+    {t:'exc',title:'异常路径',items:[
+      '图形验证码错误/过期/重复使用 → 拒绝发短信(FR-201)',
+      '倒计时未结束重复请求 → 拒绝发送(FR-203)',
+      '达到每日上限 → 拒绝发送(FR-204)',
+      '验证码错误/过期/超尝试次数 → 校验失败(FR-206);超限后的账号处置素材未定义(TBD-09)',
+      '阿里云发送失败的用户侧行为素材未定义(TBD-13)',
+    ]},
+    {t:'callout',kind:'edge',icon:'i-eye',title:'易误解与边界',list:[
+      '倒计时按<b>账号</b>、每日上限按<b>手机号</b>——刻意的双层防刷:同手机号绑多账号时各账号各有倒计时,但共享每日上限(TBD-15)',
+      '强改密场景发短信<b>免图形验证码但仍有倒计时</b>(FR-304),不是完全无限制',
+    ]},
+  ]},
+
+/* ── 06 密码过期强制修改 ── */
+{ id:'ch6', no:'06', title:'密码过期强制修改', ac:'#B45309', acd:'#92400E',
+  sum:'过期不阻断登录、但阻断业务', meta:'规则 ×6 · 状态链 ×1',
+  blocks:[
+    {t:'lead',text:'服务 U1 的场景 2。长期不改密的账号泄露后长期有效——本章定义「**过期不阻断登录、但阻断业务**」的强改密闭环:登录成功返回过期标记,前端弹窗锁死后续操作,直到完成三要素改密。'},
+    {t:'states',title:'密码生命周期状态链',chain:[
+      {s:'正常'},{a:'超过配置周期未修改',s:'过期'},{a:'登录成功且未改密',s:'强制改密中'},{a:'改密成功',s:'正常',term:1},
+     ],note:{s:'存量账号',t:'pwdUpdateTime 为空 → 不进入过期(起算规则 TBD-07)'}},
+    {t:'rules',title:'行为级规则',items:[
+      {no:'FR-301',text:'密码超过配置周期未修改时,账号**仍可正常登录**,登录成功后系统返回密码过期标记',vio:'超期账号登录被直接拒绝;或登录成功响应中无过期标记导致前端不弹窗',quote:'密码超期未修改的账号可正常登录,登录成功返回密码过期标记'},
+      {no:'FR-302',text:'前端根据密码过期标记**强制显示**修改密码弹窗;未完成密码修改前,用户不能进行后续操作',vio:'弹窗可被关闭后直接进入菜单',quote:'前端检测到过期标记弹出修改密码弹窗,完成修改前阻断后续操作'},
+      {no:'FR-303',text:'修改密码需要填写**旧密码、新密码及短信验证码**三要素',vio:'仅旧密码+新密码(无短信验证码)即改密成功',quote:'修改密码需填写旧密码、新密码及短信验证码'},
+      {no:'FR-304',text:'强制改密场景发送短信**不需要图形验证码**,但仍受倒计时限制',vio:'强改密发短信前仍要求图形验证码;或无倒计时可连续发送',quote:'强制改密场景发送短信无需图形验证码,仍有倒计时'},
+      {no:'FR-305',text:'pwdUpdateTime 为空的**存量账号不会立即过期**',vio:'存量账号(无 pwdUpdateTime)登录即被判为过期',quote:'pwdUpdateTime 为空的存量账号不立即过期'},
+      {no:'FR-306',text:'新密码必须**同时包含**数字、大写字母、小写字母与复杂符号,不符合复杂度要求时不能提交',vio:'纯数字新密码提交成功(字符集未定义→TBD-03)',quote:'新密码须同时包含数字、大写字母、小写字母与复杂符号'},
+    ]},
+    {t:'para',text:'**密码过期参数(Apollo)**:<code>security.password.expiry.enabled</code>=**true**(策略开关)、<code>security.password.expire-days</code>=**90**(过期天数)。周期起算点与「复杂符号」字符集素材未定义(TBD-03/06/07)。'},
+    {t:'exc',title:'异常路径',items:[
+      '旧密码错误 → 改密失败(素材未细述提示行为)',
+      '新密码复杂度不满足 → 不能提交(FR-306)',
+      '改密短信验证码错误/超限 → 校验失败(同 FR-206)',
+      '强制改密弹窗能否被关闭或以退出登录绕过 → 素材未定义(TBD-14)',
+    ]},
+    {t:'callout',kind:'edge',icon:'i-eye',title:'易误解与边界',list:[
+      '过期<b>不阻断登录、只阻断业务</b>——账号能登进去,只是被弹窗锁死,别把过期做成登录失败',
+      '存量账号(无 pwdUpdateTime)<b>不立即过期</b>,不要在上线时把全量老账号判为过期',
+    ]},
+  ]},
+
+/* ── 07 用户手机号维护 ── */
+{ id:'ch7', no:'07', title:'用户手机号维护', ac:'#047857', acd:'#065F46',
+  sum:'短信可达性的数据底座', meta:'规则 ×2',
+  blocks:[
+    {t:'lead',text:'服务 U2 的场景 4。短信验证码的可达性依赖账号手机号的准确性——本章补齐手机号的维护入口与生效链路。'},
+    {t:'rules',title:'行为级规则',items:[
+      {no:'FR-401',text:'用户管理页面支持**修改并保存**用户手机号',vio:'用户管理页无手机号编辑入口',quote:'用户管理页面支持修改用户手机号'},
+      {no:'FR-402',text:'保存手机号时**同步更新账号表**,后续登录及改密短信发送使用更新后的手机号',vio:'管理员改号后,短信仍发往旧号码',quote:'保存后同步账号表,后续短信发送至新号码'},
+    ]},
+    {t:'exc',title:'异常路径',items:[
+      '手机号格式非法、为空或与他人重复时的保存行为素材未定义(TBD-12)',
+    ]},
+  ]},
+
+/* ── 08 非功能需求 ── */
+{ id:'ch8', no:'08', title:'非功能需求', ac:'#475569', acd:'#334155',
+  sum:'可维护性与安全,按需取用不凑满', meta:'规则 ×3',
+  blocks:[
+    {t:'lead',text:'素材未含性能指标、可用性指标与合规约束,按「不凑模板」原则不设立相应条目——下面 3 条是素材实际支撑的。'},
+    {t:'rules',items:[
+      {no:'NFR-01',text:'(可维护性)短信验证码与密码过期策略的关键参数(开关、有效期、倒计时、每日上限、尝试次数、过期天数)通过 **Apollo** 配置,调整参数**不需修改代码**',vio:'把过期天数从 90 调到 60 需要改代码发版',quote:'开关、有效期、倒计时、上限等参数均通过 Apollo 配置'},
+      {no:'NFR-02',text:'(安全)阿里云短信真实密钥(app-key/app-secret)由配置管理员维护,**不随代码仓库与构建产物分发**',vio:'仓库或构建产物中出现 app-secret 明文',quote:'阿里云真实密钥由配置管理员维护,不进入代码仓库'},
+      {no:'NFR-03',text:'(安全·既有方式延续)密码仍由前端以 **MD5** 形式提交后端——素材明示延续既有提交形态,非本期新增增强',vio:'提交形态改为明文/其它哈希,导致与既有账号无法互认',quote:'密码仍以 MD5 形式提交后端(延续既有方式)'},
+    ]},
+  ]},
+
+/* ── 09 约束、假设与开放问题 ── */
+{ id:'ch9', no:'09', title:'约束、假设与开放问题', ac:'#BE123C', acd:'#9F1239',
+  sum:'外部依赖 · 工程约束 · 16 项待确认', meta:'依赖 ×4 · TBD ×16',
+  blocks:[
+    {t:'lead',text:'系统不是孤岛:外部依赖挂了会怎样、上线前必须满足什么、还有哪些问题没有答案——全部显式列出,**TBD 不带进定稿**。'},
+    {t:'table',title:'外部依赖(挂了会怎样)',cols:['依赖','用途','挂了会怎样'],rows:[
+      ['阿里云短信服务','验证码下发**唯一通道**','<span class="bad">短信发不出;开关开启时登录受阻——降级行为未定义(TBD-13),可选手段为关闭开关退兼容模式【推测】</span>'],
+      ['Apollo 配置中心','开关与参数的**唯一来源**','<span class="bad">配置不可达时行为素材未定义</span>'],
+      ['Guard 2.4.1-SNAPSHOT(私有 Maven)','认证及账号管理能力','<span class="bad">本地缓存旧 Snapshot 构建将引入不一致,须强制重新拉取</span>'],
+      ['MongoDB auth_challenge','验证/挑战记录存储【实现反推】','<span class="bad">权限不足时短信/改密校验链路不可用(上线前置检查项)</span>'],
+    ]},
+    {t:'callout',kind:'info',icon:'i-gear',title:'工程与上线约束',list:[
+      '前端 cloud / 后端 hsjry-risk-parent / Guard 三分支对应提交固定(<code>risk-cloud-2.0.12-release</code> ×2、<code>dev-2.4.1</code>),构建以提测说明所列提交为准',
+      '前端 Node.js 14 构建;后端 JDK 8 构建运行',
+      '上线前置五项:Apollo 配置发布 / AccessKey 最小权限 / 签名与模板 <code>SMS_512135018</code> 审核通过 / 测试账号有效手机号 / MongoDB 读写权限',
+    ]},
+    {t:'callout',kind:'info',icon:'i-check',title:'前提假设',list:[
+      '短信签名与模板审核在阿里云侧完成(素材列为前置,视为假设而非本期工作项)',
+      '需要收短信的账号已配置有效手机号(存量账号覆盖面未定义,TBD-10)',
+    ]},
+    {t:'tbd',items:[
+      {no:'TBD-01',kind:'填空',q:'成功标准用什么可度量指标判定?(盗刷量下降 X% / 弱密码清零 / 超期账号占比)素材只有定性目的。',refs:[]},
+      {no:'TBD-02',kind:'确认',q:'风控云用户为内部员工而非外部客户,登录用户规模与使用形态不影响本功能设计——对吗?',refs:[]},
+      {no:'TBD-03',kind:'填空',q:'「复杂符号」包含哪些字符?字符集不定则 FR-306 无法实现一致判定。',refs:['FR-306']},
+      {no:'TBD-04',kind:'选择',q:'复杂度校验适用范围:A. 仅过期强制改密;B. 所有改密入口。选 A 则主动改密仍可设弱密码。',refs:['FR-306']},
+      {no:'TBD-05',kind:'选择',q:'开关关闭 × 强制改密组合:A. 照常发短信;B. 豁免改密弹窗;C. 其它。',refs:['FR-303','FR-102']},
+      {no:'TBD-06',kind:'确认',q:'「超过配置周期」= pwdUpdateTime 距今超过 expire-days(默认 90 自然日)——对吗?',refs:['FR-301']},
+      {no:'TBD-07',kind:'选择',q:'存量账号起算点:A. 永不强制过期;B. 首次登录写入时间起算;C. 上线时批量回填基准时间。',refs:['FR-305']},
+      {no:'TBD-08',kind:'选择',q:'「每日」上限边界:A. 自然日(哪个时区?);B. 滚动 24 小时窗口。',refs:['FR-204']},
+      {no:'TBD-09',kind:'选择',q:'尝试次数超限(5 次)后:A. 仅当前验证码作废;B. 叠加账号级锁定/限流。',refs:['FR-206']},
+      {no:'TBD-10',kind:'选择',q:'无手机号/无效手机号账号如何登录:A. 禁止并提示先维护;B. 免短信降级;C. 其它。',refs:['FR-101']},
+      {no:'TBD-11',kind:'选择',q:'手机号维护权限:A. 仅管理员改任意;B. 管理员+用户改本人;是否需旧号短信验证防劫持?',refs:['FR-401']},
+      {no:'TBD-12',kind:'填空',q:'手机号保存校验规则(格式/必填/重复绑定)与失败提示行为是什么?',refs:['FR-401']},
+      {no:'TBD-13',kind:'填空',q:'阿里云发送失败(限流/欠费/异常)时用户看到什么?倒计时与每日计数是否已被消耗?',refs:['FR-205']},
+      {no:'TBD-14',kind:'选择',q:'强改密弹窗:A. 不可关闭,唯一出路是完成改密;B. 可退出登录但不可进入系统。',refs:['FR-302']},
+      {no:'TBD-15',kind:'确认',q:'倒计时按账号、上限按手机号是刻意的双层防刷(多账号同手机号共享上限)——对吗?',refs:['FR-203','FR-204']},
+      {no:'TBD-16',kind:'填空',q:'图形验证码错误/过期/重复使用时,除「不能发送短信」外的提示与交互(自动刷新?)是什么?',refs:['FR-201']},
+    ]},
+  ]},
+
+/* ── 10 术语表与变更记录 ── */
+{ id:'ch10', no:'10', title:'术语表与变更记录', ac:'#334155', acd:'#1E293B',
+  sum:'同一概念全文一个名字', meta:'术语 ×13 · 变更 ×2',
+  blocks:[
+    {t:'lead',text:'词条是正文实际在用的词;素材混用过的概念在此登记别名——读者拿目录搜任何一个叫法都能落地。'},
+    {t:'terms',rows:[
+      ['风控云','本次改造的目标系统(前端 cloud + 管理端 + Guard 后端)',''],
+      ['Guard','认证及账号管理模块,独立仓库发版(当前 2.4.1-SNAPSHOT)',''],
+      ['Apollo','配置中心,短信与密码过期参数的唯一配置来源',''],
+      ['图形验证码','后端生成 SVG 的人机校验图,有效期有限、一次性、支持点击刷新',''],
+      ['短信验证码','服务端生成的 6 位数字,经阿里云短信下发,用于登录与改密校验','登录短信'],
+      ['短信验证码开关','Apollo 配置 security.sms.enabled:开启须短信双因子,关闭退化为兼容模式','短信开关'],
+      ['密码过期标记','登录成功后系统返回的标记,前端据此弹强制改密窗',''],
+      ['强制改密','密码过期账号登录后进入的改密闭环:弹窗阻断 + 三要素改密','过期改密'],
+      ['pwdUpdateTime','账号表中密码最后修改时间字段,过期周期起算依据',''],
+      ['存量账号','pwdUpdateTime 为空的历史账号,不立即强制过期',''],
+      ['脱敏','手机号中间四位以 **** 遮蔽的展示形态(样例 138****2344)',''],
+      ['auth_challenge','MongoDB 集合,推测存储验证/挑战记录【实现反推】',''],
+      ['复杂符号','新密码四类必含字符之一,字符集未定义(TBD-03)',''],
+    ]},
+    {t:'table',title:'变更记录',cols:['草稿','日期','变更','依据'],rows:[
+      ['draft-v1','2026-10-15','初稿:八层骨架、22 条规则、16 项待确认问题','素材唯一(提测邮件),无人裁决'],
+      ['draft-v2','2026-10-15','review r1 修 2 项:#1 术语统一(强制改密/短信验证码开关,登记别名);#2 场景 4 引用改指 TBD-12','req-review 第 1 轮打回清单'],
+    ]},
+  ]},
+];
+
+/* ══════════ 渲染 ══════════ */
+const $ = s => document.querySelector(s);
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/* 行内语法:**词** → 章色强调;`x` → code(允许透传受控 html 标签 b/small/code/span) */
+function inline(s){
+  return s
+    .replace(/\*\*(.+?)\*\*/g,(m,x)=>`<em class="hl">${x}</em>`)
+    .replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+function inlineRaw(s){ /* 数据里已含受控标签的富文本,仅处理 ** 与 ` */
+  return s.replace(/\*\*(.+?)\*\*/g,(m,x)=>`<em class="hl">${x}</em>`)
+          .replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+const ic = (n,cls='') => `<svg class="ic ${cls}"><use href="#${n}"/></svg>`;
+
+function ruleCard(r){
+  return `<div class="rule" id="${r.no.toLowerCase()}">
+    <span class="r-no">${r.no}</span>
+    <div class="r-b">
+      <p class="r-t">${inline(r.text)}</p>
+      <div class="r-ops">
+        ${r.vio?`<button class="r-btn vio-btn">${ic('i-alert')}怎样算违反</button>`:''}
+        ${r.quote?`<button class="r-btn src-btn" data-no="${r.no}" data-q="${esc(r.quote)}">${ic('i-quote')}出处</button>`:''}
+      </div>
+      ${r.vio?`<div class="vio">${inline(r.vio)}</div>`:''}
+    </div>
+  </div>`;
+}
+function blk(b){
+  switch(b.t){
+    case 'lead': return `<div class="lead"><span class="ld-t">本段内容</span><p>${inline(b.text)}</p></div>`;
+    case 'para': return `<div class="blk para">${inline(b.text)}</div>`;
+    case 'cards': return `<div class="blk"><div class="blk-t">${ic(b.icon||'i-book')}${b.title}</div>
+      <div class="cards c${b.c||2}">${b.items.map(k=>`
+        <div class="kcard"><div class="kc-h">${ic(k.icon||'i-book')}<b>${k.title}</b></div>
+        <div class="kc-b"><ul>${(k.lines||[]).map(l=>`<li>${inline(l)}</li>`).join('')}</ul></div>
+        ${k.badges?`<div class="badges">${k.badges.map(x=>`<span class="chip">${x}</span>`).join('')}</div>`:''}
+        ${k.foot?`<div class="kc-f">${k.foot}</div>`:''}</div>`).join('')}</div></div>`;
+    case 'scenarios': return `<div class="blk"><div class="blk-t">${ic('i-users')}${b.title}</div>
+      <div class="cards c2">${b.items.map(s=>`
+        <div class="scard"><div class="sc-h"><b>${s.tag}</b><span class="chip ac">${s.actor}</span>
+        ${s.badges.map(x=>`<span class="chip">${x}</span>`).join('')}</div>
+        <p class="sc-n">${inline(s.text)}</p>
+        ${s.ex.length?`<div class="sc-x"><h6>${ic('i-alert')}异常分支</h6><ul>${s.ex.map(x=>`<li>${inline(x)}</li>`).join('')}</ul></div>`:''}
+        </div>`).join('')}</div></div>`;
+    case 'gp': return `<div class="blk"><div class="blk-t">${ic('i-shield')}${b.title}</div>
+      <div class="blk" style="border:1px solid var(--border);border-radius:var(--radius);padding:6px 16px;background:#fff">
+      ${b.items.map(r=>`<div class="gp"><span class="r-no">${r.no}</span><span style="flex:1">${inline(r.text)}
+        <span class="r-ops" style="display:inline-flex;margin:0 0 0 8px">
+        ${r.vio?`<button class="r-btn vio-btn">${ic('i-alert')}怎样算违反</button>`:''}
+        ${r.quote?`<button class="r-btn src-btn" data-no="${r.no}" data-q="${esc(r.quote)}">${ic('i-quote')}出处</button>`:''}</span></span>
+        ${r.vio?`<div class="vio">${inline(r.vio)}</div>`:''}</div>`).join('')}</div></div>`;
+    case 'rules': return `<div class="blk">${b.title?`<div class="blk-t">${ic('i-shield')}${b.title}</div>`:''}
+      <div class="rules">${b.items.map(ruleCard).join('')}</div></div>`;
+    case 'table': return `<div class="blk">${b.title?`<div class="blk-t">${ic('i-db')}${inlineRaw(b.title)}</div>`:''}
+      <div class="tblwrap"><table class="tbl"><thead><tr>${b.cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${b.rows.map(r=>`<tr>${r.map(c=>`<td>${inlineRaw(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+    case 'flow': { const n = b.steps.length;
+      return `<div class="blk">${b.title?`<div class="blk-t">${ic('i-flow')}${b.title}</div>`:''}<div class="flow">
+      ${b.steps.map((s,i)=>`<div class="f-step"><span class="f-n">${i+1}</span><span class="f-t">${inlineRaw(s)}</span></div>${i<n-1?'<div class="f-ar"></div>':''}`).join('')}
+      ${b.fork?`<div class="fork">${b.fork.arms.map(a=>`<div class="arm"><span class="a-t">${a.tag}</span>
+        ${a.steps.map((s,i)=>`<div class="f-step"><span class="f-t" style="font-size:.82rem">${inlineRaw(s)}</span></div>${i<a.steps.length-1?'<div class="f-ar"></div>':''}`).join('')}
+        </div>`).join('')}</div>`:''}
+      ${b.note?`<div class="note">${inline(b.note)}</div>`:''}</div></div>`; }
+    case 'states': { const c = b.chain;
+      return `<div class="blk">${b.title?`<div class="blk-t">${ic('i-clock')}${b.title}</div>`:''}<div class="states">
+      <div class="st-line">${c.map((x,i)=>`${i?`<span class="st-ar"><span class="a"></span><span class="l">${x.a}</span></span>`:''}<span class="state${x.term?' term':''}">${x.s}</span>`).join('')}</div>
+      ${b.note?`<div class="st-note"><span class="state">${b.note.s}</span><span>${b.note.t}</span></div>`:''}</div></div>`; }
+    case 'exc': return `<div class="blk exc"><h6>${ic('i-alert')}${b.title||'异常路径'}</h6><ol>${b.items.map(x=>`<li>${inline(x)}</li>`).join('')}</ol></div>`;
+    case 'callout': { const k=b.kind==='warn'?'warn':(b.kind==='info'?'info':'edge');
+      const icons={warn:'i-flag',info:'i-gear',edge:'i-eye'};
+      return `<div class="blk callout ${k}">${ic(b.icon||icons[k])}<div><h5>${b.title}</h5>
+      ${b.text?`<p>${inline(b.text)}</p>`:''}${b.list?`<ul>${b.list.map(x=>`<li>${inlineRaw(x)}</li>`).join('')}</ul>`:''}</div></div>`; }
+    case 'ctx': return `<div class="blk">${b.title?`<div class="blk-t">${ic('i-target')}${b.title}</div>`:''}
+      <div class="ctx">
+      ${[['left',''],['sys','sys'],['right','']].map(([k,cls])=>{const col=b[k];return `
+        <div class="col ${cls}"><h6>${ic(cls?'i-shield':'i-user')}${col.h}</h6>
+        ${col.nodes.map(n=>`<div class="node"><b>${n[0]}</b><small>${n[1]}</small></div>`).join('')}</div>`;}).join('')}
+      </div></div>`;
+    case 'tbd': return `<div class="blk"><div class="tbd-banner">${ic('i-alert')}16 项待确认问题——定稿前必须清空,不带进定稿</div>
+      <div class="tbd-grid">${b.items.map(t=>`<div class="tbd"><span class="box"></span><div class="b-b">
+      <div class="b-h"><span class="b-no">${t.no}</span><span class="chip ${t.kind==='选择'?'blue':(t.kind==='确认'?'ok':'warn')}" style="font-size:.66rem">${t.kind}题</span></div>
+      <div class="b-q">${esc(t.q)}</div>
+      ${t.refs.length?`<div class="refs">${t.refs.map(r=>`<a class="chip ac" style="text-decoration:none;font-size:.66rem" href="#${r.toLowerCase()}">${r}</a>`).join('')}</div>`:''}
+      </div></div>`).join('')}</div></div>`;
+    case 'terms': return `<div class="blk"><div class="blk-t">${ic('i-book')}术语表</div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>词条</th><th>定义/口径</th><th>素材别名</th></tr></thead>
+      <tbody>${b.rows.map(r=>`<tr><td><b>${r[0]}</b></td><td>${inline(r[1])}</td><td>${r[2]?`<span class="alias">「${r[2]}」已统一</span>`:'—'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }
+  return '';
+}
+
+/* 文档头 */
+function docHead(){
+  const st=[['10','章节'],['22','编号规则'],['5','场景'],['4','用户类'],['16','待确认'],['13','术语']];
+  return `<header class="doc-head">
+    <div class="dh-tags">
+      <span class="chip blue"><span class="dot"></span>需求文档</span>
+      <span class="chip warn"><span class="dot"></span>${META.status}</span>
+      <span class="chip"><span class="dot"></span>2026-10-15</span>
+    </div>
+    <h1>${META.title}</h1>
+    <p class="dh-sum">${inline(META.sum)}</p>
+    <div class="dh-kws">${META.kws.map(k=>`<span class="chip ac" style="--ac:#2563EB;--acd:#1D4ED8">${k}</span>`).join('')}</div>
+    <div class="dh-stats">${st.map(s=>`<span class="stat"><span class="n">${s[0]}</span><span class="l">${s[1]}</span></span>`).join('')}</div>
+    <div class="paths"><h5>读者路径</h5>
+      ${META.paths.map(p=>`<div class="path-row"><span class="who">${p.who}</span><span class="steps">
+        ${p.steps.map((s,i)=>`${i?'<span class="ar">→</span>':''}<a href="#${'ch'+(i+1)}">${s}</a>`).join('')}
+        ${p.skip?`<span class="skip">${p.skip}</span>`:''}</span></div>`).join('')}
+    </div>
+    <div class="dh-meta">
+      <span><b>范围</b> ${META.scope}</span><span><b>素材来源</b> ${META.src}</span>
+    </div>
+  </header>`;
+}
+
+/* 主渲染 */
+const paper = $('#paper');
+paper.innerHTML = docHead() + CHAPTERS.map(ch=>{
+  const ruleNos=[]; ch.blocks.forEach(b=>{ if(b.t==='rules'||b.t==='gp') b.items.forEach(r=>ruleNos.push(r.no)); });
+  return `<section class="ch" id="${ch.id}" style="--ac:${ch.ac};--acd:${ch.acd}">
+    <div class="ch-head">
+      <div class="ch-no">${ch.no}</div>
+      <div><h2>${ch.title}</h2><div class="ch-sum">${ch.sum}</div></div>
+      <div class="ch-meta">${ch.meta}${ruleNos.length?`<br>${ruleNos.length} 条规则`:''}</div>
+    </div>
+    ${ch.blocks.map(blk).join('')}
+    ${ruleNos.length?`<div class="recap"><span class="rc-t">本章规则</span>${ruleNos.map(n=>`<a href="#${n.toLowerCase()}">${n}</a>`).join('')}</div>`:''}
+  </section>`;
+}).join('');
+
+/* 侧栏目录 */
+const toc=$('#toc');
+toc.insertAdjacentHTML('beforeend', CHAPTERS.map(ch=>{
+  let n=0; ch.blocks.forEach(b=>{if(b.t==='rules'||b.t==='gp')b.items.forEach(()=>n++);});
+  return `<a href="#${ch.id}" data-ch="${ch.id}"><span class="no">${ch.no}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ch.title}</span>${n?`<span class="cnt">${n}</span>`:''}</a>`;
+}).join(''));
+
+/* ── 交互:违反展开 ── */
+document.addEventListener('click',e=>{
+  const vb=e.target.closest('.vio-btn');
+  if(vb){ const v=vb.closest('.r-b').querySelector('.vio'); const on=v.classList.toggle('show');
+    vb.classList.toggle('open',on); vb.lastChild.textContent=''; vb.append(on?'收起违反情形':'怎样算违反'); return; }
+});
+
+/* ── 交互:出处 popover ── */
+const qpop=$('#qpop');
+document.addEventListener('click',e=>{
+  const sb=e.target.closest('.src-btn');
+  if(sb){
+    $('#qpop-no').textContent=sb.dataset.no;
+    $('#qpop-text').textContent=sb.dataset.q;
+    qpop.classList.add('show');
+    const r=sb.getBoundingClientRect(), w=qpop.offsetWidth;
+    let x=Math.min(Math.max(10,r.left-40),innerWidth-w-10);
+    let y=r.bottom+8; if(y+qpop.offsetHeight>innerHeight-10) y=Math.max(10,r.top-qpop.offsetHeight-8);
+    qpop.style.left=x+'px'; qpop.style.top=y+'px';
+    e.stopPropagation(); return;
+  }
+  if(!e.target.closest('#qpop')) qpop.classList.remove('show');
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){qpop.classList.remove('show');$('#dlg-info').style.display='none';}});
+
+/* ── 交互:大纲滚动联动 ── */
+const links=[...toc.querySelectorAll('a[data-ch]')];
+const secs=CHAPTERS.map(c=>document.getElementById(c.id));
+function spy(){
+  let cur=0; const y=scrollY+140;
+  secs.forEach((s,i)=>{ if(s&&s.offsetTop<=y) cur=i; });
+  links.forEach((l,i)=>l.classList.toggle('on',i===cur));
+}
+addEventListener('scroll',spy,{passive:true}); spy();
+
+/* ── 交互:横幅收起 / 说明弹窗 ── */
+$('#rv-close').onclick=()=>$('#rv-banner').remove();
+$('#btn-info').onclick=()=>$('#dlg-info').style.display='grid';
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#dlg-info').style.display='none');
+$('#dlg-info').addEventListener('click',e=>{if(e.target.id==='dlg-info')e.target.style.display='none';});
+</script>
+</body>
+</html>

@@ -81,20 +81,17 @@
 
 ### 4.3 上下文图（系统边界与数据流向）
 
-```
-U1 登录用户 ──账号/密码/验证码──▶ ┌──────────────────────────────┐
-U2 系统管理员 ──用户手机号变更──▶ │ 风控云                        │
-                                 │  前端 cloud                   │
-Apollo 配置中心 ──开关/参数流入─▶ │  管理端 hsjry-risk-cloud-admin │
-                                 │  Guard 认证及账号管理模块       │
-                                 └──────┬───────────┬───────────┘
-                                       │ 验证码短信  │ 验证/挑战记录读写【实现反推：
-                                       ▼           ▼   素材仅提 auth_challenge 集合权限】
-                                 阿里云短信服务   MongoDB(auth_challenge)
-                                       │
-                                       ▼ 短信下发
-                                 用户手机（脱敏号提示展示于页面）
-账号表：手机号、pwdUpdateTime、密码 —— 由 Guard 账号管理模块读写
+```mermaid
+flowchart LR
+  U1[登录用户] -->|账号/密码/验证码| FE[风控云·前端 cloud]
+  U2[系统管理员] -->|用户手机号变更| ADM[风控云·管理端]
+  APO[Apollo 配置中心] -->|开关/参数流入| GUARD[Guard 认证及账号管理模块]
+  FE --> GUARD
+  ADM --> GUARD
+  GUARD -->|验证码短信| ALI[阿里云短信服务]
+  GUARD -->|验证/挑战记录读写| MDB[(MongoDB auth_challenge)]
+  GUARD -->|账号读写| ACC[(账号表:手机号/pwdUpdateTime/密码)]
+  ALI -->|短信下发| PH[用户手机·页面提示脱敏号]
 ```
 
 ### 4.4 核心数据实体

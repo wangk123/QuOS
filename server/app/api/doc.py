@@ -1,4 +1,5 @@
 """基线/草案/版本读取与草案提交(校验闸门 + 覆盖语义)。"""
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
@@ -7,7 +8,8 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
-from app.services.md_import import md_to_payload
+from app.services.md_import import detect_format_issues, md_to_payload
+from app.services.mermaid_check import check_mermaid
 from app.services.validators import check_draft
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/doc", tags=["doc"])
@@ -71,8 +73,60 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
     materials = {
         m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
     }
-    payload = md_to_payload(body.markdown, materials, body.rules_meta)
-    return _persist_draft(db, pid, payload)
+    payload, questions = md_to_payload(body.markdown, materials, body.rules_meta)
+    # fail fast:格式契约违规与 mermaid 语法错误导入即拒收,agent 修复后重导(全程无人工)
+    hard = [{"code": "FORMAT_CONTRACT", "detail": w} for w in detect_format_issues(body.markdown)]
+    diagrams = [b.text for ch in payload.chapters for b in ch.blocks if b.type == "diagram"]
+    for src, err in zip(diagrams, check_mermaid(diagrams)):
+        if err:
+            hard.append({"code": "MERMAID_SYNTAX", "detail": err + " | 源码: " + src[:60]})
+    if hard:
+        raise HTTPException(422, {"hard_errors": hard})
+    out = _persist_draft(db, pid, payload)
+    # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
+    if questions:
+        # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——
+        # 重导意味着这批待确认问题仍然有效,不能被「撤回后不重复问」吞掉
+        olds = db.exec(select(Question).where(Question.project_id == pid)).all()
+        existing = {(q.kind, q.payload.get("q", "")): q for q in olds}
+        for q in questions:
+            key = (q["kind"], q["payload"]["q"])
+            anchor = dict(q["anchor"])
+            if anchor.get("rule_no") and not anchor.get("chapter_id"):
+                for ch in payload.model_dump()["chapters"]:
+                    if anchor["rule_no"] in ch["rule_nos"]:
+                        anchor["chapter_id"] = ch["id"]
+                        break
+            elif not anchor.get("chapter_id"):
+                # 无规则号可锚:题号在正文以【TBD-xx】标注出现的章 → 锚到该章(批注卡挂章节旁,定位可滚)
+                tno = anchor.get("seg") or ""
+                pat = re.compile(tno + r"(?!\d)") if tno else None
+                for ch in payload.model_dump()["chapters"]:
+                    blob = ch["background"] + ' '.join(
+                        str(b.get("text", "")) + ' ' + ' '.join(str(c) for r in b.get("rows", []) for c in r)
+                        + ' ' + ' '.join(b.get("flows", []) + b.get("items", []))
+                        for b in ch["blocks"])
+                    if pat and pat.search(blob):   # 【TBD-xx】/(见 TBD-xx)/裸 TBD-xx 均命中
+                        anchor.update({"chapter_id": ch["id"], "chapter": True})
+                        break
+                    hit_rule = next((no for no in ch["rule_nos"]
+                                     if pat.search(payload.model_dump()["rules"].get(no, {}).get("text", ""))), None)
+                    if hit_rule:                    # 标注在规则行内 → 锚到该规则(正文规则行高亮)
+                        anchor.update({"chapter_id": ch["id"], "rule_no": hit_rule, "seg": tno})
+                        break
+            if key in existing:
+                old_q = existing[key]
+                if old_q.status == "withdrawn" and old_q.source == "agent":
+                    old_q.status = "pending"
+                    old_q.anchor = anchor   # 复活同时刷新锚定(重导可能改进了锚定策略)
+                    db.add(old_q)
+                continue
+            nq = Question(project_id=pid, kind=q["kind"], payload=q["payload"],
+                          anchor=anchor, status="pending", source="agent")
+            db.add(nq)
+            existing[key] = nq
+        db.commit()
+    return out
 
 
 @router.post("/draft")

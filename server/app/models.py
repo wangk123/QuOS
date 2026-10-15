@@ -136,7 +136,7 @@ class RuleInPayload(BaseModel):
 class BlockInChapter(BaseModel):
     """正文块:章节正文由块有序自由组合,不再固定槽位。
 
-    type: para(叙述段落) | states(状态链/流程, → 连接) | table | figure | exceptions(异常路径条目)。
+    type: para(叙述段落) | states(状态链/流程, → 连接) | table | figure | exceptions(异常路径条目) | diagram(mermaid 源码,前端渲染真图)。
     章节缺什么块由内容决定;表格/图解决参数表与契约清单不得拆散塞规则 text 的问题。
     """
     type: str

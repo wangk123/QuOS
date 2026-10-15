@@ -8,7 +8,6 @@ import AppModal from '../components/AppModal.vue'
 import ChapterTree from '../components/rev/ChapterTree.vue'
 import DocPaper from '../components/rev/DocPaper.vue'
 import AnnotationRail from '../components/rev/AnnotationRail.vue'
-import MoreMenu from '../components/rev/MoreMenu.vue'
 import { GLOSSARY_CH_ID } from '../utils/chapters'
 
 const projName = ref('')
@@ -18,7 +17,6 @@ const annos = ref<any[]>([])
 const materials = ref<any[]>([])
 const versions = ref<any[]>([])
 
-const docWidth = ref<'normal' | 'wide' | 'full'>('normal')
 const mode = ref<'side' | 'focus'>('side')
 /* 章节目录三态:固定(常驻挤占正文)/悬浮(鼠标移入浮现、移开隐藏)/隐藏(只留把手);固定态记忆到 localStorage */
 const tocPinned = ref(localStorage.getItem('quos.tocPin') === '1')
@@ -146,9 +144,6 @@ function fstep(d: number) {
   const q = annos.value[focusIdx.value]
   if (q) locateAnno(q.id)
 }
-function setWidth(w: string) {
-  docWidth.value = w as any
-}
 function jumpChapter(ch: string) {
   document.getElementById('ch-' + ch)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -185,10 +180,9 @@ async function doFinalize() {
       <span style="font-size: 0.82rem; color: var(--muted)">基于 <b>{{ baseline?.version ?? '—' }}</b> · {{ summary }}</span>
       <span class="spacer" />
       <button v-if="hasDraft" id="btnFinalize" class="btn primary sm" @click="openFinalize">定稿发版</button>
-      <MoreMenu :doc-width="docWidth" @set-width="setWidth" />
     </div>
 
-    <div class="rev-body" :class="{ wide: docWidth === 'wide', full: docWidth === 'full' }">
+    <div class="rev-body full">
       <div class="rev-col doc-col">
         <DocPaper v-if="payload" :payload="payload" :annos="annos" :materials="materials"
                   :title="projName" :ver-label="verLabel" :toc-mode="tocMode"
