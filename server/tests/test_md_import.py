@@ -128,9 +128,9 @@ def test_blocks_table_para_figure_mermaid():
     flows = [b for c in d for b in c['blocks'] if b['type'] == 'figure']
     assert flows and any('打开登录页' in f for f in flows[0]['flows'])
     assert not any(f.startswith('→') for fl in flows for f in fl['flows'])  # 行首续链已剥
-    mermaid_para = [b for c in d for b in c['blocks']
-                    if b['type'] == 'para' and b['text'].startswith('【图·源码】')]
-    assert mermaid_para                             # mermaid 无箭头→降级 para 不丢信息
+    mtbl = [b for c in d for b in c['blocks']
+            if b['type'] == 'table' and b.get('title', '').startswith('图·连线表')]
+    assert mtbl and mtbl[0]['rows'][0][0] == '用户'  # mermaid 边行→连线表
 
 
 def test_glossary_from_term_section():
@@ -150,3 +150,26 @@ def test_container_parent_not_shell():  # 容器父章(仅子章)经 validators 
     rpt = check_draft(p, rules_existing={}, materials={3: mat()}, terms=set())
     shells = [q for q in rpt.auto_questions if '没有任何正文与规则' in q.payload['q']]
     assert not shells
+
+
+def test_flow_continuation_merge_and_mermaid_table():
+    md = """## 4 系统总览
+
+```
+打开登录页 → 校验
+→ 登录成功
+  ├─ 未过期 → 进入系统
+```
+
+```mermaid
+flowchart LR
+  U[登录用户] -->|输入凭证| SYS[风控云]
+  SYS --> EXT[外部系统]
+```
+"""
+    p = md_to_payload(md, {})
+    d = [c.model_dump() for c in p.chapters]
+    fig = next(b for c in d for b in c['blocks'] if b['type'] == 'figure')
+    assert fig['flows'] == ['打开登录页 → 校验 → 登录成功', '未过期 → 进入系统']  # 续行合并
+    tbl = next(b for c in d for b in c['blocks'] if b['type'] == 'table')
+    assert tbl['rows'] == [['登录用户', '输入凭证', '风控云'], ['风控云', '→', '外部系统']]  # 跨行节点名+无label边
