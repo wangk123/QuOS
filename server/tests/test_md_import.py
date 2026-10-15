@@ -218,3 +218,4 @@ flowchart LR
     assert any('半角括号' in w for w in ws)
     assert any('引用块' in w for w in ws)
     assert not detect_format_issues('- FR-101 正常规则。\n> 注:说明性引导行不算实质内容。')
+    assert not detect_format_issues('```mermaid\nflowchart LR\n  A --> B[(MongoDB auth_challenge)]\n```')  # 圆柱节点合法

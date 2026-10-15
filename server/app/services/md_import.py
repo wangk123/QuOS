@@ -253,8 +253,11 @@ def detect_format_issues(md: str) -> list[str]:
         if fm:
             if in_fence:
                 body = '\n'.join(fence)
-                if lang == 'mermaid' and re.search(r'\[[^\]\n]*\([^)\n]*\)[^\]\n]*\]', body):
-                    warns.append('R1:mermaid 节点文本含半角括号()(形状语法冲突,整图渲染会失败)')
+                if lang == 'mermaid':
+                    for nm in re.finditer(r'\[[^\]\n]*\([^)\n]*\)[^\]\n]*\]', body):
+                        if not re.match(r'^\[\(.*\)\]$', nm.group(0)):  # [(x)]圆柱是合法形状
+                            warns.append('R1:mermaid 节点文本含半角括号()(形状语法冲突,整图渲染会失败): ' + nm.group(0)[:40])
+                            break
                 if not lang and '┌' in body:
                     warns.append('R1:存在 ASCII 盒子图(网页必错位,应重画为 mermaid 或线性箭头链)')
             in_fence, lang, fence = not in_fence, (fm.group(1) or '').lower(), []
