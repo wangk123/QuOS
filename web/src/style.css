@@ -316,3 +316,9 @@ mark.anno.resolved sup{color:var(--ok)}
 .gchip{display:inline-block;font-family:var(--mono);font-size:.72rem;font-weight:600;color:var(--primary-dark);background:var(--primary-soft);border-radius:5px;padding:1px 7px;margin:1px 4px 1px 0;text-decoration:none;transition:all .12s}
 .gchip:hover{background:var(--primary);color:#fff}
 .gnone{color:var(--faint)}
+
+/* ── mermaid 图渲染(diagram/figure 统一) ── */
+.diagram-box{margin:2px 0 8px}
+.diagram-box .mmd{background:#FAFBFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow-x:auto;display:flex;justify-content:center}
+.diagram-box .mmd svg{max-width:100%}
+.diagram-box .mmd-src{background:#F8FAFC;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px;font-family:var(--mono);font-size:.78rem;white-space:pre-wrap;color:var(--muted)}

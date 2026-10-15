@@ -45,47 +45,6 @@ def match_quote(rule_text: str, material_text: str) -> str:
     return best if best_ratio >= _QUOTE_MIN_RATIO else ''
 
 
-def _mermaid_to_table(buf: list[str]) -> dict | None:
-    """mermaid 图(网状,flows 装不下)→连线表:flowchart 边与 erDiagram 关系统一为「从/关系/到」三列。"""
-    def disp(tok: str) -> str:
-        m = re.match(r'^([\w-]+)\[([^\]]*)\]$', tok.strip())
-        if m and m.group(2):
-            names[m.group(1)] = m.group(2)
-            return m.group(2)
-        if m:
-            return m.group(1)
-        return names.get(tok.strip(), tok.strip())
-
-    names: dict[str, str] = {}
-    for ln in buf:                                    # 先收节点声明:U[登录用户] → 登录用户
-        for nid, label in re.findall(r'(\w+)\[([^\]]+)\]', ln):
-            names[nid] = label
-
-    rows = []
-    for ln in buf:
-        st = ln.strip()
-        if not st or re.match(r'^(flowchart|graph|erDiagram|subgraph|end|direction)\b', st):
-            continue
-        m = (re.match(r'^(.+?)\s*(?:-+>|-\.->)\s*\|([^|]*)\|\s*(.+)$', st)      # A -->|label| B
-             or re.match(r'^(.+?)\s*--([^->][^-]*)-->\s*(.+)$', st)              # A --label--> B
-             or re.match(r'^(\S+)\s+(?:-+>|-\.->)\s+(\S+)$', st)                 # A --> B(无label)
-             or re.match(r'^(\w+)\s+([|}o]+\s*-\s*[|}o]+)\s+(\w+)\s*:\s*"?(.+?)"?\s*$', st))  # er: A ||--o{ B : rel
-        if not m:
-            continue
-        g = m.groups()
-        if len(g) == 2:                                                          # A --> B(无label)
-            rows.append([disp(g[0]), '→', disp(g[1])])
-        elif len(g) == 3:                                                        # flowchart 带 label
-            rows.append([disp(g[0]), g[1].strip() or '→', disp(g[2])])
-        else:                                                                    # er 行:4 组
-            rows.append([disp(g[0]), re.sub(r'\s+', '', g[3]), disp(g[2])])
-    if not rows:
-        src = ' '.join(x.strip() for x in buf if x.strip())
-        return {"type": "para", "text": '【图·源码】' + _clean_inline(src)[:500]} if src else None
-    return {"type": "table", "title": "图·连线表（网状图线性化）",
-            "columns": ["从", "关系", "到"], "rows": rows}
-
-
 def md_to_payload(md: str, materials: dict[int, object],
                   rules_meta: dict | None = None) -> DocPayload:
     """md → DocPayload。materials: {id: Material}(quote 自动匹配;空 dict 时 quote 全空走软警告)。
@@ -114,9 +73,9 @@ def md_to_payload(md: str, materials: dict[int, object],
             fence_buf.clear()
             return
         if fence_lang == 'mermaid':
-            tbl = _mermaid_to_table(fence_buf)
-            if tbl:
-                cur['blocks'].append(tbl)
+            src = '\n'.join(x.rstrip() for x in fence_buf).strip()
+            if src:
+                cur['blocks'].append({"type": "diagram", "text": src})   # 源码原样入库,前端 mermaid 渲染
             fence_buf.clear()
             return
         flows: list[str] = []

@@ -3,6 +3,7 @@
 import { computed, ref } from 'vue'
 import type { BlockP, ChapterP, DocPayload, Material, Question } from '../../api'
 import { flattenChapters, termChapters, GLOSSARY_CH_ID } from '../../utils/chapters'
+import DiagramView from './DiagramView.vue'
 
 const props = defineProps<{
   payload: DocPayload
@@ -65,7 +66,7 @@ const chaptersHtml = computed<Rendered[]>(() => {
     rules: c.rule_nos.map((no2) => ({ no: no2, html: ruleHtml(no2, props.payload.rules[no2]?.text ?? '') })),
     blocks: (c.blocks ?? []).map((b) => {
       if (b.type === 'table') return { ...b, tno: `表${++tbl}` }
-      if (b.type === 'figure') return { ...b, fno: `图${++fig}` }
+      if (b.type === 'figure' || b.type === 'diagram') return { ...b, fno: `图${++fig}` }
       return { ...b }
     }),
   }))
@@ -167,12 +168,11 @@ function onClickBody(e: MouseEvent) {
         </template>
         <template v-else-if="b.type === 'figure'">
           <div class="sl">{{ b.fno }} · {{ b.title }}</div>
-          <div v-for="(f, fi) in b.flows" :key="fi" class="flowbox" style="margin-bottom: 6px">
-            <template v-for="(n, i) in flowNodes(f)" :key="i">
-              <span v-if="i" class="farr">→</span>
-              <span class="fnode" :class="{ term: /失败|超时|拒绝/.test(n) }">{{ n }}</span>
-            </template>
-          </div>
+          <DiagramView :flows="b.flows ?? []" />
+        </template>
+        <template v-else-if="b.type === 'diagram'">
+          <div class="sl">{{ b.fno }} · {{ b.title || '图' }}</div>
+          <DiagramView :source="b.text ?? ''" />
         </template>
         <template v-else-if="b.type === 'exceptions'">
           <div class="sl">异常路径</div>

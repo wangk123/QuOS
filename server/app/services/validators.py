@@ -143,6 +143,7 @@ def check_draft(
     _block_required = {
         "para": lambda b: bool(b.text.strip()),
         "states": lambda b: bool(b.text.strip()),
+        "diagram": lambda b: bool(b.text.strip()),
         "table": lambda b: bool(b.columns) and bool(b.rows),
         "figure": lambda b: bool(b.flows),
         "exceptions": lambda b: bool(b.items),

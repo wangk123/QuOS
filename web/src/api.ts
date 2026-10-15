@@ -58,7 +58,7 @@ export const deleteMaterial = (pid: number, mid: number) => api.del(`/projects/$
 // ── 文档 ──
 export interface RuleP { no: string; text: string; violation: string; quote: string; material_id: number | null; status: string; replaced_by: string | null }
 export interface BlockP {
-  type: 'para' | 'states' | 'table' | 'figure' | 'exceptions'
+  type: 'para' | 'states' | 'table' | 'figure' | 'exceptions' | 'diagram' | 'diagram'
   text?: string
   title?: string
   columns?: string[]

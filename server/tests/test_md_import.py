@@ -128,9 +128,8 @@ def test_blocks_table_para_figure_mermaid():
     flows = [b for c in d for b in c['blocks'] if b['type'] == 'figure']
     assert flows and any('打开登录页' in f for f in flows[0]['flows'])
     assert not any(f.startswith('→') for fl in flows for f in fl['flows'])  # 行首续链已剥
-    mtbl = [b for c in d for b in c['blocks']
-            if b['type'] == 'table' and b.get('title', '').startswith('图·连线表')]
-    assert mtbl and mtbl[0]['rows'][0][0] == '用户'  # mermaid 边行→连线表
+    dg = [b for c in d for b in c['blocks'] if b['type'] == 'diagram']
+    assert dg and 'flowchart LR' in dg[0]['text']   # mermaid 源码原样入 diagram 块
 
 
 def test_glossary_from_term_section():
@@ -171,5 +170,5 @@ flowchart LR
     d = [c.model_dump() for c in p.chapters]
     fig = next(b for c in d for b in c['blocks'] if b['type'] == 'figure')
     assert fig['flows'] == ['打开登录页 → 校验 → 登录成功', '未过期 → 进入系统']  # 续行合并
-    tbl = next(b for c in d for b in c['blocks'] if b['type'] == 'table')
-    assert tbl['rows'] == [['登录用户', '输入凭证', '风控云'], ['风控云', '→', '外部系统']]  # 跨行节点名+无label边
+    dg = next(b for c in d for b in c['blocks'] if b['type'] == 'diagram')
+    assert 'U[登录用户]' in dg['text'] and 'SYS[风控云]' in dg['text']  # mermaid 源码原样保留
