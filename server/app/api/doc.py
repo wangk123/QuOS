@@ -75,22 +75,28 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
     out = _persist_draft(db, pid, payload)
     # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
     if questions:
-        existing = {(q.kind, q.payload.get("q", "")) for q in db.exec(
-            select(Question).where(Question.project_id == pid)).all()}
-        titles = {c["id"]: c["title"] for c in payload.model_dump()["chapters"]}
+        # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——
+        # 重导意味着这批待确认问题仍然有效,不能被「撤回后不重复问」吞掉
+        olds = db.exec(select(Question).where(Question.project_id == pid)).all()
+        existing = {(q.kind, q.payload.get("q", "")): q for q in olds}
         for q in questions:
             key = (q["kind"], q["payload"]["q"])
             if key in existing:
+                old_q = existing[key]
+                if old_q.status == "withdrawn" and old_q.source == "agent":
+                    old_q.status = "pending"
+                    db.add(old_q)
                 continue
-            existing.add(key)
             anchor = dict(q["anchor"])
             if anchor.get("rule_no") and not anchor.get("chapter_id"):
                 for ch in payload.model_dump()["chapters"]:
                     if anchor["rule_no"] in ch["rule_nos"]:
                         anchor["chapter_id"] = ch["id"]
                         break
-            db.add(Question(project_id=pid, kind=q["kind"], payload=q["payload"],
-                            anchor=anchor, status="pending", source="agent"))
+            nq = Question(project_id=pid, kind=q["kind"], payload=q["payload"],
+                          anchor=anchor, status="pending", source="agent")
+            db.add(nq)
+            existing[key] = nq
         db.commit()
     return out
 
