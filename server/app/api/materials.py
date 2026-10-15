@@ -1,4 +1,4 @@
-"""材料上传(sha256 去重)与列表(agent 消费口)。"""
+"""材料上传(sha256 去重)、删除与列表(agent 消费口)。"""
 import hashlib
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.db import DATA_DIR, get_session
-from app.models import Material, Project
+from app.models import Material, Project, Rule
 from app.parsers.extract import extract_text
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/materials", tags=["materials"])
@@ -56,6 +56,25 @@ def upload_material(pid: int, file: UploadFile, db: Session = Depends(get_sessio
     db.commit()
     db.refresh(m)
     return _mat_out(m)
+
+
+@router.delete("/{mid}")
+def delete_material(pid: int, mid: int, db: Session = Depends(get_session)):
+    m = db.exec(
+        select(Material).where(Material.project_id == pid, Material.id == mid)
+    ).first()
+    if m is None:
+        raise HTTPException(404, "material not found")
+    # active 规则仍挂此材料出处:删除会让出处核对悬空,拒并指出引用
+    refs = db.exec(
+        select(Rule.no).where(Rule.project_id == pid, Rule.material_id == mid, Rule.status == "active")
+    ).all()
+    if refs:
+        raise HTTPException(409, {"code": "MATERIAL_IN_USE", "rules": refs})
+    db.delete(m)
+    db.commit()
+    Path(m.path).unlink(missing_ok=True)
+    return {"ok": True}
 
 
 @router.get("")

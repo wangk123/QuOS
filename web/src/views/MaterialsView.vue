@@ -1,15 +1,17 @@
-<!-- 材料页:拖拽/点击/粘贴上传(hash 去重 409 提示)、列表、解析文本 drawer -->
+<!-- 材料页:拖拽/点击/粘贴上传(hash 去重 409 提示)、删除(被 active 规则引用拒删)、列表、解析文本 drawer -->
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { listMaterials, uploadMaterial, ApiError, type Material } from '../api'
+import { listMaterials, uploadMaterial, deleteMaterial, ApiError, type Material } from '../api'
 import { route } from '../router'
 import { toast } from '../components/toast'
+import AppModal from '../components/AppModal.vue'
 
 const materials = ref<Material[]>([])
 const selected = ref<number | null>(null)
 const preview = ref<Material | null>(null)
 const dragover = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const deleting = ref<Material | null>(null)
 
 async function refresh() {
   materials.value = await listMaterials(route.pid)
@@ -81,6 +83,25 @@ function openPreview(m: Material) {
   selected.value = m.id
   preview.value = m
 }
+async function doDelete() {
+  const m = deleting.value
+  if (!m) return
+  try {
+    await deleteMaterial(route.pid, m.id)
+    toast(`已删除 ${m.filename}`)
+    if (selected.value === m.id) {
+      selected.value = null
+      preview.value = null
+    }
+    deleting.value = null
+    refresh()
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409 && e.detail?.code === 'MATERIAL_IN_USE') {
+      deleting.value = null
+      toast(`被规则 ${e.detail.rules.join(' / ')} 引用,先处理规则出处再删除`, 'warn')
+    } else throw e
+  }
+}
 function fmtSize(n: number): string {
   return n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`
 }
@@ -91,7 +112,7 @@ function fmtSize(n: number): string {
     <div class="page-head">
       <div>
         <h1 class="pv">材料</h1>
-        <div class="pv-sub">证据池:只增不改,hash 去重;解析文本供出处核对</div>
+        <div class="pv-sub">证据池:hash 去重;解析文本供出处核对;被规则引用的材料不可删除</div>
       </div>
     </div>
     <div class="upload-zone" :class="{ dragover }" tabindex="0" role="button" aria-label="上传材料"
@@ -103,7 +124,7 @@ function fmtSize(n: number): string {
     <input ref="fileInput" type="file" multiple hidden @change="upload(($event.target as any).files); ($event.target as any).value = ''" />
     <div class="card">
       <table class="tbl">
-        <thead><tr><th>文件</th><th>类型</th><th>SHA-256(前 12)</th><th>大小</th><th>上传时间</th><th>状态</th></tr></thead>
+        <thead><tr><th>文件</th><th>类型</th><th>SHA-256(前 12)</th><th>大小</th><th>上传时间</th><th>状态</th><th></th></tr></thead>
         <tbody>
           <tr v-for="m in materials" :key="m.id" class="clickable" :class="{ 'row-sel': selected === m.id }" @click="openPreview(m)">
             <td style="display: flex; gap: 9px; align-items: center">
@@ -117,11 +138,26 @@ function fmtSize(n: number): string {
             <td style="color: var(--muted); font-size: 0.83rem">{{ fmtSize(m.size) }}</td>
             <td style="color: var(--muted); font-size: 0.83rem">{{ m.created_at.slice(0, 16).replace('T', ' ') }}</td>
             <td><span class="tag" :class="statusTag(m).cls"><span class="dot" />{{ statusTag(m).label }}</span></td>
+            <td>
+              <button class="icon-btn" title="删除" aria-label="删除材料" @click.stop="deleting = m">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></svg>
+              </button>
+            </td>
           </tr>
-          <tr v-if="!materials.length"><td colspan="6"><div class="empty">还没有材料</div></td></tr>
+          <tr v-if="!materials.length"><td colspan="7"><div class="empty">还没有材料</div></td></tr>
         </tbody>
       </table>
     </div>
+
+    <!-- 删除确认 -->
+    <AppModal v-if="deleting" :title="'删除材料'" @close="deleting = null">
+      <p>确定删除 <b>{{ deleting.filename }}</b> ?</p>
+      <p style="font-size: 0.84rem; color: var(--muted)">删除后不可恢复;已定稿版本的快照不受影响。被规则引用时将拒绝删除。</p>
+      <template #foot>
+        <button class="btn" @click="deleting = null">取消</button>
+        <button class="btn danger" @click="doDelete">删除</button>
+      </template>
+    </AppModal>
 
     <!-- 解析文本抽屉 -->
     <teleport to="body">

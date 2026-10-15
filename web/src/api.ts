@@ -12,7 +12,7 @@ export class ApiError extends Error {
 }
 
 async function request(method: string, path: string, body?: any, isForm = false): Promise<any> {
-  const opts: RequestInit = { method, headers: {} }
+  const opts: RequestInit = { method, headers: {}, cache: 'no-store' } // 列表数据随写操作变化,禁浏览器启发式缓存
   if (body !== undefined) {
     if (isForm) opts.body = body // FormData:multipart 上传
     else {
@@ -31,6 +31,7 @@ export const api = {
   get: (p: string) => request('GET', p),
   post: (p: string, b?: any) => request('POST', p, b),
   patch: (p: string, b?: any) => request('PATCH', p, b),
+  del: (p: string) => request('DELETE', p),
   upload: (p: string, f: File) => {
     const fd = new FormData()
     fd.append('file', f)
@@ -52,6 +53,7 @@ export const restoreProject = (pid: number) => api.post(`/projects/${pid}/restor
 export interface Material { id: number; filename: string; type: string; sha256: string; size: number; parsed_text: string; created_at: string }
 export const listMaterials = (pid: number) => api.get(`/projects/${pid}/materials`) as Promise<Material[]>
 export const uploadMaterial = (pid: number, file: File) => api.upload(`/projects/${pid}/materials`, file)
+export const deleteMaterial = (pid: number, mid: number) => api.del(`/projects/${pid}/materials/${mid}`)
 
 // ── 文档 ──
 export interface RuleP { no: string; text: string; violation: string; quote: string; material_id: number | null; status: string; replaced_by: string | null }
