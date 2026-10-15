@@ -36,7 +36,7 @@ para 与规则 text SHALL 支持行内强调标记 `**强调**`(成对出现);�
 - **THEN** 引用不闭合硬拒收;keywords 数量越界软警告转题
 
 ### Requirement: markdown 导入
-平台 SHALL 提供 POST /api/v1/projects/{pid}/doc/draft/import:接收 markdown 全文与可选 rules_meta(规则级精修 violation/quote),内置转换为 DocPayload(章节层级/规则编号三格式/正文块/表格/术语表/mermaid 围栏原样入 diagram 块/行内成对 `**` 强调标记保留),quote 自动匹配项目材料文本(相似度达标挂出处,未达标留空走软警告),转换后走与手工提交完全相同的两级校验与覆盖落库。summary/keywords/reader_paths/cards 不做 md 自动转换(agent 走 payload 提交路径承载)。
+平台 SHALL 提供 POST /api/v1/projects/{pid}/doc/draft/import:接收 markdown 全文与可选 rules_meta(规则级精修 violation/quote),内置转换为 DocPayload(章节层级/规则编号三格式/正文块/表格/术语表/mermaid 围栏原样入 diagram 块/行内成对 `**` 强调标记保留),并执行**三项结构归一**:①壳章提升——标题为「需求主体」或满足结构判据(自身无正文块无规则、子章 ≥3 且子章规则合计 ≥ 全文 50%)的壳章,其子章上移至壳章原位、壳章删除;头部容器章(背景与目标/用户与场景/系统总览)不提升;②骨架标签剥离——连续【为什么存在】【叙述】para 剥标签合并为一段,孤立【规则】【异常路径】【背景】标签 para 剥标签、空壳删除;③异常条目成块——【异常路径】标签后连续的列表条目或「含 → 的单句」收集为 exceptions 块。归一动作记入导入报告。quote 自动匹配项目材料文本(相似度达标挂出处,未达标留空走软警告),转换后走与手工提交完全相同的两级校验与覆盖落库。summary/keywords/reader_paths/cards 不做 md 自动转换。
 
 #### Scenario: 纯 markdown 导入自动挂出处
 - **WHEN** agent 提交 md 文档(未携带 rules_meta),其中规则文本与某材料句相似度达标
@@ -50,15 +50,35 @@ para 与规则 text SHALL 支持行内强调标记 `**强调**`(成对出现);�
 - **WHEN** md 含 ASCII 盒子图、mermaid 节点半角括号、引用块承载实质内容、不成对 `**` 标记,或 mermaid 语法错误(node 端真实 parse)
 - **THEN** 平台 422 拒收(FORMAT_CONTRACT/MERMAID_SYNTAX,detail 带位置与修法),agent 修复重导,全程无人工
 
+#### Scenario: 需求主体壳章提升
+- **WHEN** md 含「## 需求主体」壳章(自身无正文无规则),其下 10 个功能域子章承载全文 80% 规则
+- **THEN** 导入后 10 个功能域成为顶层章,「需求主体」消失;导入报告列明壳章提升 ×1
+
+#### Scenario: 头部容器章不提升
+- **WHEN** md 的「## 背景与目标」下分「业务痛点/目标/成功标准」等子节
+- **THEN** 分组结构保留,不做提升
+
+#### Scenario: 骨架标签剥离合并
+- **WHEN** 某章正文以【为什么存在】:…与【叙述】:…两个 para 开头
+- **THEN** 导入后合并为一个无标签 para 作为章首;【规则】空标签 para 消失
+
+#### Scenario: 异常条目成块
+- **WHEN** 某章【异常路径】标签后跟 3 条「X → Y」形态的列表/单句
+- **THEN** 导入后成为 exceptions 块(items ×3),不再散落 para
+
 #### Scenario: 成对强调标记保留
 - **WHEN** md 正文含 `**6 位数字**` 粗体
 - **THEN** 导入后 para.text 保留 `**6 位数字**` 原样(不再转换为【】),前端渲染为强调
 
 ## ADDED Requirements
 
-### Requirement: 强调密度软告警
-平台 SHALL 对行内强调密度执行软 lint(默认每百字超过 3 处标记或存在整句加粗):不阻塞入库,生成确认题请人裁决强调是否得当。
+### Requirement: 结构与密度软告警
+平台 SHALL 对章节结构与强调密度执行软 lint,不阻塞入库、转题进人闸门:①para 以骨架标签字面(【为什么存在】/【叙述】/【规则】/【异常路径】/【背景】)开头 → 确认题「该章是否模板化凑数」;②章规则 ≥6 且 blocks 全为 para → 确认题「本章是否应使用结构化形态」;③结构判据命中的非「需求主体」壳章 → 确认题「是否提升子章层级」;④强调密度(逐章,分母为 para 与规则 text 剥标记后字符数,分子为成对 `**` 次数)超过每百字 3 处或存在整句加粗(单个标记内剥空白后 ≥20 字符且含句终标点)→ 确认题「强调是否得当」。
 
 #### Scenario: 染色过密转题
 - **WHEN** 某章 para 平均每百字含 5 处 `**` 标记
 - **THEN** 草案照常入库,自动生成确认题「第 N 章强调密度过高,请确认强调选词是否得当」
+
+#### Scenario: 全 para 大章转题
+- **WHEN** 某章含 8 条规则且正文块全部为 para
+- **THEN** 自动生成确认题「本章是否应使用结构化形态(异常/状态/表格成块)」
