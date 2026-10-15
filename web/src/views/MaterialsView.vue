@@ -1,6 +1,6 @@
-<!-- 材料页:拖拽/点击上传(hash 去重 409 提示)、列表、解析文本 drawer -->
+<!-- 材料页:拖拽/点击/粘贴上传(hash 去重 409 提示)、列表、解析文本 drawer -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { listMaterials, uploadMaterial, ApiError, type Material } from '../api'
 import { route } from '../router'
 import { toast } from '../components/toast'
@@ -35,6 +35,40 @@ function onDrop(e: DragEvent) {
   dragover.value = false
   upload(e.dataTransfer?.files ?? null)
 }
+
+// 粘贴上传:截图/复制的文件优先,纯文本包装为 txt;输入框内粘贴不拦截
+const IMG_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
+function stamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+function onPaste(e: ClipboardEvent) {
+  const t = e.target as HTMLElement | null
+  if (t?.closest?.('input, textarea, [contenteditable]')) return
+  const cd = e.clipboardData
+  if (!cd) return
+  const files: File[] = []
+  for (const item of cd.items) {
+    if (item.kind !== 'file') continue
+    const f = item.getAsFile()
+    if (!f) continue
+    const ext = IMG_EXT[f.type]
+    files.push(ext ? new File([f], `粘贴图片_${stamp()}.${ext}`, { type: f.type }) : f)
+  }
+  if (files.length) {
+    e.preventDefault()
+    upload(files)
+    return
+  }
+  const text = cd.getData('text')
+  if (text.trim()) {
+    e.preventDefault()
+    upload([new File([text], `粘贴文本_${stamp()}.txt`, { type: 'text/plain' })])
+  }
+}
+onMounted(() => window.addEventListener('paste', onPaste))
+onUnmounted(() => window.removeEventListener('paste', onPaste))
 function guessType(m: Material): string {
   return ({ pdf: 'pdf', md: 'md', txt: 'txt', png: 'img', jpg: 'img', jpeg: 'img', webp: 'img' } as any)[m.type] ?? 'txt'
 }
@@ -63,8 +97,8 @@ function fmtSize(n: number): string {
     <div class="upload-zone" :class="{ dragover }" tabindex="0" role="button" aria-label="上传材料"
          @click="fileInput?.click()" @keydown.enter.prevent="fileInput?.click()"
          @dragover.prevent="dragover = true" @dragleave="dragover = false" @drop.prevent="onDrop">
-      <b>拖拽文件到此处,或点击选择</b>
-      <span class="hint">PDF / Markdown / TXT / 图片 · hash 相同的重复文件将被拒绝</span>
+      <b>拖拽文件到此处、点击选择,或 Ctrl+V 粘贴</b>
+      <span class="hint">PDF / Markdown / TXT / 图片 · 支持直接粘贴截图与文本 · hash 相同的重复文件将被拒绝</span>
     </div>
     <input ref="fileInput" type="file" multiple hidden @change="upload(($event.target as any).files); ($event.target as any).value = ''" />
     <div class="card">
