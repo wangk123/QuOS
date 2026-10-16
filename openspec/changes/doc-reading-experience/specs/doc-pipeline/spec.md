@@ -36,7 +36,7 @@ para 与规则 text SHALL 支持行内强调标记 `**强调**`(成对出现);�
 - **THEN** 引用不闭合硬拒收;keywords 数量越界软警告转题
 
 ### Requirement: markdown 导入
-平台 SHALL 提供 POST /api/v1/projects/{pid}/doc/draft/import:接收 markdown 全文与可选 rules_meta(规则级精修 violation/quote),内置转换为 DocPayload(章节层级/规则编号三格式/正文块/表格/术语表/mermaid 围栏原样入 diagram 块/行内成对 `**` 强调标记保留),并执行**三项结构归一**:①壳章提升——标题为「需求主体」或满足结构判据(自身无正文块无规则、子章 ≥3 且子章规则合计 ≥ 全文 50%)的壳章,其子章上移至壳章原位、壳章删除;头部容器章(背景与目标/用户与场景/系统总览)不提升;②骨架标签剥离——连续【为什么存在】【叙述】para 剥标签合并为一段,孤立【规则】【异常路径】【背景】标签 para 剥标签、空壳删除;③异常条目成块——【异常路径】标签后连续的列表条目或「含 → 的单句」收集为 exceptions 块。归一动作记入导入报告。quote 自动匹配项目材料文本(相似度达标挂出处,未达标留空走软警告),转换后走与手工提交完全相同的两级校验与覆盖落库。summary/keywords/reader_paths/cards 不做 md 自动转换。
+平台 SHALL 提供 POST /api/v1/projects/{pid}/doc/draft/import:接收 markdown 全文与可选 rules_meta(规则级精修 violation/quote),内置转换为 DocPayload(章节层级/规则编号三格式/正文块/表格/术语表/mermaid 围栏原样入 diagram 块/行内成对 `**` 强调标记保留),并执行**三项结构归一**:①壳章提升——标题为「需求主体/功能需求/功能模块」类骨架容器词且自身无正文块无规则的纯壳,其子章上移至壳章原位、壳章删除;头部容器章(背景与目标/用户与场景/系统总览)不提升;②骨架标签剥离——连续【为什么存在】【叙述】para 剥标签合并为一段,孤立【规则】【异常路径】【背景】标签 para 剥标签、空壳删除;③异常条目成块——【异常路径】标签后连续的列表条目或「含 → 的单句」收集为 exceptions 块。归一动作记入导入报告。quote 自动匹配项目材料文本(相似度达标挂出处,未达标留空走软警告),转换后走与手工提交完全相同的两级校验与覆盖落库。summary/keywords/reader_paths/cards 不做 md 自动转换。
 
 #### Scenario: 纯 markdown 导入自动挂出处
 - **WHEN** agent 提交 md 文档(未携带 rules_meta),其中规则文本与某材料句相似度达标
@@ -51,7 +51,7 @@ para 与规则 text SHALL 支持行内强调标记 `**强调**`(成对出现);�
 - **THEN** 平台 422 拒收(FORMAT_CONTRACT/MERMAID_SYNTAX,detail 带位置与修法),agent 修复重导,全程无人工
 
 #### Scenario: 需求主体壳章提升
-- **WHEN** md 含「## 需求主体」壳章(自身无正文无规则),其下 10 个功能域子章承载全文 80% 规则
+- **WHEN** md 含「## 需求主体」纯壳章(自身无正文无规则),其下 10 个功能域子章
 - **THEN** 导入后 10 个功能域成为顶层章,「需求主体」消失;导入报告列明壳章提升 ×1
 
 #### Scenario: 头部容器章不提升
