@@ -83,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("pid", type=int)
     p.add_argument("--md", required=True, help="markdown 文件路径")
     p.add_argument("--meta", help="rules_meta JSON 文件({规则号: {violation, quote}})")
+    p.add_argument("--one-pager", help="需求一页纸 markdown 文件(伴生随草案入库)")
 
     p = sub.add_parser("submit-draft", help="手工 DocPayload 提交")
     p.add_argument("pid", type=int)
@@ -116,6 +117,8 @@ def _dispatch(args, client: httpx.Client) -> int:
         body = {"markdown": _read_file(args.md, "markdown 文件")}
         if args.meta:
             body["rules_meta"] = _read_json(args.meta, "rules_meta 文件")
+        if args.one_pager:
+            body["one_pager_md"] = _read_file(args.one_pager, "一页纸文件")
         return _request(client, "POST", _pid_path(args.pid, "doc/draft/import"),
                         json_body=body)
     if args.cmd == "submit-draft":

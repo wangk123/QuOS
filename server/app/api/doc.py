@@ -14,6 +14,18 @@ from app.services.validators import check_draft
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/doc", tags=["doc"])
 
+ONE_PAGER_MAX = 65536  # 伴生一页纸上限,防 agent 误塞整份文档
+
+
+def _check_one_pager(op: str | None) -> str | None:
+    """导入与手工提交同闸门:超长整体拒收(草案不入库)。"""
+    if op is not None and len(op) > ONE_PAGER_MAX:
+        raise HTTPException(422, {"hard_errors": [
+            {"code": "ONE_PAGER_TOO_LARGE",
+             "detail": f"one_pager_md {len(op)} 字符超过上限 {ONE_PAGER_MAX}"}
+        ]})
+    return op
+
 
 def _get_project(db: Session, pid: int) -> Project:
     proj = db.get(Project, pid)
@@ -34,7 +46,7 @@ def get_baseline(pid: int, db: Session = Depends(get_session)):
     if ver is None:
         return {"empty": True}
     return {"empty": False, "version": ver.version, "snapshot": ver.snapshot,
-            "note": ver.note}
+            "note": ver.note, "one_pager_md": ver.one_pager_md}
 
 
 @router.get("/draft")
@@ -48,7 +60,8 @@ def get_draft(pid: int, db: Session = Depends(get_session)):
     if draft is None:
         return {"empty": True}
     return {"draft_id": draft.id, "status": draft.status, "payload": draft.payload,
-            "check_report": draft.check_report, "created_at": draft.created_at.isoformat()}
+            "check_report": draft.check_report, "created_at": draft.created_at.isoformat(),
+            "one_pager_md": draft.one_pager_md}
 
 
 @router.get("/versions")
@@ -64,6 +77,7 @@ def list_versions(pid: int, db: Session = Depends(get_session)):
 class ImportBody(BaseModel):
     markdown: str
     rules_meta: dict | None = None  # 可选 {规则号: {violation, quote}} 精修值
+    one_pager_md: str | None = None  # 可选伴生需求一页纸原文
 
 
 @router.post("/draft/import")
@@ -82,7 +96,7 @@ def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session))
             hard.append({"code": "MERMAID_SYNTAX", "detail": err + " | 源码: " + src[:60]})
     if hard:
         raise HTTPException(422, {"hard_errors": hard})
-    out = _persist_draft(db, pid, payload)
+    out = _persist_draft(db, pid, payload, one_pager_md=_check_one_pager(body.one_pager_md))
     # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
     if questions:
         # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——
@@ -152,10 +166,12 @@ def submit_draft(pid: int, body: dict, db: Session = Depends(get_session)):
             {"code": e.code, "rule_no": e.rule_no, "detail": e.detail} for e in report.hard_errors
         ]})
 
-    return _persist_draft(db, pid, payload, report)
+    return _persist_draft(db, pid, payload, report,
+                          one_pager_md=_check_one_pager(body.pop("one_pager_md", None)))
 
 
-def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None):
+def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None,
+                   one_pager_md: str | None = None):
     if report is None:
         rules_existing = {
             r.no: r.status for r in db.exec(select(Rule).where(Rule.project_id == pid)).all()
@@ -185,7 +201,8 @@ def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None):
             q.status = "withdrawn"
             db.add(q)
 
-    draft = DocDraft(project_id=pid, payload=payload.model_dump(), status="reviewing")
+    draft = DocDraft(project_id=pid, payload=payload.model_dump(), status="reviewing",
+                     one_pager_md=one_pager_md)
     db.add(draft)
     try:
         db.flush()  # 拿 draft_id 供批注关联;并发撞单 reviewing 唯一索引在此抛出
