@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>瀚海多模态服务 · 需求一页纸（原型 R3）</title>
+<!-- 需求一页纸原型 R3：能力卡叙事重组（用户评审 R2 定调）——卡不与章节一一对应，
+     主线沿链路排前、支撑靠后（合并：受理+解析、配置+通知），卡身为精炼叙述而非清单。
+     内容忠实提炼自 docs/reqdoc-multimodal.md（v4）。「正文 ↗」= 点击跳转正文对应处（平台落地；原型静态示意）。 -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #F2F4F5; color: #1F2937;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.75;
+  }
+  .page { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
+
+  /* ── 文档头：这是什么 ── */
+  .op-head { background: #fff; border-radius: 16px; padding: 24px 28px; margin-bottom: 14px; }
+  .op-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .op-title-row h1 { font-size: 22px; font-weight: 700; }
+  .op-tag-kind { font-size: 12px; font-weight: 600; color: #0E7C86; background: #E6F4F5; padding: 2px 10px; border-radius: 999px; }
+  .op-meta { color: #6B7280; font-size: 12.5px; margin-top: 6px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .op-meta b { color: #374151; font-weight: 600; }
+  .op-rows { margin-top: 14px; display: grid; grid-template-columns: 88px 1fr; row-gap: 8px; column-gap: 10px; }
+  .op-rows .k { font-size: 12.5px; color: #9CA3AF; padding-top: 1px; }
+  .op-rows .v { font-size: 14.5px; color: #111827; }
+  .op-rows .v .chip { font-size: 12.5px; color: #4B5563; background: #F3F4F6; border-radius: 999px; padding: 2px 12px; margin-right: 6px; white-space: nowrap; }
+  .op-rows .v .chip.out { color: #9CA3AF; }
+
+  /* ── 核心链路：它怎么工作 ── */
+  .op-flow { background: #fff; border-radius: 16px; padding: 20px 28px; margin-bottom: 16px; }
+  .sec-t { font-size: 12px; font-weight: 600; color: #9CA3AF; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .flow { display: flex; align-items: center; flex-wrap: wrap; row-gap: 10px; }
+  .fnode {
+    font-size: 13px; font-weight: 600; color: #374151;
+    background: #F3F4F6; border-radius: 8px; padding: 4px 12px; white-space: nowrap;
+  }
+  .fnode.human { color: #92400E; background: #FEF3C7; border: 1px solid #FDE68A; }
+  .farr { color: #C4C9D0; margin: 0 7px; font-weight: 400; }
+  .flow-note { margin-top: 12px; font-size: 13px; color: #6B7280; }
+  .flow-note b { color: #92400E; font-weight: 600; }
+  .flow-note i { font-style: normal; color: #9CA3AF; margin-left: 14px; }
+
+  /* ── 能力速览（主线/支撑 两组） ── */
+  .grp { margin-bottom: 16px; }
+  .grp-t { font-size: 13px; font-weight: 600; color: #6B7280; margin-bottom: 10px; padding-left: 2px; }
+  .grp-t b { color: #374151; }
+  .op-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .dom { background: #fff; border-radius: 14px; padding: 15px 20px 14px; border-left: 4px solid var(--c); }
+  .dom-h { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .dom-h h2 { font-size: 15px; font-weight: 700; color: #111827; }
+  .dom-h .role { font-size: 12px; font-weight: 600; color: var(--c); }
+  .dom-h .jump { margin-left: auto; font-size: 12px; color: #C4C9D0; text-decoration: none; }
+  .dom-h .jump:hover { color: var(--c); }
+  .dom-body { font-size: 13.5px; color: #4B5563; }
+  .dom b { color: var(--c); font-weight: 600; }
+
+  /* ── 底部：场景速览 + 待裁 ── */
+  .op-tail { background: #fff; border-radius: 14px; padding: 14px 20px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .op-tail .scen-chip { font-size: 12.5px; color: #4B5563; background: #F3F4F6; border-radius: 999px; padding: 2px 12px; }
+  .op-tail .todo-hint { margin-left: auto; font-size: 12.5px; color: #9CA3AF; }
+  .op-todo { background: #fff; border-radius: 14px; padding: 14px 20px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+  .todo-n { display: flex; align-items: baseline; gap: 8px; }
+  .todo-n .num { font-size: 25px; font-weight: 700; }
+  .todo-n .cap { font-size: 12px; color: #6B7280; }
+  .t1 .num { color: #B45309; } .t2 .num { color: #0E7C86; } .t3 .num { color: #6D28D9; }
+  .op-todo .todo-hint { margin-left: auto; font-size: 12.5px; color: #9CA3AF; }
+
+  footer { text-align: center; color: #9CA3AF; font-size: 12px; margin-top: 22px; }
+
+  @media (max-width: 760px) {
+    .op-grid { grid-template-columns: 1fr; }
+    .op-rows { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="op-head">
+    <div class="op-title-row">
+      <h1>瀚海多模态服务</h1>
+      <span class="op-tag-kind">需求一页纸</span>
+    </div>
+    <div class="op-meta">
+      <span>版本 <b>draft-v1</b></span><span>2026-10-15</span>
+      <span><b>19</b> 章</span><span><b>11</b> 功能域</span><span>待裁 <b>19</b> 题</span>
+    </div>
+    <div class="op-rows">
+      <span class="k">这是什么</span>
+      <span class="v">给信贷尽调等被辅助系统做多材料<b style="color:#0E7C86">结构化的流水线服务</b>：材料进来，机器识别与计算，人确认与裁决，产出带证据、可追溯的结构化结果。</span>
+      <span class="k">解决什么</span>
+      <span class="v">过去人工逐份查看、归类、抄录，耗时且口径不一；下游拿到的是无统一结构、无法追溯证据的结果。</span>
+      <span class="k">给谁用</span>
+      <span class="v"><span class="chip">业务操作员</span><span class="chip">材料配置管理员</span><span class="chip">分类优化用户</span><span class="chip">外部被辅助系统（机器）</span></span>
+      <span class="k">不做什么</span>
+      <span class="v"><span class="chip out">不产业务结论</span><span class="chip out">不代下游加工报文</span><span class="chip out">不暴露内部主键</span><span class="chip out">旧「材料核验」已移除</span></span>
+    </div>
+  </header>
+
+  <section class="op-flow">
+    <div class="sec-t">核心链路 · 它是怎么工作的</div>
+    <div class="flow">
+      <span class="fnode">材料进入</span><span class="farr">→</span>
+      <span class="fnode">解析识别</span><span class="farr">→</span>
+      <span class="fnode">自动分类</span><span class="farr">→</span>
+      <span class="fnode human">人工确认</span><span class="farr">→</span>
+      <span class="fnode">特征提取</span><span class="farr">→</span>
+      <span class="fnode">结构化抽取</span><span class="farr">→</span>
+      <span class="fnode human">人工复核</span><span class="farr">→</span>
+      <span class="fnode">发布固化</span><span class="farr">→</span>
+      <span class="fnode">API / SSE 交付</span>
+    </div>
+    <div class="flow-note"><b>琥珀色 = 人工环节</b>：机器负责识别与计算，人只做确认与裁决。<i>全链无静默降级——配置缺失、依赖不可用一律显式失败。</i></div>
+  </section>
+
+  <section class="grp">
+    <div class="grp-t"><b>主线</b> · 从材料到交付</div>
+    <div class="op-grid">
+
+      <section class="dom" style="--c:#2563EB">
+        <div class="dom-h"><h2>材料进入与解析</h2><span class="role">业务起点</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">一切从<b>受理单</b>开始——全部业务动作挂在它上面，<b>影像树</b>定义这笔业务要哪些影像、怎么算齐。任何渠道进来的任何文件——PDF、扫描件、Office、压缩包、音视频——都被转成同一种可分类、可抽取的<b>标准内容</b>；解析失败显式可见、可人工修复。</p>
+      </section>
+
+      <section class="dom" style="--c:#16A34A">
+        <div class="dom-h"><h2>材料分类</h2><span class="role">定类</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">机器双路径给候选（冷启动评分 + 确认样本匹配），<b>人做终审</b>；确认过的样本<b>反哺匹配，越用越准</b>。机器拿不准的一律转人，不猜。</p>
+      </section>
+
+      <section class="dom" style="--c:#CA8A04">
+        <div class="dom-h"><h2>结构化抽取与发布</h2><span class="role">核心产出</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">把「材料里的那张表」变成<b>带证据、可校验、可发布的数据</b>。字段校验与数据勾稽<b>两道门</b>拦在发布前；<b>发布即固化</b>，此后不可再改。</p>
+      </section>
+
+      <section class="dom" style="--c:#0D9488">
+        <div class="dom-h"><h2>对外交付</h2><span class="role">交付面</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body"><b>固定路径、POST 查询、幂等写、SSE 通知</b>——外部系统可以放心依赖的契约面。查空与分类不存在严格区分，单个影像出问题不影响其余返回。</p>
+      </section>
+
+    </div>
+  </section>
+
+  <section class="grp">
+    <div class="grp-t"><b>支撑</b> · 质量与运转</div>
+    <div class="op-grid">
+
+      <section class="dom" style="--c:#DC2626">
+        <div class="dom-h"><h2>影像合规审查</h2><span class="role">质量闸</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">按影像树规则<b>自动重判</b>影像合格性——分类确认、数据修正等事实一变就<b>自动补算</b>，页面上没有「开始审查」按钮。当前是轻量版，完整审查引擎是目标态。</p>
+      </section>
+
+      <section class="dom" style="--c:#9333EA">
+        <div class="dom-h"><h2>特征提取与媒体</h2><span class="role">媒体面</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">音视频、图片先转成<b>与 OCR 等价的标准数据</b>，再进统一抽取。特征只记事实、值、置信度与证据，<b>不产「通过与风险」的业务结论</b>。</p>
+      </section>
+
+      <section class="dom" style="--c:#C026D3">
+        <div class="dom-h"><h2>智能分类助手</h2><span class="role">调优面</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">分类准确率的调优面——Agent 负责取证与起草，系统<b>强制验证</b>（真实试算 + 回归），人终审；Agent <b>自报完成无效</b>。</p>
+      </section>
+
+      <section class="dom" style="--c:#EA580C">
+        <div class="dom-h"><h2>规则管理</h2><span class="role">校验配置</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">勾稽与校验规则的配置面——规则在这里<b>设计、发布</b>，发布门前由规则引擎执行。业务结论不等于接口报错。</p>
+      </section>
+
+      <section class="dom" style="--c:#6366F1">
+        <div class="dom-h"><h2>配置与实时通知</h2><span class="role">运转底座</span><a class="jump" href="javascript:void 0" title="跳转正文对应章">正文 ↗</a></div>
+        <p class="dom-body">一切配置集中管理、运行期<b>冻结快照</b>——保存不等于可运行，缺关联显式停止。页面感知走「事务内<b>发件箱 → SSE 推送</b>」，前端只重读权威资源、不消费事件数据。</p>
+      </section>
+
+    </div>
+  </section>
+
+  <section class="op-tail">
+    <span class="sec-t" style="margin:0">场景速览</span>
+    <span class="scen-chip">受理办结</span>
+    <span class="scen-chip">审阅修复</span>
+    <span class="scen-chip">配置上线</span>
+    <span class="scen-chip">分类优化</span>
+    <span class="scen-chip">机器对接</span>
+    <span class="todo-hint">详细场景见正文「用户与场景」章</span>
+  </section>
+
+  <section class="op-todo">
+    <div class="todo-n t1"><span class="num">7</span><span class="cap">送裁 · 选择<br>需求-实现冲突二选一</span></div>
+    <div class="todo-n t2"><span class="num">7</span><span class="cap">确认题<br>口径与归纳待确认</span></div>
+    <div class="todo-n t3"><span class="num">5</span><span class="cap">填空题<br>素材未定义待补</span></div>
+    <span class="todo-hint">共 19 题 · 评审前先看文档末「问题清单」</span>
+  </section>
+
+  <footer>需求一页纸 · req-onepager 自需求文档 draft-v1（2026-10-15）提炼 · 原型 R3</footer>
+</div>
+</body>
+</html>

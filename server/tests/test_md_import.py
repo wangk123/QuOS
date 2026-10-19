@@ -229,3 +229,14 @@ def test_mermaid_check_real():
     ])
     assert rs[0] is None                      # 合法(或无法判定)通过
     assert rs[1] and "Parse error" in rs[1]   # 半角括号真语法错误
+
+
+def test_mermaid_check_reserved_word():
+    """节点 id 撞 mermaid 保留字(graph)在 node 无 DOM 下曾被 DOMPurify 环境错掩盖而漏放——jsdom 垫底后必须抓到。"""
+    from app.services.mermaid_check import check_mermaid
+    # 语法错误必须出现在第二条边之后:首边错误不会被 DOMPurify 环境错掩盖,测不出本漏洞
+    bad = "flowchart LR\n  svc --> mysql[(MySQL)]\n  svc -- 调度 --> graph[平台Graph Runtime]"
+    ok = "flowchart LR\n  svc --> mysql[(MySQL)]\n  svc -- 调度 --> graphrt[平台Graph Runtime]"
+    rs = check_mermaid([bad, ok])
+    assert rs[0] and "Parse error" in rs[0], f"保留字图漏放: {rs}"
+    assert rs[1] is None

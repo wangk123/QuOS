@@ -110,7 +110,7 @@ def finalize(db: Session, pid: int, draft_id: int, version: str, note: str) -> D
 
     rows = _diff_rules(db, pid, payload, prev, note or "收敛草案")
     ver = DocVersion(project_id=pid, version=version, snapshot=payload.model_dump(),
-                     draft_id=draft.id, note=note)
+                     draft_id=draft.id, note=note, one_pager_md=draft.one_pager_md)
     db.add(ver)
     try:
         db.flush()  # 唯一约束在此先于 commit 触发(并发同号)

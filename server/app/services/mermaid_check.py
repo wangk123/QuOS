@@ -10,8 +10,15 @@ from pathlib import Path
 
 _WEB = Path(__file__).resolve().parents[3] / "web"
 _MERMAID_URL = (_WEB / "node_modules" / "mermaid" / "dist" / "mermaid.esm.min.mjs").as_uri()
+_JSDOM_URL = (_WEB / "node_modules" / "jsdom" / "lib" / "api.js").as_uri()
 
 _NODE_SCRIPT = """
+// 垫 DOM:无 window 时 mermaid 内置 DOMPurify 不初始化,第二条边起的语法错误被环境错掩盖而漏放
+// (jsdom 复用 web 前端已装依赖,不新增包)
+const { JSDOM } = (await import(process.env.JSDOM_URL)).default;
+const dom = new JSDOM("<!DOCTYPE html>");
+globalThis.window = dom.window;
+globalThis.document = dom.window.document;
 const mermaid = (await import(process.env.MERMAID_URL)).default;
 const srcs = JSON.parse(await new Promise(r => { let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>r(d)); }));
 const out = [];
@@ -31,7 +38,7 @@ def check_mermaid(sources: list[str]) -> list[str]:
         r = subprocess.run(
             ["node", "--input-type=module", "-e", _NODE_SCRIPT],
             input=json.dumps(sources).encode(), capture_output=True, timeout=30,
-            env={**os.environ, "MERMAID_URL": _MERMAID_URL},
+            env={**os.environ, "MERMAID_URL": _MERMAID_URL, "JSDOM_URL": _JSDOM_URL},
         )
         return json.loads(r.stdout) if r.returncode == 0 else [None] * len(sources)
     except Exception:

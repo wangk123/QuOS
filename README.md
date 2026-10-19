@@ -13,8 +13,7 @@ QuOS 平台(FastAPI):统一 REST + 两级校验闸门 + 批注/草案/版本状�
         ▲ 浏览器:材料上传 / 批注式文档评审 / 定稿发版 / 版本回退
 ```
 
-- 设计与规格:`openspec/changes/quos-v2-rebuild/`(design + specs 六能力域;ADR 见 `docs/adr/`)
-- 前端验收基准:`web/prototype/quos-v2-prototype.html`(R1-R6 定稿原型,逐屏对照)
+- 设计与规格:`openspec/changes/archive/2026-10-15-quos-v2-rebuild/`(design + specs 六能力域;ADR 见 `docs/adr/`)
 - 需求整理加工协议:`.agents/skills/req-organize/SKILL.md` 「平台对接」章节
 
 ## 快速开始

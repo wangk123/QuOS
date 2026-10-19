@@ -31,15 +31,25 @@ const code = computed(() => {
 const svg = ref('')
 const failed = ref(false)
 
-watchEffect(async () => {
+let seq = 0
+watchEffect(async (onCleanup) => {
   const src = code.value
   if (!src) return
+  // 竞态守卫:payload 先取基线快照再切草案会产生两轮渲染,旧一轮的异步结果
+  // (尤其是失败)晚归时不得覆盖新一轮;每轮独立 id,残留清理互不误删
+  const myId = uid + '-' + ++seq
+  let stale = false
+  onCleanup(() => { stale = true })
   failed.value = false
   try {
-    const { svg: out } = await mermaid.render(uid, src)
-    svg.value = out
+    const { svg: out } = await mermaid.render(myId, src)
+    if (!stale) svg.value = out
   } catch {
-    failed.value = true
+    if (!stale) failed.value = true
+  } finally {
+    // mermaid 失败残留清理:错误卡容器 #id 与样式容器 d#id 会留在 body 末尾(文档流尾部堆积可见)
+    document.getElementById(myId)?.remove()
+    document.getElementById('d' + myId)?.remove()
   }
 })
 </script>

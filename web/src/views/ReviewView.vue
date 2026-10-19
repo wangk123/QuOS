@@ -8,7 +8,9 @@ import AppModal from '../components/AppModal.vue'
 import ChapterTree from '../components/rev/ChapterTree.vue'
 import DocPaper from '../components/rev/DocPaper.vue'
 import AnnotationRail from '../components/rev/AnnotationRail.vue'
-import { GLOSSARY_CH_ID } from '../utils/chapters'
+import OnePager from '../components/rev/OnePager.vue'
+import { GLOSSARY_CH_ID, flattenChapters } from '../utils/chapters'
+import { parseOnePager, resolveOnePagerMd } from '../utils/onepager'
 
 const projName = ref('')
 const draft = ref<any>(null)
@@ -148,6 +150,23 @@ function jumpChapter(ch: string) {
   document.getElementById('ch-' + ch)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+/* 需求一页纸:有 reviewing 草案只认草案(重导不带=清空,不得回退旧基线防陈旧画像);基线态才看基线 */
+const view = ref<'doc' | 'onepager'>('doc')
+const onepagerMd = computed(() => resolveOnePagerMd(draft.value, baseline.value))
+const onepagerDoc = computed(() =>
+  view.value === 'onepager' && onepagerMd.value ? parseOnePager(onepagerMd.value) : null)
+function onepagerJump(chapters: string) {
+  const n = String(parseInt(chapters, 10))
+  const hit = payload.value
+    ? flattenChapters(payload.value.chapters).find(f => f.no === n || f.no.startsWith(n + '.'))
+    : null
+  if (!hit) return  // 章号不存在(skill 写错/文档改版):静默不跳
+  view.value = 'doc'
+  // 视图刚切回,mermaid/表格异步渲染会再撑高布局,立即 smooth 滚会被打断——延迟到布局稳定后执行
+  nextTick(() => setTimeout(() =>
+    document.getElementById('ch-' + hit.c.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250))
+}
+
 /* ── 发版 ── */
 function openFinalize() {
   fin.value = { version: suggestedVer.value, note: '' }
@@ -179,12 +198,15 @@ async function doFinalize() {
       <span class="tag warn"><span class="dot" />{{ hasDraft ? '草案评审中' : '当前基线' }}</span>
       <span style="font-size: 0.82rem; color: var(--muted)">基于 <b>{{ baseline?.version ?? '—' }}</b> · {{ summary }}</span>
       <span class="spacer" />
+      <button v-if="onepagerMd" class="btn sm" :class="{ primary: view === 'onepager' }"
+              @click="view = view === 'onepager' ? 'doc' : 'onepager'">一页纸</button>
       <button v-if="hasDraft" id="btnFinalize" class="btn primary sm" @click="openFinalize">定稿发版</button>
     </div>
 
     <div class="rev-body full">
       <div class="rev-col doc-col">
-        <DocPaper v-if="payload" :payload="payload" :annos="annos" :materials="materials"
+        <OnePager v-if="onepagerDoc" :doc="onepagerDoc" style="padding: 18px 22px" @jump="onepagerJump" />
+        <DocPaper v-else-if="payload" :payload="payload" :annos="annos" :materials="materials"
                   :title="projName" :ver-label="verLabel" :toc-mode="tocMode"
                   @activate="activateFromDoc" @jump="jumpChapter" @toc-show="tocShow" @toc-hide="tocHide">
           <template v-if="tocMode !== 'hidden'" #toc>

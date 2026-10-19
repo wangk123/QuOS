@@ -48,6 +48,7 @@ class DocDraft(SQLModel, table=True):
     payload: dict = SF(sa_column=Column(JSON))
     status: str = "reviewing"  # reviewing | finalized | superseded
     check_report: dict = SF(default_factory=dict, sa_column=Column(JSON))
+    one_pager_md: str | None = SF(default=None, nullable=True)  # 伴生需求一页纸原文,不入 payload
     created_at: datetime = SF(default_factory=_now)
 
 
@@ -57,6 +58,7 @@ class DocVersion(SQLModel, table=True):
     project_id: int = SF(foreign_key="project.id", index=True)
     version: str = SF(index=True)
     snapshot: dict = SF(sa_column=Column(JSON))
+    one_pager_md: str | None = SF(default=None, nullable=True)  # finalize 时自草案复制,基线态一页纸来源
     draft_id: int | None = SF(default=None, foreign_key="docdraft.id")
     note: str = ""
     created_at: datetime = SF(default_factory=_now)
