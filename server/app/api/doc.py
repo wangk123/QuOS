@@ -18,7 +18,11 @@ ONE_PAGER_MAX = 65536  # 伴生一页纸上限,防 agent 误塞整份文档
 
 
 def _check_one_pager(op: str | None) -> str | None:
-    """导入与手工提交同闸门:超长整体拒收(草案不入库)。"""
+    """导入与手工提交同闸门:类型/超长整体拒收(草案不入库)。"""
+    if op is not None and not isinstance(op, str):
+        raise HTTPException(422, {"hard_errors": [
+            {"code": "ONE_PAGER_TOO_LARGE", "detail": "one_pager_md 须为字符串"}
+        ]})
     if op is not None and len(op) > ONE_PAGER_MAX:
         raise HTTPException(422, {"hard_errors": [
             {"code": "ONE_PAGER_TOO_LARGE",

@@ -10,7 +10,7 @@ import DocPaper from '../components/rev/DocPaper.vue'
 import AnnotationRail from '../components/rev/AnnotationRail.vue'
 import OnePager from '../components/rev/OnePager.vue'
 import { GLOSSARY_CH_ID, flattenChapters } from '../utils/chapters'
-import { parseOnePager } from '../utils/onepager'
+import { parseOnePager, resolveOnePagerMd } from '../utils/onepager'
 
 const projName = ref('')
 const draft = ref<any>(null)
@@ -152,8 +152,7 @@ function jumpChapter(ch: string) {
 
 /* 需求一页纸:有 reviewing 草案只认草案(重导不带=清空,不得回退旧基线防陈旧画像);基线态才看基线 */
 const view = ref<'doc' | 'onepager'>('doc')
-const onepagerMd = computed(() =>
-  draft.value ? (draft.value.one_pager_md ?? null) : (baseline.value?.one_pager_md ?? null))
+const onepagerMd = computed(() => resolveOnePagerMd(draft.value, baseline.value))
 const onepagerDoc = computed(() =>
   view.value === 'onepager' && onepagerMd.value ? parseOnePager(onepagerMd.value) : null)
 function onepagerJump(chapters: string) {

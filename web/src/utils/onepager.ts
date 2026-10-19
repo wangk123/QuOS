@@ -39,8 +39,8 @@ export function splitSegs(text: string): OneSeg[] {
   return out.filter((s) => s.t !== '')
 }
 
-/* 角色括号宽容:全角为契约语法,半角/缺失容忍(角色空),卡不丢 */
-const CARD_RE = /^\*\*(.+?)\*\*(?:（([^）]*)）|\(([^)]*)\))?\s*〔正文\s*(.*?)〕：(.*)$/
+/* 角色括号与冒号宽容:全角为契约语法,半角/缺失容忍(角色空),卡不丢 */
+const CARD_RE = /^\*\*(.+?)\*\*(?:（([^）]*)）|\(([^)]*)\))?\s*〔正文\s*(.*?)〕[：:](.*)$/
 
 export function parseOnePager(md: string): OnePagerDoc {
   const doc: OnePagerDoc = {
@@ -72,7 +72,7 @@ export function parseOnePager(md: string): OnePagerDoc {
       continue
     }
 
-    const head = line.match(/^\*\*(.+?)\*\*：(.*)$/)
+    const head = line.match(/^\*\*(.+?)\*\*[：:](.*)$/)
     if (head && !section) { doc.head.push({ k: head[1], v: head[2] }); continue }
 
     if (section === '核心链路') {
@@ -107,4 +107,10 @@ export function parseOnePager(md: string): OnePagerDoc {
     // 其余未知行:忽略
   }
   return doc
+}
+
+/* 入口数据源判定:有 reviewing 草案只认草案(重导清空不回退旧基线);empty 响应/无草案才看基线 */
+export function resolveOnePagerMd(draft: any, baseline: any): string | null {
+  const hasDraft = !!draft && draft.empty !== true
+  return hasDraft ? (draft.one_pager_md ?? null) : (baseline?.one_pager_md ?? null)
 }

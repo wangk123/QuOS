@@ -101,6 +101,13 @@ describe('parseOnePager 容错', () => {
     expect(doc.groups[0].cards[0].role).toBe('业务载体')
   })
 
+  it('半角冒号宽容:卡与头行照样解析', () => {
+    const doc = parseOnePager(MD.replace('〔正文 7〕：机器双路径', '〔正文 7〕:机器双路径')
+                                 .replace('**这是什么**：', '**这是什么**: '))
+    expect(doc.groups[1].cards[0].segs.length).toBeGreaterThan(0)
+    expect(doc.head[0].v).toContain('流水线服务')
+  })
+
   it('不成对粗体整段低亮不抛', () => {
     const doc = parseOnePager(MD.replace('**受理单**', '**受理单'))
     const segs = doc.groups[0].cards[0].segs
@@ -126,5 +133,31 @@ describe('OnePager.vue 冒烟', () => {
   it('点卡 emit jump(章号串)', async () => {
     await w.findAll('.dom')[1].trigger('click')
     expect(w.emitted('jump')![0]).toEqual(['7'])
+  })
+
+  it('文本插值不做 esc:含 & 显示为 & 而非实体', async () => {
+    const d = parseOnePager(MD.replace('机器双路径给候选', 'A & B 机器双路径给候选'))
+    const w2 = mount(OnePager, { props: { doc: d } })
+    const all = w2.findAll('.dom-body').map((x) => x.text()).join('\n')
+    expect(all).toContain('A & B')
+    expect(all).not.toContain('&amp;')
+  })
+})
+
+/* 入口数据源判定:有草案只认草案(重导清空不回退),基线态(empty 响应)才看基线 */
+import { resolveOnePagerMd } from '../src/utils/onepager'
+
+describe('resolveOnePagerMd', () => {
+  it('有 reviewing 草案:只认草案', () => {
+    expect(resolveOnePagerMd({ one_pager_md: 'x' }, { one_pager_md: 'y' })).toBe('x')
+  })
+  it('草案已清空:不回退旧基线(重导清空语义)', () => {
+    expect(resolveOnePagerMd({ one_pager_md: null }, { one_pager_md: 'y' })).toBeNull()
+  })
+  it('无草案(empty:true 响应):看基线——finalize 后入口不消失', () => {
+    expect(resolveOnePagerMd({ empty: true }, { one_pager_md: 'y' })).toBe('y')
+  })
+  it('双空', () => {
+    expect(resolveOnePagerMd(null, null)).toBeNull()
   })
 })

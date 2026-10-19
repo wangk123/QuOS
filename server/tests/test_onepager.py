@@ -80,3 +80,12 @@ def test_oversized_one_pager_rejected(client):
     assert any(e["code"] == "ONE_PAGER_TOO_LARGE" for e in r.json()["detail"]["hard_errors"])
     got = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
     assert got.get("empty", False) is True or got.get("one_pager_md") is None  # 草案未入库
+
+
+def test_one_pager_wrong_type_rejected(client):
+    pid, mid = _setup(client)
+    body = _payload(mid)
+    body["one_pager_md"] = 123  # 非字符串:类型闸,不是 500
+    r = client.post(f"/api/v1/projects/{pid}/doc/draft", json=body)
+    assert r.status_code == 422
+    assert any(e["code"] == "ONE_PAGER_TOO_LARGE" for e in r.json()["detail"]["hard_errors"])

@@ -11,8 +11,6 @@ const PALETTE = ['#2563EB', '#16A34A', '#CA8A04', '#0D9488', '#9333EA',
 
 const cards = () => props.doc.groups.flatMap((g) => g.cards)
 const color = (c: OneCard) => PALETTE[cards().indexOf(c) % PALETTE.length]
-const esc = (s: string) =>
-  s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
 </script>
 
 <template>
@@ -53,7 +51,7 @@ const esc = (s: string) =>
             <span class="jump" title="跳转正文对应章">正文 ↗</span>
           </div>
           <p class="dom-body">
-            <template v-for="(s, i) in c.segs" :key="i"><b v-if="s.hl">{{ esc(s.t) }}</b><template v-else>{{ esc(s.t) }}</template></template>
+            <template v-for="(s, i) in c.segs" :key="i"><b v-if="s.hl">{{ s.t }}</b><template v-else>{{ s.t }}</template></template>
           </p>
         </div>
       </div>
