@@ -6,8 +6,8 @@
 
 - 基址：`http://127.0.0.1:8000`（本地无鉴权；8000 被占时换端口并相应调整）
 - 全部响应 JSON、成功状态码 200；错误用 HTTP 语义：**404** 资源不存在（detail 字符串）/ **409** 冲突 / **422** 校验拒收
-- **draft 提交两端点**（POST `/doc/draft`、`/doc/draft/import`）的 422/409 带 code：422 结构 `{"detail": {"hard_errors": [{"code", "rule_no?", "detail"}]}}`（import 的 FORMAT_CONTRACT/MERMAID_SYNTAX 无 rule_no），`detail.nearest` 是 QUOTE_NOT_FOUND 时材料内最相近片段；409 见 `SINGLE_REVIEWING`。materials 的 409 也带 `{"code": ...}`（`DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`）。其余端点的 422/409 为 FastAPI 默认结构或 detail 字符串，以各端点小节为准
-- 主要错误码：`SCHEMA`（payload 结构不合法）/ `QUOTE_NOT_FOUND` / `BLOCK_*`、`CHAPTER_PARENT_*`（块结构与层级）/ `FORMAT_CONTRACT`、`MERMAID_SYNTAX`（md 导入格式硬校验）/ `SINGLE_REVIEWING`（409，并发撞唯一 reviewing）/ `DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`（409）
+- **draft 提交两端点**（POST `/doc/draft`、`/doc/draft/import`）的 422/409 带 code：422 结构 `{"detail": {"hard_errors": [{"code", "rule_no?", "detail"}]}}`（import 的 FORMAT_CONTRACT/DIAGRAM_CHECK 无 rule_no），`detail.nearest` 是 QUOTE_NOT_FOUND 时材料内最相近片段；409 见 `SINGLE_REVIEWING`。materials 的 409 也带 `{"code": ...}`（`DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`）。其余端点的 422/409 为 FastAPI 默认结构或 detail 字符串，以各端点小节为准
+- 主要错误码：`SCHEMA`（payload 结构不合法）/ `QUOTE_NOT_FOUND` / `BLOCK_*`、`CHAPTER_PARENT_*`（块结构与层级）/ `FORMAT_CONTRACT`、`DIAGRAM_CHECK`（md 导入格式与图结构硬校验）/ `SINGLE_REVIEWING`（409，并发撞唯一 reviewing）/ `DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`（409）
 
 ## projects（项目管理）
 
@@ -51,7 +51,7 @@
 
 - **GET baseline**：无定稿 `{"empty": true}`（冷启动）；有则 `{"empty": false, "version", "snapshot"(完整 DocPayload), "note", "one_pager_md"(str|null, finalize 时自草案复制)}`。
 - **GET draft**：无 reviewing 草案 `{"empty": true}`；有则 `{"draft_id", "status", "payload", "check_report", "created_at", "one_pager_md"(str|null)}`；`check_report = {soft_warnings: [{code, rule_no}], auto_questions: [payload]}`。
-- **POST draft/import**：body `{"markdown": str 必填, "rules_meta"?: {"<规则号>": {"violation"?, "quote"?}}, "one_pager_md"?: str(伴生需求一页纸,≤65536 字符,超限 422 ONE_PAGER_TOO_LARGE;重导不带=清空,伴生物随文档版本走)}`。平台内置 md→DocPayload 转换（章节/规则/块/表格/术语表/图；quote 自动匹配材料文本 ≥0.45）。格式硬校验导入即拒收（FORMAT_CONTRACT：ASCII 盒子图、mermaid 节点半角括号、引用块承载实质内容；MERMAID_SYNTAX：node 端真实 parse）→ 422。成功走与 POST draft 相同的校验落库，附录 A 待确认问题清单自动转批注（source=agent，锚定正文）。响应同 POST draft。
+- **POST draft/import**：**multipart**——`md`（file，markdown 全文）、`figures`（file[]，可选，diagram-design HTML 图文件集，filename 为 basename，服务端映射 `figures/<filename>`）、`rules_meta`（form，可选，JSON 字符串 `{"<规则号>": {"violation"?, "quote"?}}`）、`one_pager_md`（form，可选，伴生需求一页纸 ≤65536 字符，超限 422 ONE_PAGER_TOO_LARGE；重导不带=清空）。md 正文图以**整行引用** `![图意图](figures/<slug>.html)` 呈现，导入时图文件内容收进 diagram 块（payload 快照冻结版本）。平台内置 md→DocPayload 转换（章节/规则/块/表格/术语表/图；quote 自动匹配材料文本 ≥0.45）。硬校验导入即拒收 → 422：FORMAT_CONTRACT（ASCII 盒子图、引用块承载实质内容、图引用未独立成行、引用的图文件未随请求提交）；DIAGRAM_CHECK（HTML 图缺 title/desc、含 script 或 on*= 事件属性、含外链资源（仅豁免 Google Fonts）、内容越界 viewBox）。软警告不阻塞（进 check_report.soft_warnings，带 detail）：DIAGRAM_LEGACY（存量 mermaid 图源，请重画）、DIAGRAM_ORPHAN（提交了未被引用的图文件）。成功走与 POST draft 相同的校验落库，附录 A 待确认问题清单自动转批注（source=agent，锚定正文）。响应同 POST draft。
 - **POST draft**：body 即 DocPayload `{meta, overview, glossary, new_terms, chapters, rules}`，可另带可选字段 `"one_pager_md"?: str`（语义同 import：≤65536、超限 422 ONE_PAGER_TOO_LARGE、覆盖式）。章节 `{id/title/pri/parent?/background/blocks/rule_nos}`，blocks 有序，每块 `{type: para|states|table|figure|exceptions|diagram, text?, title?, columns?, rows?, flows?, items?}`；rules 每条 `{no/text/violation/quote/material_id/status/replaced_by}`。校验两级：硬错误整体拒收 422（SCHEMA/QUOTE_NOT_FOUND/BLOCK_*/CHAPTER_PARENT_*）；软警告转批注（source=auto）。成功 `{"draft_id", "status": "reviewing", "check_report"}`；并发撞唯一 reviewing 409 SINGLE_REVIEWING。覆盖语义：旧 reviewing → superseded，其 pending 批注撤回。
 - **GET versions**：响应 `[{version, note, created_at}]` 新在前。
 - **POST finalize**：body `{"draft_id": int, "version": str, "note": str = ""}` → 版本快照 + 条款级变更记录；响应 `{"version", "note"}`。

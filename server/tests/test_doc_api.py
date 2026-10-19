@@ -116,3 +116,92 @@ def test_auto_questions_deduped_across_resubmit(client):
 def test_versions_list_empty(client):
     pid = client.post("/api/v1/projects", json={"name": "P"}).json()["id"]
     assert client.get(f"/api/v1/projects/{pid}/doc/versions").json() == []
+
+
+# ── 图源单轨:multipart 导入(md+figures)、引用闭合 422、存量 mermaid 软放行 ──
+FIG_HTML = ('<!DOCTYPE html><html><body><svg viewBox="0 0 100 40" role="img" '
+            'aria-labelledby="a-title a-desc"><title id="a-title">主链路</title>'
+            '<desc id="a-desc">流程</desc>'
+            '<rect width="100" height="40" fill="#f5f5f5"/></svg></body></html>')
+
+
+def _import_md(client, pid, md, figures=(), **form):
+    files = [('md', ('doc.md', md.encode(), 'text/markdown'))]
+    files += [('figures', (name, content.encode(), 'text/html')) for name, content in figures]
+    return client.post(f'/api/v1/projects/{pid}/doc/draft/import',
+                       data=form, files=files)
+
+
+def test_import_with_figures_makes_diagram(client):
+    pid, mid = _mk_proj_with_material(client)
+    md = '## 1 接入\n\n![主链路](figures/main-flow.html)\n'
+    r = _import_md(client, pid, md, [('main-flow.html', FIG_HTML)])
+    assert r.status_code == 200, r.text
+    got = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
+    blocks = got["payload"]["chapters"][0]["blocks"]
+    assert blocks[-1]["type"] == "diagram" and blocks[-1]["text"] == FIG_HTML
+
+
+def test_import_missing_figure_422(client):
+    pid, _ = _mk_proj_with_material(client)
+    r = _import_md(client, pid, '## 1 接入\n\n![x](figures/none.html)\n')
+    assert r.status_code == 422
+    assert any('none.html' in e["detail"] for e in r.json()["detail"]["hard_errors"])
+
+
+def test_import_bad_figure_html_422(client):
+    pid, _ = _mk_proj_with_material(client)
+    bad = FIG_HTML.replace('<title id="a-title">主链路</title>', '')
+    r = _import_md(client, pid, '## 1 接入\n\n![x](figures/b.html)\n', [('b.html', bad)])
+    assert r.status_code == 422
+    assert any(e["code"] == "DIAGRAM_CHECK" for e in r.json()["detail"]["hard_errors"])
+
+
+def test_import_legacy_mermaid_soft_not_hard(client):
+    pid, mid = _mk_proj_with_material(client)
+    md = '## 1 接入\n\n```mermaid\nflowchart TD\nA-->B\n```\n'
+    r = _import_md(client, pid, md)
+    assert r.status_code == 200, r.text
+    import json as _json
+    sw = r.json()["check_report"]["soft_warnings"]
+    assert any(w["code"] == "DIAGRAM_LEGACY" and 'diagram-design' in _json.dumps(w, ensure_ascii=False)
+               for w in sw)  # legacy 软警告由 check_draft 统一产出(detail={msg:...})
+
+
+def test_import_unreferenced_figure_soft(client):
+    pid, _ = _mk_proj_with_material(client)
+    r = _import_md(client, pid, '## 1 接入\n', [('orphan.html', FIG_HTML)])
+    assert r.status_code == 200, r.text
+    sw = r.json()["check_report"]["soft_warnings"]
+    assert any('orphan' in (w.get('detail') or '') for w in sw)
+
+
+# ── 终审 fix:rules_meta 坏 JSON 422(非 500);draft 直传存量 mermaid 软放行 ──
+def test_import_bad_rules_meta_json_422(client):
+    pid, _ = _mk_proj_with_material(client)
+    files = [('md', ('doc.md', '## 1 接入\n正文\n'.encode(), 'text/markdown'))]
+    r = client.post(f'/api/v1/projects/{pid}/doc/draft/import',
+                    data={'rules_meta': '{bad json'}, files=files)
+    assert r.status_code == 422
+    assert any(e["code"] == "FORMAT_CONTRACT" for e in r.json()["detail"]["hard_errors"])
+
+
+def test_submit_draft_legacy_mermaid_soft(client):
+    pid, mid = _mk_proj_with_material(client)
+    body = _payload(material_id=mid)
+    body["chapters"][0]["blocks"] = [
+        {"type": "diagram", "text": "flowchart TD\nA-->B"}]
+    r = client.post(f"/api/v1/projects/{pid}/doc/draft", json=body)
+    assert r.status_code == 200, r.text
+    sw = r.json()["check_report"]["soft_warnings"]
+    assert any(w["code"] == "DIAGRAM_LEGACY" for w in sw)
+
+
+def test_submit_draft_bad_html_diagram_422(client):
+    pid, mid = _mk_proj_with_material(client)
+    body = _payload(material_id=mid)
+    body["chapters"][0]["blocks"] = [
+        {"type": "diagram", "text": FIG_HTML.replace('<rect ', '<rect onload="x()" ')}]
+    r = client.post(f"/api/v1/projects/{pid}/doc/draft", json=body)
+    assert r.status_code == 422
+    assert any(e["code"] == "DIAGRAM_CHECK" for e in r.json()["detail"]["hard_errors"])

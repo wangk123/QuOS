@@ -1,6 +1,7 @@
 """基线/草案/版本读取与草案提交(校验闸门 + 覆盖语义)。"""
+import json
 import re
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -8,8 +9,8 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
-from app.services.md_import import detect_format_issues, md_to_payload
-from app.services.mermaid_check import check_mermaid
+from app.services.diagram_check import check_diagram, is_html_form
+from app.services.md_import import detect_format_issues, detect_format_soft, md_to_payload
 from app.services.validators import check_draft
 
 router = APIRouter(prefix="/api/v1/projects/{pid}/doc", tags=["doc"])
@@ -78,29 +79,48 @@ def list_versions(pid: int, db: Session = Depends(get_session)):
             for v in vers]
 
 
-class ImportBody(BaseModel):
-    markdown: str
-    rules_meta: dict | None = None  # 可选 {规则号: {violation, quote}} 精修值
-    one_pager_md: str | None = None  # 可选伴生需求一页纸原文
-
-
 @router.post("/draft/import")
-def import_draft(pid: int, body: ImportBody, db: Session = Depends(get_session)):
-    """markdown 直接导入:平台内置转换(md→DocPayload,quote 自动匹配材料),后续走与 POST /draft 完全相同的校验与落库。"""
+async def import_draft(pid: int, db: Session = Depends(get_session),
+                       md: UploadFile = File(...),
+                       figures: list[UploadFile] = File(default=[]),
+                       rules_meta: str | None = Form(None),
+                       one_pager_md: str | None = Form(None)):
+    """markdown 直接导入(multipart:md 全文 + figures 图文件集):平台内置转换(md→DocPayload,
+    整行图引用收图内容进 diagram 块),后续走与 POST /draft 完全相同的校验与落库。
+    硬软分流:HTML 图结构非法/引用闭合失败 422;存量 mermaid 图源与未引用图文件走软警告。"""
     _get_project(db, pid)
     materials = {
         m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
     }
-    payload, questions = md_to_payload(body.markdown, materials, body.rules_meta)
-    # fail fast:格式契约违规与 mermaid 语法错误导入即拒收,agent 修复后重导(全程无人工)
-    hard = [{"code": "FORMAT_CONTRACT", "detail": w} for w in detect_format_issues(body.markdown)]
-    diagrams = [b.text for ch in payload.chapters for b in ch.blocks if b.type == "diagram"]
-    for src, err in zip(diagrams, check_mermaid(diagrams)):
-        if err:
-            hard.append({"code": "MERMAID_SYNTAX", "detail": err + " | 源码: " + src[:60]})
+    md_text = (await md.read()).decode("utf-8", errors="replace")
+    fig_map = {f"figures/{f.filename}": (await f.read()).decode("utf-8", errors="replace")
+               for f in figures if f.filename}
+    rules_meta_obj = None
+    if rules_meta:
+        try:
+            rules_meta_obj = json.loads(rules_meta)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(422, {"hard_errors": [{
+                "code": "FORMAT_CONTRACT",
+                "detail": f"rules_meta 非合法 JSON: {exc.msg} (line {exc.lineno})"}]})
+    payload, questions = md_to_payload(md_text, materials, rules_meta_obj, fig_map)
+    # fail fast:格式契约违规与图结构非法导入即拒收,agent 修复后重导(全程无人工)
+    hard = [{"code": "FORMAT_CONTRACT", "detail": w}
+            for w in detect_format_issues(md_text, set(fig_map))]
+    extra_soft: list[dict] = []
+    for ch in payload.chapters:
+        for b in ch.blocks:
+            if b.type != "diagram" or not is_html_form(b.text):
+                continue
+            for err in check_diagram(b.text):   # 非 HTML 形态(存量 mermaid)由 check_draft 统一出软警告
+                hard.append({"code": "DIAGRAM_CHECK",
+                             "detail": f"章节[{ch.title}]图块: {err} | 源码: {b.text[:60]}"})
+    extra_soft += [{"code": "DIAGRAM_ORPHAN", "rule_no": None, "detail": w}
+                   for w in detect_format_soft(md_text, set(fig_map))]
     if hard:
         raise HTTPException(422, {"hard_errors": hard})
-    out = _persist_draft(db, pid, payload, one_pager_md=_check_one_pager(body.one_pager_md))
+    out = _persist_draft(db, pid, payload, extra_soft=extra_soft,
+                         one_pager_md=_check_one_pager(one_pager_md))
     # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
     if questions:
         # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——
@@ -175,7 +195,7 @@ def submit_draft(pid: int, body: dict, db: Session = Depends(get_session)):
 
 
 def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None,
-                   one_pager_md: str | None = None):
+                   one_pager_md: str | None = None, extra_soft: list[dict] | None = None):
     if report is None:
         rules_existing = {
             r.no: r.status for r in db.exec(select(Rule).where(Rule.project_id == pid)).all()
@@ -233,7 +253,9 @@ def _persist_draft(db: Session, pid: int, payload: DocPayload, report=None,
         ))
 
     check_report = {
-        "soft_warnings": [{"code": w.code, "rule_no": w.rule_no} for w in report.soft_warnings],
+        "soft_warnings": [{"code": w.code, "rule_no": w.rule_no, "detail": w.detail}
+                          for w in report.soft_warnings]
+        + (extra_soft or []),
         "auto_questions": [q.payload for q in report.auto_questions],
     }
     draft.check_report = check_report

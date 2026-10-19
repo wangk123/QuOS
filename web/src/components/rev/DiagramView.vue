@@ -1,73 +1,40 @@
-<!-- 图渲染:flows(线性链路)与 mermaid 源码统一渲染——flows 自动生成 flowchart TD;失败降级(流程条/源码) -->
+<!-- 图渲染:HTML 图源(diagram-design 产物)iframe sandbox 渲染(禁脚本,高自适应);
+     存量 mermaid 源降级显示源码+重画提示;flows(线性链路)流程条为主路径 -->
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
-import mermaid from 'mermaid'
+import { computed } from 'vue'
 
 const props = defineProps<{ flows?: string[]; source?: string; title?: string }>()
 
-mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false } })
-// 每实例随机 uid:组件级 seq 会让多张图 SVG id 相同,内嵌 #id 样式与箭头 marker 全局冲突(节点重叠/错位根因)
-const uid = 'mmd-' + Math.random().toString(36).slice(2, 10)
+const isHtml = computed(() => /<svg|<!doctype html/i.test(props.source ?? ''))
 
-const code = computed(() => {
-  if (props.source) return props.source.replace(/^\s*```(mermaid)?|```\s*$/g, '').trim()
-  const flows = props.flows ?? []
-  const edges: string[] = []
-  const id: string[] = []   // 链内节点 id 共享:一条 flow 串成 n1-->n2-->n3
-  let n = 0
-  const esc = (t: string) => t.replace(/["\\]/g, '').replace(/[<>{}|]/g, ' ')
-  for (const f of flows) {
-    const nodes = f.split('→').map((s) => s.trim()).filter(Boolean)
-    for (let i = 0; i < nodes.length; i++) {
-      id.push('n' + ++n)
-      edges.push(id[i] + '["' + esc(nodes[i]) + '"]')
-    }
-    for (let i = 0; i + 1 < nodes.length; i++) edges.push(id[i] + ' --> ' + id[i + 1])
-    id.length = 0
-  }
-  return `flowchart TD\n${edges.join('\n')}`
-})
+// 存量 mermaid 源码可能仍带围栏包裹(旧数据),显示前剥掉
+const legacyText = computed(() =>
+  (props.source ?? '').replace(/^\s*```(mermaid)?|```\s*$/g, '').trim())
 
-const svg = ref('')
-const failed = ref(false)
+const FRAME_MAX_H = 2000   // 异常 HTML 防撑爆页面的高度上限
 
-let seq = 0
-watchEffect(async (onCleanup) => {
-  const src = code.value
-  if (!src) return
-  // 竞态守卫:payload 先取基线快照再切草案会产生两轮渲染,旧一轮的异步结果
-  // (尤其是失败)晚归时不得覆盖新一轮;每轮独立 id,残留清理互不误删
-  const myId = uid + '-' + ++seq
-  let stale = false
-  onCleanup(() => { stale = true })
-  failed.value = false
+function onFrameLoad(e: Event) {
+  const frame = e.target as HTMLIFrameElement
   try {
-    const { svg: out } = await mermaid.render(myId, src)
-    if (!stale) svg.value = out
-  } catch {
-    if (!stale) failed.value = true
-  } finally {
-    // mermaid 失败残留清理:错误卡容器 #id 与样式容器 d#id 会留在 body 末尾(文档流尾部堆积可见)
-    document.getElementById(myId)?.remove()
-    document.getElementById('d' + myId)?.remove()
-  }
-})
+    const h = frame.contentDocument?.body?.scrollHeight ?? 0
+    if (h > 0) frame.style.height = Math.min(h, FRAME_MAX_H) + 'px'
+  } catch { /* 读取受限时保持默认高度,不阻塞显示 */ }
+}
 </script>
 
 <template>
   <div class="diagram-box">
-    <div v-if="svg && !failed" class="mmd" v-html="svg" />
-    <!-- 降级为 bug 兜底(常态路径:导入时语法校验已拒收),显示时必须显式标注 -->
+    <iframe v-if="isHtml" class="mmd-frame" :srcdoc="source" sandbox="allow-same-origin"
+            style="width: 100%; border: 0; height: 480px" title="图" @load="onFrameLoad" />
     <template v-else>
-      <div v-if="source" class="mmd-degraded">⚠ 此图渲染失败,已降级显示源码——请修正 markdown 后重新导入</div>
-      <div v-else class="mmd-degraded">⚠ 图渲染失败,降级为流程条显示</div>
+      <div v-if="source" class="mmd-degraded">⚠ 存量 mermaid 图，待迭代重画为 diagram-design（图源已单轨）</div>
+      <pre v-if="source" class="mmd-src">{{ legacyText }}</pre>
       <div v-if="flows" class="flowbox">
         <template v-for="(n, i) in (flows.join(' → ').split('→'))" :key="i">
           <span v-if="i" class="farr">→</span>
           <span class="fnode">{{ n.trim() }}</span>
         </template>
       </div>
-      <pre v-else-if="source" class="mmd-src">{{ source }}</pre>
     </template>
   </div>
 </template>

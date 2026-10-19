@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
 from app.models import DocPayload, Material
+from app.services.diagram_check import check_diagram, is_html_form
 
 _QUOTE_MIN = 6  # 短引用定位不可靠,降级软警告
 
@@ -156,6 +157,16 @@ def check_draft(
                                            detail={"chapter": ch.id, "type": b.type}))
             elif not check(b):
                 rpt.hard_errors.append(Err("BLOCK_EMPTY", detail={"chapter": ch.id, "type": b.type}))
+            elif b.type == "diagram" and (b.text or "").strip():
+                # 图源单轨:HTML 形态过结构校验(硬);非 HTML 形态(存量 mermaid)软警告放行,随迭代重画
+                if is_html_form(b.text):
+                    for err in check_diagram(b.text):
+                        rpt.hard_errors.append(Err("DIAGRAM_CHECK",
+                                                   detail={"chapter": ch.id, "error": err}))
+                else:
+                    rpt.soft_warnings.append(Warn("DIAGRAM_LEGACY",
+                                                  detail={"msg": "图源已单轨为 diagram-design,请重画: "
+                                                                 + b.text[:40]}))
 
     # ── 软警告 → 批注 ──
     for t in payload.new_terms:

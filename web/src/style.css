@@ -317,7 +317,7 @@ mark.anno.resolved sup{color:var(--ok)}
 .gchip:hover{background:var(--primary);color:#fff}
 .gnone{color:var(--faint)}
 
-/* ── mermaid 图渲染(diagram/figure 统一) ── */
+/* ── 图渲染(diagram iframe/figure 流程条) ── */
 .diagram-box{margin:2px 0 8px}
 .diagram-box .mmd{background:#FAFBFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow-x:auto;display:flex;justify-content:center}
 .diagram-box .mmd svg{max-width:100%}

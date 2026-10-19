@@ -45,10 +45,17 @@ def match_quote(rule_text: str, material_text: str) -> str:
     return best if best_ratio >= _QUOTE_MIN_RATIO else ''
 
 
+_FIG_LINE = re.compile(r'^\s*!\[[^\]]*\]\((figures/[\w.-]+\.html)\)\s*$')   # 整行图引用(唯一合法形态)
+_FIG_ANY = re.compile(r'!\[[^\]]*\]\(figures/[\w.-]+\.html\)')           # 行内出现(非整行即位置非法)
+_FIG_LOOSE = re.compile(r'!\[[^\]]*\]\(figures/[^\s)]*\.html?\)', re.I)  # 出现检测(放宽:抓子目录/大写扩展等非法路径形态)
+
+
 def md_to_payload(md: str, materials: dict[int, object],
-                  rules_meta: dict | None = None) -> DocPayload:
+                  rules_meta: dict | None = None,
+                  figures: dict[str, str] | None = None) -> DocPayload:
     """md → DocPayload。materials: {id: Material}(quote 自动匹配;空 dict 时 quote 全空走软警告)。
-    rules_meta: 可选 {规则号: {violation, quote}} 精修值,优先于自动匹配。"""
+    rules_meta: 可选 {规则号: {violation, quote}} 精修值,优先于自动匹配。
+    figures: 可选 {引用路径: HTML 全文}(diagram-design 图文件集,整行图引用解析为 diagram 块)。"""
     meta_map = {k.upper(): v for k, v in (rules_meta or {}).items()}
     lines = md.splitlines()
 
@@ -221,6 +228,13 @@ def md_to_payload(md: str, materials: dict[int, object],
         if not st:
             flush_para()
             continue
+        fm_ = _FIG_LINE.match(ln)
+        if fm_:   # 整行图引用 → diagram 块(HTML 全文收进块,payload 快照冻结版本)
+            flush_para()
+            flush_table()
+            if cur is not None:
+                cur['blocks'].append({"type": "diagram", "text": (figures or {}).get(fm_.group(1), '')})
+            continue
         if re.match(r'^\d+\.\s', st) or st.startswith(('- ', '* ')):   # 列表:独立成段(去标记)
             flush_para()
             if cur is not None:
@@ -242,8 +256,44 @@ def md_to_payload(md: str, materials: dict[int, object],
     return payload, _extract_questions(md)
 
 
-def detect_format_issues(md: str) -> list[str]:
-    """导入时的格式契约检测:违规进导入响应 format_warnings,导入即知,不等渲染后返工。"""
+def _scan_fig_refs(md: str) -> tuple[set[str], list[tuple[int, str]]]:
+    """非围栏区扫描(与 md_to_payload 的落块状态同口径):返回(合法整行引用路径集合, [(行号, 违法原因)])。
+    口径:围栏切换同 `` ```lang `` 整行匹配;首章(编号标题)之前不落块;附录 skip 区不落块;
+    路径形态非法(子目录/大写扩展)不落块——三者出现即硬错误,防图静默丢失。"""
+    refs: set[str] = set()
+    bad: list[tuple[int, str]] = []
+    in_fence = in_appendix = seen_chapter = False
+    for i, ln in enumerate(md.splitlines(), 1):
+        st = ln.strip()
+        if re.match(r'^```(\w+)?\s*$', st):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if ln.startswith('#') and '附录' in ln:
+            in_appendix = True
+            continue
+        if in_appendix and re.match(r'^##\s+\d', st):
+            in_appendix = False   # 附录结束:回到正常编号二级标题
+        if re.match(r'^#{2,4}\s*\d', st):
+            seen_chapter = True
+        if not (_FIG_ANY.search(st) or _FIG_LOOSE.search(st)):
+            continue
+        m = _FIG_LINE.match(ln)
+        if m and seen_chapter and not in_appendix:
+            refs.add(m.group(1))
+        elif in_appendix:
+            bad.append((i, '图引用位于附录区(附录内容不入正文,图会静默丢失),请移入正文章节'))
+        elif not seen_chapter:
+            bad.append((i, '图引用须位于章节内(首个章节标题之前的内容不落块)'))
+        else:
+            bad.append((i, '图引用须独立成行且路径形如 figures/<name>.html(子目录/大写扩展不支持)'))
+    return refs, bad
+
+
+def detect_format_issues(md: str, figures: set[str] | None = None) -> list[str]:
+    """导入时的格式契约检测(硬错误):违规导入即拒收,agent 修复后重导,全程无人工。
+    figures 传入时校验图引用闭合(引用文件缺失即拒收)。"""
     warns = []
     in_fence, lang = False, ''
     fence: list[str] = []
@@ -253,13 +303,8 @@ def detect_format_issues(md: str) -> list[str]:
         if fm:
             if in_fence:
                 body = '\n'.join(fence)
-                if lang == 'mermaid':
-                    for nm in re.finditer(r'\[[^\]\n]*\([^)\n]*\)[^\]\n]*\]', body):
-                        if not re.match(r'^\[\(.*\)\]$', nm.group(0)):  # [(x)]圆柱是合法形状
-                            warns.append('R1:mermaid 节点文本含半角括号()(形状语法冲突,整图渲染会失败): ' + nm.group(0)[:40])
-                            break
                 if not lang and '┌' in body:
-                    warns.append('R1:存在 ASCII 盒子图(网页必错位,应重画为 mermaid 或线性箭头链)')
+                    warns.append('R1:存在 ASCII 盒子图(网页必错位,应重画为图或线性箭头链)')
             in_fence, lang, fence = not in_fence, (fm.group(1) or '').lower(), []
             continue
         if in_fence:
@@ -267,7 +312,21 @@ def detect_format_issues(md: str) -> list[str]:
             continue
         if st.startswith('>') and len(st) > 8 and not re.match(r'^>\s*(题型|说明|注[:：])', st):
             warns.append('R5:引用块(>)承载实质内容,导入时会被丢弃: ' + st.lstrip('> ')[:30])
+    refs, bad_lines = _scan_fig_refs(md)
+    for i, why in bad_lines:
+        warns.append(f'R1:{why},见第 {i} 行')
+    if figures is not None:
+        for miss in sorted(refs - figures):
+            warns.append(f'R1:图引用的文件未随请求提交(引用闭合失败): {miss}')
     return warns
+
+
+def detect_format_soft(md: str, figures: set[str] | None = None) -> list[str]:
+    """导入软警告(不阻塞入库):未被 md 引用的图文件(疑似废稿)。"""
+    if not figures:
+        return []
+    refs, _ = _scan_fig_refs(md)
+    return [f'R1:提交了未被引用的图文件(疑似废稿,请清理): {f}' for f in sorted(figures - refs)]
 
 
 _TBD_INLINE = re.compile(r'^\*\*(TBD-\d+)（(填空|确认|选择)）\*\*\s+(.+)$')          # 行内题型(云风控式)

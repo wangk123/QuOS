@@ -1,7 +1,8 @@
 """md 导入转换器测试:章节/规则三格式/块清洗/quote 自动匹配/容器父章/mermaid 降级。"""
 from types import SimpleNamespace
 
-from app.services.md_import import md_to_payload, match_quote
+from app.services.md_import import (detect_format_issues, detect_format_soft,
+                                     match_quote, md_to_payload)
 
 MATERIAL = (
     "登录安全增强\n"
@@ -215,28 +216,60 @@ flowchart LR
 '''
     ws = detect_format_issues(bad)
     assert any('盒子图' in w for w in ws)
-    assert any('半角括号' in w for w in ws)
     assert any('引用块' in w for w in ws)
     assert not detect_format_issues('- FR-101 正常规则。\n> 注:说明性引导行不算实质内容。')
-    assert not detect_format_issues('```mermaid\nflowchart LR\n  A --> B[(MongoDB auth_challenge)]\n```')  # 圆柱节点合法
+    # mermaid 语法级规则(半角括号/圆柱形状)已随单轨退役:存量图整体走「非 HTML 软警告重画」通道
 
 
-def test_mermaid_check_real():
-    from app.services.mermaid_check import check_mermaid
-    rs = check_mermaid([
-        "flowchart LR\n  A[x] --> B[系统]",
-        "flowchart LR\n  A[用户(内部)] --> B",
-    ])
-    assert rs[0] is None                      # 合法(或无法判定)通过
-    assert rs[1] and "Parse error" in rs[1]   # 半角括号真语法错误
 
 
-def test_mermaid_check_reserved_word():
-    """节点 id 撞 mermaid 保留字(graph)在 node 无 DOM 下曾被 DOMPurify 环境错掩盖而漏放——jsdom 垫底后必须抓到。"""
-    from app.services.mermaid_check import check_mermaid
-    # 语法错误必须出现在第二条边之后:首边错误不会被 DOMPurify 环境错掩盖,测不出本漏洞
-    bad = "flowchart LR\n  svc --> mysql[(MySQL)]\n  svc -- 调度 --> graph[平台Graph Runtime]"
-    ok = "flowchart LR\n  svc --> mysql[(MySQL)]\n  svc -- 调度 --> graphrt[平台Graph Runtime]"
-    rs = check_mermaid([bad, ok])
-    assert rs[0] and "Parse error" in rs[0], f"保留字图漏放: {rs}"
-    assert rs[1] is None
+FIG = ("<!DOCTYPE html><html><body><svg viewBox=\"0 0 4 4\"><title id=\"a-title\">a</title></svg></body></html>")
+
+
+def test_standalone_figure_ref_becomes_diagram_block():
+    md = '## 1 章节\n\n正文段。\n\n![主链路](figures/main-flow.html)\n'
+    payload, _ = md_to_payload(md, {}, figures={'figures/main-flow.html': FIG})
+    blocks = payload.chapters[0].blocks
+    assert blocks[-1].type == 'diagram' and blocks[-1].text == FIG
+
+
+def test_missing_figure_file_is_hard_error():
+    md = '## 1 章\n\n![主链路](figures/absent.html)\n'
+    assert any('absent' in w for w in detect_format_issues(md, figures=set()))
+
+
+def test_inline_ref_position_is_hard_error():
+    for md in ['## 1 章\n\n见下图：![x](figures/a.html)\n', '## 1 章\n\n- ![x](figures/a.html)\n',
+               '## 1 章\n\n| a | ![x](figures/a.html) |\n|---|---|\n', '## 1 章\n\n> ![x](figures/a.html)\n']:
+        assert any('独立成行' in w for w in detect_format_issues(md, figures={'figures/a.html'})), md
+
+
+def test_unreferenced_figure_is_soft_warning():
+    assert detect_format_soft('## 1 章\n无引用正文', figures={'figures/orphan.html'}) != []
+    assert detect_format_soft('## 1 章\n\n![x](figures/used.html)', figures={'figures/used.html'}) == []
+
+
+def test_ref_inside_fence_not_scanned():
+    md = '```text\n![x](figures/a.html)\n```\n'
+    assert detect_format_issues(md, figures=set()) == []
+
+
+def test_mermaid_fence_still_diagram_block():
+    payload, _ = md_to_payload('## 1 章\n```mermaid\nflowchart TD\nA-->B\n```\n', {})
+    assert payload.chapters[0].blocks[-1].type == 'diagram'
+
+
+# ── 终审 fix:静默丢图路径(章节前/附录区/非法路径形态)一律硬错误 ──
+def test_ref_before_first_chapter_is_hard_error():
+    md = '# 文档名\n\n![主链路](figures/a.html)\n\n## 1 章\n'
+    assert any('章节' in w for w in detect_format_issues(md, figures={'figures/a.html'}))
+
+
+def test_ref_in_appendix_skip_zone_is_hard_error():
+    md = '## 1 章\n\n# 附录 A 待确认问题清单\n\n![x](figures/a.html)\n'
+    assert any('附录' in w for w in detect_format_issues(md, figures={'figures/a.html'}))
+
+
+def test_subdirectory_ref_form_is_hard_error():
+    for md in ['## 1 章\n\n![x](figures/sub/a.html)\n', '## 1 章\n\n![x](figures/A.HTML)\n']:
+        assert any('独立成行' in w or '路径' in w for w in detect_format_issues(md, figures=set())), md

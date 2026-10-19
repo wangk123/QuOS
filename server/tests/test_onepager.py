@@ -32,8 +32,8 @@ def _payload(material_id):
 
 def test_import_with_one_pager_and_read_back(client):
     pid, _ = _setup(client)
-    r = client.post(f"/api/v1/projects/{pid}/doc/draft/import",
-                    json={"markdown": MD, "one_pager_md": OP})
+    r = client.post(f"/api/v1/projects/{pid}/doc/draft/import", data={"one_pager_md": OP},
+                    files=[("md", ("doc.md", MD.encode(), "text/markdown"))])
     assert r.status_code == 200, r.text
     got = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
     assert got["one_pager_md"] == OP
@@ -41,9 +41,9 @@ def test_import_with_one_pager_and_read_back(client):
 
 def test_reimport_without_one_pager_clears(client):
     pid, _ = _setup(client)
-    client.post(f"/api/v1/projects/{pid}/doc/draft/import",
-                json={"markdown": MD, "one_pager_md": OP})
-    r = client.post(f"/api/v1/projects/{pid}/doc/draft/import", json={"markdown": MD})
+    client.post(f"/api/v1/projects/{pid}/doc/draft/import", data={"one_pager_md": OP},
+                    files=[("md", ("doc.md", MD.encode(), "text/markdown"))])
+    r = client.post(f"/api/v1/projects/{pid}/doc/draft/import", files=[("md", ("doc.md", MD.encode(), "text/markdown"))])
     assert r.status_code == 200, r.text
     got = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
     assert got["one_pager_md"] is None  # 覆盖语义:不带=清空,防陈旧画像
@@ -61,8 +61,8 @@ def test_submit_draft_with_one_pager(client):
 
 def test_finalize_copies_one_pager_to_version(client):
     pid, mid = _setup(client)
-    client.post(f"/api/v1/projects/{pid}/doc/draft/import",
-                json={"markdown": MD, "one_pager_md": OP})
+    client.post(f"/api/v1/projects/{pid}/doc/draft/import", data={"one_pager_md": OP},
+                    files=[("md", ("doc.md", MD.encode(), "text/markdown"))])
     draft = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
     r = client.post(f"/api/v1/projects/{pid}/doc/finalize",
                     json={"draft_id": draft["draft_id"], "version": "v1", "note": ""})

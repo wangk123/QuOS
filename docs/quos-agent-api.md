@@ -11,7 +11,7 @@
 3. 加工（按 req-organize 全流程 + 写作纪律）产出 DocPayload：`{meta, overview, glossary, new_terms, chapters, rules}`。章节含 `id/title/pri/parent(可选,父章节id)/background/blocks/rule_nos`，blocks 是正文块有序列表，每块 `{type: para|states|table|figure|exceptions, text?, title?, columns?, rows?, flows?, items?}`；rules 每条含 `no/text/violation/quote/material_id/status/replaced_by`；
 4. 本地预检：按 req-review 判据过一遍（含五查第 3-5 查与可读性检查），打回项修完再进下一步；
 5. 提交草案（二选一）：
-   - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — body `{"markdown": "<md 全文>", "rules_meta": {可选 "<规则号>": {"violation": "...", "quote": "..."}}, "one_pager_md": 可选 "<一页纸 md 全文>"}`（一页纸由 req-onepager skill 产出的伴生概览，随草案入库、评审页可查看）。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md 文档即可**，不用手拼 JSON。CLI：`uv run --directory server python -m app.cli import-draft PID --md 文档.md [--meta meta.json] [--one-pager 一页纸.md]`；
+   - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — **multipart**：`md` 文件 part + `figures` 图文件集（diagram-design HTML 图，md 以整行 `![图意图](figures/<slug>.html)` 引用，引用文件缺失或引用未独立成行会被 422 拒收）+ `rules_meta`（form，可选）+ `one_pager_md`（form，可选，一页纸由 req-onepager skill 产出的伴生概览，随草案入库、评审页可查看）。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md + figures/ 图目录即可**，不用手拼 JSON。CLI：`uv run --directory server python -m app.cli import-draft PID --md 文档.md [--figures 图目录] [--meta meta.json] [--one-pager 一页纸.md]`；
    - `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（手工构造 payload 时用；quote 必须从材料 parsed_text 原文复制，NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）。CLI：`uv run --directory server python -m app.cli submit-draft PID --file payload.json`；
 6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）。CLI：`uv run --directory server python -m app.cli post-questions PID --file items.json`；
 7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）。CLI：`uv run --directory server python -m app.cli questions PID --status answered`；
@@ -27,7 +27,7 @@
 | `materials PID` | 材料清单（parsed_text 出处源） |
 | `baseline PID` | 当前基线（冷启动判断） |
 | `draft PID` | 当前 reviewing 草案 |
-| `import-draft PID --md FILE [--meta FILE] [--one-pager FILE]` | markdown 草案导入（推荐提交路径，可携伴生一页纸） |
+| `import-draft PID --md FILE [--figures DIR] [--meta FILE] [--one-pager FILE]` | markdown 草案导入（推荐提交路径，可携 figures/ 图目录与伴生一页纸） |
 | `submit-draft PID --file FILE` | 手工 DocPayload 提交 |
 | `questions PID [--status STATUS]` | 批注列表 |
 | `post-questions PID --file FILE` | 批量提交消歧批注 |

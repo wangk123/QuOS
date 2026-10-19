@@ -1,6 +1,7 @@
 """CLI 通道:agent 对接端点的命令行包装,用法见 docs/quos-agent-api.md「CLI 调用」。"""
 import argparse
 import json
+import os
 import sys
 
 import httpx
@@ -19,9 +20,10 @@ def _print_json(resp: httpx.Response) -> None:
 
 
 def _request(client: httpx.Client, method: str, path: str, *,
-             json_body=None, params=None) -> int:
+             json_body=None, params=None, files=None, data=None) -> int:
     try:
-        resp = client.request(method, path, json=json_body, params=params)
+        resp = client.request(method, path, json=json_body, params=params,
+                              files=files, data=data)
     except (httpx.ConnectError, httpx.ConnectTimeout):
         print(f"连接失败({client.base_url})：服务未启动？./start.sh", file=sys.stderr)
         return 2
@@ -82,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("import-draft", help="markdown 草案导入(推荐提交路径)")
     p.add_argument("pid", type=int)
     p.add_argument("--md", required=True, help="markdown 文件路径")
+    p.add_argument("--figures", help="图文件目录(diagram-design HTML 图集,md 整行引用)")
     p.add_argument("--meta", help="rules_meta JSON 文件({规则号: {violation, quote}})")
     p.add_argument("--one-pager", help="需求一页纸 markdown 文件(伴生随草案入库)")
 
@@ -114,13 +117,25 @@ def _dispatch(args, client: httpx.Client) -> int:
     if args.cmd == "draft":
         return _request(client, "GET", _pid_path(args.pid, "doc/draft"))
     if args.cmd == "import-draft":
-        body = {"markdown": _read_file(args.md, "markdown 文件")}
+        data: dict = {}
+        files = [("md", ("doc.md", _read_file(args.md, "markdown 文件").encode(), "text/markdown"))]
         if args.meta:
-            body["rules_meta"] = _read_json(args.meta, "rules_meta 文件")
+            data["rules_meta"] = json.dumps(          # multipart 下 rules_meta 为 form 字段(JSON 字符串)
+                _read_json(args.meta, "rules_meta 文件"), ensure_ascii=False)
         if args.one_pager:
-            body["one_pager_md"] = _read_file(args.one_pager, "一页纸文件")
+            data["one_pager_md"] = _read_file(args.one_pager, "一页纸文件")
+        if args.figures:
+            fdir = args.figures
+            if not os.path.isdir(fdir):
+                print(f"图目录不存在：{fdir}", file=sys.stderr)
+                raise _CliError from None
+            for name in sorted(os.listdir(fdir)):
+                if not name.endswith(".html"):
+                    continue
+                files.append(("figures", (name,
+                            _read_file(os.path.join(fdir, name), "图文件").encode(), "text/html")))
         return _request(client, "POST", _pid_path(args.pid, "doc/draft/import"),
-                        json_body=body)
+                        files=files, data=data or None)
     if args.cmd == "submit-draft":
         return _request(client, "POST", _pid_path(args.pid, "doc/draft"),
                         json_body=_read_json(args.file, "payload 文件"))

@@ -49,14 +49,16 @@ def test_import_draft_reads_md_file(monkeypatch, capsys, tmp_path):
     seen = {}
 
     def handler(req):
-        seen["body"] = json.loads(req.content)
+        seen["content"] = req.content.decode("utf-8", "replace")
         seen["path"] = str(req.url)
+        seen["ctype"] = req.headers.get("content-type", "")
         return httpx.Response(200, json={"draft_id": 7})
 
     _patch_client(monkeypatch, handler)
     assert cli.main(["import-draft", "3", "--md", str(md)]) == 0
     assert seen["path"].endswith("/api/v1/projects/3/doc/draft/import")
-    assert seen["body"]["markdown"].startswith("# 测试文档")
+    assert "multipart/form-data" in seen["ctype"]  # import 走 multipart(md 为文件 part)
+    assert "# 测试文档" in seen["content"]
     assert json.loads(capsys.readouterr().out)["draft_id"] == 7
 
 
@@ -69,12 +71,12 @@ def test_import_draft_with_meta(monkeypatch, tmp_path):
     seen = {}
 
     def handler(req):
-        seen["body"] = json.loads(req.content)
+        seen["content"] = req.content.decode("utf-8", "replace")
         return httpx.Response(200, json={"draft_id": 7})
 
     _patch_client(monkeypatch, handler)
     assert cli.main(["import-draft", "3", "--md", str(md), "--meta", str(meta)]) == 0
-    assert seen["body"]["rules_meta"]["FR-101"]["violation"] == "无法批量导入"
+    assert "无法批量导入" in seen["content"]  # rules_meta 以 form 字段(JSON 字符串)随 multipart 提交
 
 
 def test_parser_questions_opts():
@@ -135,3 +137,25 @@ def test_read_timeout_exit_2(monkeypatch, capsys):
     _patch_client(monkeypatch, slow)
     assert cli.main(["projects"]) == 2
     assert "请求失败" in capsys.readouterr().err
+
+
+def test_import_draft_with_figures(monkeypatch, capsys, tmp_path):
+    md = tmp_path / "doc.md"
+    md.write_text("## 1 章\n\n![主链路](figures/main-flow.html)\n", encoding="utf-8")
+    figdir = tmp_path / "figures"
+    figdir.mkdir()
+    (figdir / "main-flow.html").write_text(
+        "<!DOCTYPE html><html><body>x</body></html>", encoding="utf-8")
+    seen = {}
+
+    def handler(req):
+        seen["content"] = req.content.decode("utf-8", "replace")
+        seen["ctype"] = req.headers.get("content-type", "")
+        return httpx.Response(200, json={"draft_id": 9})
+
+    _patch_client(monkeypatch, handler)
+    assert cli.main(["import-draft", "3", "--md", str(md), "--figures", str(figdir)]) == 0
+    assert "multipart/form-data" in seen["ctype"]
+    assert "main-flow.html" in seen["content"]
+    assert "<!DOCTYPE html><html><body>x</body></html>" in seen["content"]
+    assert json.loads(capsys.readouterr().out)["draft_id"] == 9

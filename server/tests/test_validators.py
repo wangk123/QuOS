@@ -264,3 +264,29 @@ def test_nearest_is_original_text_sentence():  # I6:nearest 必须是原文句,�
     r = locate_quote("恢复流程如何按分支处理的方式", material)
     assert not r.ok
     assert "恢复流程" in r.nearest and "\n" not in r.nearest
+
+
+# ── 终审 fix:check_draft 对 diagram 块的硬软分流直测 ──
+def _mk_payload_with_diagram(text):
+    return {"meta": {"version": "draft", "date": "2026-10-19", "scope": "s"},
+            "chapters": [{"id": "c1", "title": "接入", "pri": "P0", "rule_nos": [],
+                          "blocks": [{"type": "diagram", "text": text}]}],
+            "rules": {}}
+
+
+def test_check_draft_diagram_html_hard():
+    from app.services.validators import check_draft
+    from app.models import DocPayload
+    payload = DocPayload.model_validate(_mk_payload_with_diagram(
+        '<svg viewBox="0 0 4 4"><title id="a-title">a</title><script>alert(1)</script></svg>'))
+    rpt = check_draft(payload, rules_existing={}, materials={}, terms=set())
+    assert any(e.code == "DIAGRAM_CHECK" for e in rpt.hard_errors)
+
+
+def test_check_draft_diagram_legacy_soft():
+    from app.services.validators import check_draft
+    from app.models import DocPayload
+    payload = DocPayload.model_validate(_mk_payload_with_diagram("flowchart TD\nA-->B"))
+    rpt = check_draft(payload, rules_existing={}, materials={}, terms=set())
+    assert not rpt.hard_errors
+    assert any(w.code == "DIAGRAM_LEGACY" for w in rpt.soft_warnings)

@@ -162,7 +162,7 @@ function onepagerJump(chapters: string) {
     : null
   if (!hit) return  // 章号不存在(skill 写错/文档改版):静默不跳
   view.value = 'doc'
-  // 视图刚切回,mermaid/表格异步渲染会再撑高布局,立即 smooth 滚会被打断——延迟到布局稳定后执行
+  // 视图刚切回,图 iframe/表格异步渲染会再撑高布局,立即 smooth 滚会被打断——延迟到布局稳定后执行
   nextTick(() => setTimeout(() =>
     document.getElementById('ch-' + hit.c.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250))
 }
