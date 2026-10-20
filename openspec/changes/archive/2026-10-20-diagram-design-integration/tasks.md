@@ -44,7 +44,7 @@
   - `is_html_form(text: str) -> bool`
   - `check_diagram(text: str) -> list[str]` — 空列表=通过；每条为错误明细字符串（含失败项名）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 from app.services.diagram_check import check_diagram, is_html_form
@@ -86,21 +86,21 @@ def test_bare_title_id_rejected():
     assert errs  # 裸 title/desc id 违反可访问契约
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd server && uv run pytest tests/test_diagram_check.py -v`
 Expected: FAIL（ModuleNotFoundError / ImportError）
 
-- [ ] **Step 3: 实现 `diagram_check.py`**
+- [x] **Step 3: 实现 `diagram_check.py`**
 
 参考 skill self_check.py 的检查算法（title/desc 契约、viewBox 越界），字符串接口重写，纯 stdlib（re + html.parser 或 ET）。检查顺序：`<script` 标签 → `on\w+=` 事件属性 → 外链资源（`(?:src|href)="https?://..."` 豁免 fonts.googleapis.com/fonts.gstatic.com）→ `<title>`/`<desc>` 存在且 id 非裸 `title`/`desc` → viewBox 越界（元素坐标超出 viewBox 声明范围）。头部注释注明改写自 skill（MIT, cathrynlavery/diagram-design）。
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `cd server && uv run pytest tests/test_diagram_check.py -v`
 Expected: 全 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/app/services/diagram_check.py server/tests/test_diagram_check.py
@@ -122,7 +122,7 @@ git commit -m "feat：diagram_check HTML 图结构校验服务（vendor 自 diag
   - `detect_format_issues(md: str, figures: set[str] | None = None) -> list[str]`（返回硬错误；新增图引用类）
   - `detect_format_soft(md: str, figures: set[str] | None = None) -> list[str]`（返回软警告；未引用文件）
 
-- [ ] **Step 1: 写失败测试**（追加到 test_md_import.py；复用现有测试的 payload 构造方式）
+- [x] **Step 1: 写失败测试**（追加到 test_md_import.py；复用现有测试的 payload 构造方式）
 
 ```python
 FIG = '<!DOCTYPE html><html><body><svg viewBox="0 0 4 4"><title id="a-title">a</title></svg></body></html>'
@@ -155,21 +155,21 @@ def test_mermaid_fence_still_diagram_block():
     assert payload.chapters[0].blocks[-1].type == 'diagram'
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd server && uv run pytest tests/test_md_import.py -v -k figure`
 Expected: FAIL（figures 参数不存在 / 引用进 para）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 md_to_payload 主循环：在列表分支（L224）之前加整行图引用判定（regex `^\s*!\[[^\]]*\]\(figures/[\w.-]+\.html\)\s*$`）→ `flush_para(); flush_table()` 后 `cur['blocks'].append({"type": "diagram", "text": figures.get(路径, '')})`。detect_format_issues：非围栏行若含 `!\[[^\]]*\]\(figures/[\w.-]+\.html\)` 且不匹配整行 regex → 硬错误（带行号与「图引用须独立成行」）；收集整行引用集与 figures 参数比对 → 缺失硬错误。detect_format_soft：figures 中未被引用的文件 → 软警告。detect_format_issues 删除 mermaid 括号规则（L256-260）；ASCII 盒子图条目（L261-262）维持。
 
-- [ ] **Step 4: 跑测试确认通过（含存量回归）**
+- [x] **Step 4: 跑测试确认通过（含存量回归）**
 
 Run: `cd server && uv run pytest tests/test_md_import.py -v`
 Expected: 全 PASS（存量用例不回归）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/app/services/md_import.py server/tests/test_md_import.py
@@ -189,7 +189,7 @@ git commit -m "feat：md 图引用解析入 diagram 块+引用闭合与位置硬
 - Consumes: Task 1 `is_html_form/check_diagram`；Task 2 `figures` 参数、`detect_format_soft`
 - Produces: `POST /api/v1/projects/{pid}/doc/draft/import` multipart 契约——`md: file`、`figures: file[]`（可选，part 名 figures，filename 为 basename，服务端映射为 `figures/<filename>` 与 md 引用路径对齐）、`rules_meta: form(str JSON, 可选)`、`one_pager_md: form(str, 可选)`；`check_draft` 对 diagram 块：HTML 形态过 check_diagram（错→hard `DIAGRAM_CHECK`），非 HTML 形态→soft
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 test_doc_api.py 追加（multipart 客户端方式参照现有测试基建 conftest）：
 
@@ -213,21 +213,21 @@ def test_import_legacy_mermaid_soft_not_hard(client, proj):
 
 test_validators.py 追加：check_draft 对 diagram 块 HTML 形态含 script → hard `DIAGRAM_CHECK`；非 HTML 形态 → soft 含「重画」。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd server && uv run pytest tests/test_doc_api.py tests/test_validators.py -v -k "import or diagram"`
 Expected: FAIL（422 缺 figures 字段 / 校验不分流）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 doc.py：ImportBody 删除，import_draft 改 `async def`，参数 `md: UploadFile = File(...), figures: list[UploadFile] = File(default=[]), rules_meta: str | None = Form(None), one_pager_md: str | None = Form(None)`；读文件集 `{f'figures/{f.filename}': f.file.read().decode() for f in figures}`；调用 `md_to_payload(md_text, materials, json.loads(rules_meta) if rules_meta else None, figures_map)`；hard 组装：`detect_format_issues(md_text, set(figures_map))` + 逐 diagram 块 `is_html_form` 时 `check_diagram` 错→`DIAGRAM_CHECK`；软：`detect_format_soft(...)` 与非 HTML 形态块 → 并入 `out` 的报告 soft_warnings（按现有响应结构对齐键名）。validators.py L146 diagram 校验：非空 + HTML 形态过 check_diagram（hard）/ 非 HTML 形态 soft。models.py L141 注释改为 `diagram(自包含 HTML 图源,diagram-design 产物,前端 sandbox 渲染)`。删 `from app.services.mermaid_check import check_mermaid` 与 `mermaid_check.py` 文件。
 
-- [ ] **Step 4: 跑测试确认通过（含存量回归）**
+- [x] **Step 4: 跑测试确认通过（含存量回归）**
 
 Run: `cd server && uv run pytest tests/test_doc_api.py tests/test_validators.py tests/test_md_import.py tests/test_questions.py tests/test_finalize.py -v`
 Expected: 全 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A server/app server/tests
@@ -246,25 +246,25 @@ git commit -m "feat：import 端点 multipart 化+图校验硬软分流+mermaid_
 - Consumes: Task 3 的 multipart 端点
 - Produces: `quos import-draft PID --md FILE [--figures DIR] [--meta FILE] [--one-pager FILE]`——DIR 内全部 .html 以 basename 为 `figures/<name>` key 上传
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 test_cli.py 追加：`--figures` 指向含一个 .html 的临时目录 → 请求 multipart 含 figures part（按现有 test_cli 的请求桩方式断言 payload）。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd server && uv run pytest tests/test_cli.py -v -k figures`
 Expected: FAIL（unrecognized argument）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 cli.py 加 `--figures`（path，可选）；请求组装从 JSON body 改 multipart（httpx files/data），`--meta`/`--one-pager` 转 form 字段。同步 api.md（multipart 字段表、图引用契约、DIAGRAM_/FORMAT_ 422 明细、软警告项）与 quos-agent-api.md 命令表。
 
-- [ ] **Step 4: 跑测试确认通过 + 真机 CLI 冒烟**
+- [x] **Step 4: 跑测试确认通过 + 真机 CLI 冒烟**
 
 Run: `cd server && uv run pytest tests/test_cli.py -v && uv run python -m app.cli import-draft --help`
 Expected: 测试全 PASS；help 显示 --figures
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/app/cli.py server/tests/test_cli.py docs/api.md docs/quos-agent-api.md
@@ -283,25 +283,25 @@ git commit -m "feat：CLI import-draft --figures+api.md/quos-agent-api.md multip
 - Consumes: DocPaper.vue 传入的 `source?: string`（text=HTML 或存量 mermaid）与 `flows?: string[]`（不变）
 - Produces: 同名组件同 props——HTML 源 iframe 渲染；存量 mermaid 源码降级+重画提示；flows 流程条主路径
 
-- [ ] **Step 1: 改写 diagram.test.ts 为失败测试**
+- [x] **Step 1: 改写 diagram.test.ts 为失败测试**
 
 断言：`source` 为 HTML（含 `<svg`）→ 渲染 iframe（`sandbox` 属性不含 `allow-scripts`、srcdoc 含源码）；`source` 为 mermaid 文本 → 显示「重画」提示与源码 pre；`flows` → 流程条节点渲染。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd web && npm test -- diagram`
 Expected: FAIL（现实现走 mermaid.render）
 
-- [ ] **Step 3: 重写 DiagramView.vue**
+- [x] **Step 3: 重写 DiagramView.vue**
 
 `isHtml = computed(() => /<svg|<!DOCTYPE html/i.test(props.source ?? ''))`；HTML 分支：`<iframe :srcdoc="source" sandbox="allow-same-origin" style="width:100%;border:0" @load="自适应高(contentDocument.body.scrollHeight, clamp 上限 2000px)">`；mermaid 分支：mmd-degraded 提示（文案「存量 mermaid 图，待迭代重画为 diagram-design」）+ pre 源码；flows：现有 flowbox 为主路径。删除 mermaid import/initialize/render/竞态守卫/残留清理。`npm uninstall mermaid`。
 
-- [ ] **Step 4: 跑测试确认通过 + 真机验收**
+- [x] **Step 4: 跑测试确认通过 + 真机验收**
 
 Run: `cd web && npm test && npm run build`
 Expected: 全 PASS、构建通过。真机：起 5175 dev，导入带图草案（用 Task 3 测试同款 md+figure），评审页图 iframe 渲染正确、存量项目旧 mermaid 图降级显示源码+提示（浏览器强刷）。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web/src/components/rev/DiagramView.vue web/tests/diagram.test.ts web/package.json web/package-lock.json
@@ -319,19 +319,19 @@ git commit -m "feat：DiagramView sandbox iframe 渲染 HTML 图+存量降级+me
 - Consumes: design.md §6 的意图级三条约定
 - Produces: 无代码接口；验收对照清单
 
-- [ ] **Step 1: 改写 req-organize**
+- [x] **Step 1: 改写 req-organize**
 
 图纪律段替换为：主链路必须落图（`![图意图](figures/<kebab-slug>.html)` 整行引用）、引用约定（figures/ 目录、独立成行、只引 .html、违反会被平台 422）、产出物形态（md + figures/ 一并提交）；删除全部 mermaid 纪律（括号/保留字/两种图形态）。配套对接节加 diagram-design 依赖（安装命令）、调用方式（意图描述→skill 产 HTML→存 figures/）、无 skill 降级（线性链路）、皮肤与字体一句带过（默认皮肤、font link 追加 Noto Sans SC/Serif SC）。
 
-- [ ] **Step 2: 改写 req-review**
+- [x] **Step 2: 改写 req-review**
 
 R 组图判据：mermaid 语法类判据删除；新增「图引用未独立成行/引用文件缺失（平台会拒收，评审兜底提示）」「存量 mermaid 图→标记建议重画」。
 
-- [ ] **Step 3: 验收对照**
+- [x] **Step 3: 验收对照**
 
 grep 检查两文件无 `mermaid` 残留纪律（历史对照说明除外）；三条约定与 design.md §6 一致。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .agents/skills/req-organize/SKILL.md .agents/skills/req-review/SKILL.md
@@ -349,21 +349,21 @@ git commit -m "docs：req-organize 图纪律收敛为意图级引用+req-review 
 - Consumes: Task 1-6 全部产物
 - Produces: 验证记录（附到本文件末尾）
 
-- [ ] **Step 1: server 全量测试**
+- [x] **Step 1: server 全量测试**
 
 Run: `cd server && uv run pytest -q`
 Expected: 全 PASS（原 98 项 + 新增）
 
-- [ ] **Step 2: web 全量测试**
+- [x] **Step 2: web 全量测试**
 
 Run: `cd web && npm test`
 Expected: 全 PASS
 
-- [ ] **Step 3: 演示项目全链路重画**
+- [x] **Step 3: 演示项目全链路重画**
 
 起 8000+5175；用 diagram-design skill 重画演示项目（5175 项目 5）主链路图 → 组织 md（整行引用+figures/）→ CLI `import-draft --md --figures` → 校验过 → 评审页 iframe 真图渲染；再验证一版「引用缺失」被 422 的往返。
 
-- [ ] **Step 4: Commit（如有验证期修正）**
+- [x] **Step 4: Commit（如有验证期修正）**
 
 ```bash
 git commit -m "fix：全链路验证修正（如有）"

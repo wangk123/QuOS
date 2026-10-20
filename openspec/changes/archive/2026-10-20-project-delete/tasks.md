@@ -42,7 +42,7 @@
 **Interfaces:**
 - Produces: `app.db._sync_schema(eng: Engine) -> None`（幂等：补 `docdraft.one_pager_md` / `docversion.one_pager_md`，删 `project.archived`）；`GET /api/v1/projects` 无 query、返回全部项目，元素无 `archived` 键。
 
-- [ ] **Step 1: 写迁移失败测试 `server/tests/test_db.py`**
+- [x] **Step 1: 写迁移失败测试 `server/tests/test_db.py`**
 
 ```python
 """db 启动 schema 同步:补列 + 废列幂等删除。"""
@@ -76,21 +76,21 @@ def test_sync_schema_drops_archived_and_is_idempotent(tmp_path):
     assert "archived" not in _cols(eng, "project")
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd server && uv run pytest tests/test_db.py -v`
 Expected: FAIL `ImportError: cannot import name '_sync_schema'`
 
-- [ ] **Step 3: `db.py` 实现 `_sync_schema(eng: Engine) -> None`**
+- [x] **Step 3: `db.py` 实现 `_sync_schema(eng: Engine) -> None`**
 
 把 `_ensure_columns` 改名为 `_sync_schema`，`get_engine` 调用点同步；在 `patches` 旁加 `drops = {"project": ["archived"]}`，同一 `eng.begin()` 内按 `PRAGMA table_info` 判断：缺则 `ALTER TABLE {t} ADD COLUMN {c} TEXT`，有废列则 `ALTER TABLE {t} DROP COLUMN {c}`。docstring 改为「create_all 不改既有表：启动时幂等补列、删废列（存量 quos.db 零手工迁移）」。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd server && uv run pytest tests/test_db.py -v`
 Expected: PASS
 
-- [ ] **Step 5: `test_projects.py` 删 `test_archive_hides_from_default_and_restore`，加两条**
+- [x] **Step 5: `test_projects.py` 删 `test_archive_hides_from_default_and_restore`，加两条**
 
 ```python
 def test_list_returns_all_without_archived_field(client):
@@ -105,21 +105,21 @@ def test_archive_endpoints_removed(client):
     assert client.post(f"/api/v1/projects/{pid}/restore").status_code == 404
 ```
 
-- [ ] **Step 6: 运行确认失败**
+- [x] **Step 6: 运行确认失败**
 
 Run: `cd server && uv run pytest tests/test_projects.py -v`
 Expected: 两条新测试 FAIL（响应含 `archived`；archive 返回 200）
 
-- [ ] **Step 7: 删模型字段与归档端点**
+- [x] **Step 7: 删模型字段与归档端点**
 
 `models.py` `Project` 删 `archived: bool = False`。`projects.py`：`_proj_out` 删 `"archived"` 键；`list_projects(db: Session = Depends(get_session))` 改为 `select(Project)` 全量；整体删除 `archive_project`、`restore_project` 两个函数；模块 docstring 改「项目 CRUD / 删除 / 状态总览」（删除端点 Task 2 加）。
 
-- [ ] **Step 8: 运行确认通过**
+- [x] **Step 8: 运行确认通过**
 
 Run: `cd server && uv run pytest tests/test_projects.py tests/test_db.py -v`
 Expected: 全部 PASS
 
-- [ ] **Step 9: `docs/api.md` 同步**
+- [x] **Step 9: `docs/api.md` 同步**
 
 projects 表删 `archive` / `restore` 两行；「GET 列表」条改为：`响应数组，元素 {id, name, description, created_at, stats}；stats = {...}（不变）`，去掉 `query archived` 说明。
 
@@ -135,7 +135,7 @@ projects 表删 `archive` / `restore` 两行；「GET 列表」条改为：`响�
 - Consumes: Task 1 的无 `archived` 模型。
 - Produces: `DELETE /api/v1/projects/{pid}` → 200 `{"ok": true}` / 404 `"project not found"`；前端 Task 3 调用。
 
-- [ ] **Step 1: 写级联删除失败测试（追加到 `test_projects.py`）**
+- [x] **Step 1: 写级联删除失败测试（追加到 `test_projects.py`）**
 
 ```python
 from sqlmodel import select
@@ -201,26 +201,26 @@ def test_delete_missing_project_404(client):
     assert client.delete("/api/v1/projects/9999").status_code == 404
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd server && uv run pytest tests/test_projects.py -v -k delete`
 Expected: 四条 FAIL，状态码 405（路由不存在）
 
-- [ ] **Step 3: 实现 `delete_project(pid: int, db: Session = Depends(get_session)) -> dict`**
+- [x] **Step 3: 实现 `delete_project(pid: int, db: Session = Depends(get_session)) -> dict`**
 
 `@router.delete("/{pid}")`。`_get_or_404` 取项目；按 Global Constraints 顺序对 8 张子表各执行 `db.execute(delete(T).where(T.project_id == pid))`（`from sqlalchemy import delete`），再 `db.delete(proj)`，一次 `db.commit()`；commit 后 `shutil.rmtree(dbmod.DATA_DIR / str(pid), ignore_errors=True)`；返回 `{"ok": True}`。import 行：`from app import db as dbmod`（与现有 `from app.db import get_session` 并存）。
 
-- [ ] **Step 4: 运行确认通过，并验证 FK 测试真能抓顺序错误**
+- [x] **Step 4: 运行确认通过，并验证 FK 测试真能抓顺序错误**
 
 Run: `cd server && uv run pytest tests/test_projects.py -v`
 Expected: 全部 PASS。随后临时把 `DocDraft` 的删除挪到 `DocVersion` 之前再跑 `-k cascades`，Expected: FAIL `IntegrityError: FOREIGN KEY constraint failed`；恢复顺序后再跑一次 PASS。
 
-- [ ] **Step 5: 全量 server 测试（模型为公共底层改动，影响范围不可定位）**
+- [x] **Step 5: 全量 server 测试（模型为公共底层改动，影响范围不可定位）**
 
 Run: `cd server && uv run pytest -q`
 Expected: 全部 PASS（基线 98 条，减 1 归档 + 加 7 条）
 
-- [ ] **Step 6: 文档同步**
+- [x] **Step 6: 文档同步**
 
 `docs/api.md` projects 表加行 `| DELETE | /api/v1/projects/{pid} | 删除项目（物理删除，不可逆） |`，说明条加：`- **DELETE**：连带清除该项目全部材料 / 草案 / 版本 / 基线 / 变更记录 / 批注 / 规则 / 术语与磁盘目录 data/<pid>/；成功 {"ok": true}。`
 `docs/requirements.md:101` 句改为：`项目生命周期：创建（名称必填）、改名、描述编辑、删除（弹窗二次确认；物理清除全部从属数据与文件，不可恢复）。项目列表每行可见：……（后半不变）`。
@@ -236,45 +236,45 @@ Expected: 全部 PASS（基线 98 条，减 1 归档 + 加 7 条）
 - Consumes: Task 2 的 `DELETE /projects/{pid}`。
 - Produces: `deleteProject(pid: number): Promise<{ok: boolean}>`；全局事件 `quos:projects-changed`（`ProjectsView` 增删改后派发，`SideBar` 监听刷新）。
 
-- [ ] **Step 0: Read `/Users/wangk/.agents/skills/ui-ux-pro-max/SKILL.md` 全文并遵循**
+- [x] **Step 0: Read `/Users/wangk/.agents/skills/ui-ux-pro-max/SKILL.md` 全文并遵循**
 
-- [ ] **Step 1: `api.ts` 改项目段**
+- [x] **Step 1: `api.ts` 改项目段**
 
 `Project` 接口删 `archived: boolean`；`listProjects = () => api.get('/projects') as Promise<Project[]>`；删 `archiveProject`、`restoreProject`；加 `export const deleteProject = (pid: number) => api.del(`/projects/${pid}`)`。
 
-- [ ] **Step 2: `ProjectsView.vue` 重整**
+- [x] **Step 2: `ProjectsView.vue` 重整**
 
 删除：`tab` 与 `switchTab`、seg 切换条、`archiving / archName / archErr`、`askArchive / doArchive / doRestore`、归档 `icon-btn`、恢复 `btn sm`、归档 `AppModal`、所有 `v-if="!p.archived"`；空状态只留「尚无项目,点击右上角新建」；`refresh()` 改为无参 `listProjects()`。
 新增：`const deleting = ref<Project | null>(null)`；行末删除 `icon-btn`（`title="删除"`，垃圾桶 SVG：`<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`）；`AppModal v-if="deleting" title="删除项目"`，正文 `<p>删除「<b>{{ deleting.name }}</b>」？项目下全部材料、文档、版本、批注将永久删除，不可恢复。</p>`，`#foot`：`btn` 取消 + `btn danger` 删除；`async function doDelete()`：`await deleteProject(deleting.value!.id)` → `toast(`「${name}」已删除`)` → `deleting.value = null` → `refresh()`。
 `refresh()` 末尾加 `window.dispatchEvent(new Event('quos:projects-changed'))`（创建/改名/删除后侧栏同步）。头注释改「项目总览:表格/新建/编辑/删除」。
 
-- [ ] **Step 3: `SideBar.vue` 监听事件、改陈旧注释**
+- [x] **Step 3: `SideBar.vue` 监听事件、改陈旧注释**
 
 `window.addEventListener('hashchange', ...)` 下一行加 `window.addEventListener('quos:projects-changed', () => refresh())`；头注释改「侧栏:项目树 + 项目内子导航(材料/文档评审/版本)」。
 
-- [ ] **Step 4: 类型检查**
+- [x] **Step 4: 类型检查**
 
 Run: `cd web && npx vue-tsc -b`
 Expected: 无输出（0 错误）；若报 `archived` 残留引用则按报错清除
 
-- [ ] **Step 5: 真机验收（强刷）**
+- [x] **Step 5: 真机验收（强刷）**
 
 启动：`./start.sh`（或按 docs/development.md 分别起 8000 / 5175）。浏览器打开项目总览，依次确认：① 列表无「进行中/归档」切换条，原归档项目 id 1、2 回到列表；② 每行有编辑、删除两个图标，无归档图标；③ 点删除弹窗显示项目名与不可逆警告，取消不删；④ 新建临时项目 → 删除 → toast「已删除」→ 列表与左侧项目树同时消失；⑤ 浏览器 Network 面板 `DELETE /api/v1/projects/<pid>` 200；⑥ 服务端 `server/data/<pid>/` 目录不存在（若曾上传材料）。
 
 ### Task 4: 收尾
 
-- [ ] **Step 1: 全量验证**
+- [x] **Step 1: 全量验证**
 
 Run: `cd server && uv run pytest -q && cd ../web && npx vitest run && npx vue-tsc -b`
 Expected: server 全绿、web 24 条全绿、tsc 0 错
 
-- [ ] **Step 2: 单条 commit**
+- [x] **Step 2: 单条 commit**
 
 ```bash
 git add server/app/models.py server/app/db.py server/app/api/projects.py server/tests/test_db.py server/tests/test_projects.py web/src/api.ts web/src/views/ProjectsView.vue web/src/components/SideBar.vue docs/api.md docs/requirements.md openspec/changes/project-delete
 git commit -m "feat：项目删除替代归档——DELETE /projects/{pid} 级联清 9 表+项目目录，归档端点/archived 列/归档视图退役（启动幂等 DROP COLUMN），前端删除按钮+二次确认弹窗+侧栏同步刷新"
 ```
 
-- [ ] **Step 3: 未归档 change 提醒（不执行归档）**
+- [x] **Step 3: 未归档 change 提醒（不执行归档）**
 
 输出一行：`未归档 change：diagram-design-integration、project-delete`。
