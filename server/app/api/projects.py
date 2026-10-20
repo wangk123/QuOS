@@ -1,10 +1,24 @@
-"""项目 CRUD / 归档恢复 / 状态总览。"""
+"""项目 CRUD / 删除 / 状态总览。"""
+import shutil
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
+from app import db as dbmod
 from app.db import get_session
-from app.models import Baseline, DocDraft, DocVersion, Material, Project, Question
+from app.models import (
+    Baseline,
+    ChangeLog,
+    DocDraft,
+    DocVersion,
+    Material,
+    Project,
+    Question,
+    Rule,
+    Term,
+)
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -56,15 +70,14 @@ def _proj_out(db: Session, proj: Project) -> dict:
         "id": proj.id,
         "name": proj.name,
         "description": proj.description,
-        "archived": proj.archived,
         "created_at": proj.created_at.isoformat(),
         "stats": _stats(db, proj.id),
     }
 
 
 @router.get("")
-def list_projects(archived: bool = False, db: Session = Depends(get_session)):
-    projs = db.exec(select(Project).where(Project.archived == archived)).all()
+def list_projects(db: Session = Depends(get_session)):
+    projs = db.exec(select(Project)).all()
     return [_proj_out(db, p) for p in projs]
 
 
@@ -98,19 +111,14 @@ def patch_project(pid: int, body: ProjectPatch, db: Session = Depends(get_sessio
     return _proj_out(db, proj)
 
 
-@router.post("/{pid}/archive")
-def archive_project(pid: int, db: Session = Depends(get_session)):
+@router.delete("/{pid}")
+def delete_project(pid: int, db: Session = Depends(get_session)):
     proj = _get_or_404(db, pid)
-    proj.archived = True
-    db.add(proj)
+    # 外键无 CASCADE 且生产库 foreign_keys=ON:DocVersion.draft_id 指向 DocDraft,必须先删
+    for model in (DocVersion, DocDraft, Baseline, ChangeLog, Question, Rule, Term, Material):
+        db.execute(delete(model).where(model.project_id == pid))
+    db.delete(proj)
     db.commit()
-    return {"ok": True}
-
-
-@router.post("/{pid}/restore")
-def restore_project(pid: int, db: Session = Depends(get_session)):
-    proj = _get_or_404(db, pid)
-    proj.archived = False
-    db.add(proj)
-    db.commit()
+    # 先库后文件:库是唯一真相源,目录残留只是可清理的孤儿
+    shutil.rmtree(dbmod.DATA_DIR / str(pid), ignore_errors=True)
     return {"ok": True}

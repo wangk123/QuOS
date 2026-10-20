@@ -1,29 +1,24 @@
-<!-- 项目总览:表格/新建/编辑/输名归档/恢复/归档视图 -->
+<!-- 项目总览:表格/新建/编辑/删除 -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { archiveProject, createProject, listProjects, patchProject, restoreProject, type Project } from '../api'
+import { createProject, deleteProject, listProjects, patchProject, type Project } from '../api'
 import AppModal from '../components/AppModal.vue'
 import { toast } from '../components/toast'
 
-const tab = ref<'active' | 'archived'>('active')
 const projects = ref<Project[]>([])
 let editing: Project | null = null
 
 const modal = ref<null | 'form'>(null)
 const form = ref({ name: '', description: '' })
 const formErr = ref(false)
-const archiving = ref<Project | null>(null)
-const archName = ref('')
-const archErr = ref(false)
+const deleting = ref<Project | null>(null)
 
 async function refresh() {
-  projects.value = await listProjects(tab.value === 'archived')
+  projects.value = await listProjects()
+  // 侧栏项目树只在切页时自刷,增删改后主动通知,避免残留死链接
+  window.dispatchEvent(new Event('quos:projects-changed'))
 }
 refresh()
-function switchTab(t: 'active' | 'archived') {
-  tab.value = t
-  refresh()
-}
 
 function openCreate() {
   editing = null
@@ -52,24 +47,14 @@ async function save() {
   modal.value = null
   refresh()
 }
-function askArchive(p: Project) {
-  archiving.value = p
-  archName.value = ''
-  archErr.value = false
+function askDelete(p: Project) {
+  deleting.value = p
 }
-async function doArchive() {
-  if (!archiving.value || archName.value.trim() !== archiving.value.name) {
-    archErr.value = true
-    return
-  }
-  await archiveProject(archiving.value!.id)
-  toast(`「${archiving.value!.name}」已归档`)
-  archiving.value = null
-  refresh()
-}
-async function doRestore(p: Project) {
-  await restoreProject(p.id)
-  toast(`「${p.name}」已恢复`)
+async function doDelete() {
+  const p = deleting.value!
+  await deleteProject(p.id)
+  toast(`「${p.name}」已删除`)
+  deleting.value = null
   refresh()
 }
 </script>
@@ -86,10 +71,6 @@ async function doRestore(p: Project) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
         新建项目
       </button>
-    </div>
-    <div class="seg" style="margin-bottom: 16px; display: inline-flex">
-      <button :class="{ active: tab === 'active' }" @click="switchTab('active')">进行中</button>
-      <button :class="{ active: tab === 'archived' }" @click="switchTab('archived')">归档</button>
     </div>
     <div class="card">
       <table class="tbl">
@@ -115,18 +96,17 @@ async function doRestore(p: Project) {
               <span v-else class="tag mute"><span class="dot" />无</span>
             </td>
             <td style="white-space: nowrap; text-align: right">
-              <a v-if="!p.archived" class="btn sm" :href="`#/p/${p.id}/review`" style="text-decoration: none">进入</a>
-              <button v-if="!p.archived" class="icon-btn" title="编辑" @click="openEdit(p)">
+              <a class="btn sm" :href="`#/p/${p.id}/review`" style="text-decoration: none">进入</a>
+              <button class="icon-btn" title="编辑" @click="openEdit(p)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
               </button>
-              <button v-if="!p.archived" class="icon-btn" title="归档" @click="askArchive(p)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /></svg>
+              <button class="icon-btn" title="删除" @click="askDelete(p)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
               </button>
-              <button v-else class="btn sm" @click="doRestore(p)">恢复</button>
             </td>
           </tr>
           <tr v-if="!projects.length">
-            <td colspan="6"><div class="empty">{{ tab === 'archived' ? '没有归档项目' : '尚无项目,点击右上角新建' }}</div></td>
+            <td colspan="6"><div class="empty">尚无项目,点击右上角新建</div></td>
           </tr>
         </tbody>
       </table>
@@ -149,16 +129,11 @@ async function doRestore(p: Project) {
       </template>
     </AppModal>
 
-    <AppModal v-if="archiving" :title="'归档项目'" @close="archiving = null">
-      <div class="field" :class="{ invalid: archErr }">
-        <label>输名确认:输入 <b>{{ archiving.name }}</b></label>
-        <input v-model="archName" type="text" placeholder="项目名称" />
-        <div class="err-msg">名称不一致</div>
-      </div>
-      <p style="font-size: 0.84rem; color: var(--muted)">归档后数据完整保留,可在归档视图恢复。</p>
+    <AppModal v-if="deleting" title="删除项目" @close="deleting = null">
+      <p style="font-size: 0.9rem; line-height: 1.6">删除「<b>{{ deleting.name }}</b>」？项目下全部材料、文档、版本、批注将永久删除，不可恢复。</p>
       <template #foot>
-        <button class="btn" @click="archiving = null">取消</button>
-        <button class="btn danger" @click="doArchive">归档</button>
+        <button class="btn" @click="deleting = null">取消</button>
+        <button class="btn danger" @click="doDelete">删除</button>
       </template>
     </AppModal>
   </div>

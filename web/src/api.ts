@@ -41,13 +41,12 @@ export const api = {
 
 // ── 项目 ──
 export interface ProjStats { materials: number; pending_annos: number; version: string | null; draft_status: string | null }
-export interface Project { id: number; name: string; description: string; archived: boolean; created_at: string; stats: ProjStats }
-export const listProjects = (archived = false) => api.get(`/projects${archived ? '?archived=true' : ''}`) as Promise<Project[]>
+export interface Project { id: number; name: string; description: string; created_at: string; stats: ProjStats }
+export const listProjects = () => api.get('/projects') as Promise<Project[]>
 export const getProject = (pid: number) => api.get(`/projects/${pid}`) as Promise<Project>
 export const createProject = (name: string, description: string) => api.post('/projects', { name, description })
 export const patchProject = (pid: number, b: { name?: string; description?: string }) => api.patch(`/projects/${pid}`, b)
-export const archiveProject = (pid: number) => api.post(`/projects/${pid}/archive`)
-export const restoreProject = (pid: number) => api.post(`/projects/${pid}/restore`)
+export const deleteProject = (pid: number) => api.del(`/projects/${pid}`) as Promise<{ ok: boolean }>
 
 // ── 材料 ──
 export interface Material { id: number; filename: string; type: string; sha256: string; size: number; parsed_text: string; created_at: string }

@@ -22,21 +22,27 @@ def get_engine() -> Engine:
         )
         event.listens_for(_engine, "connect")(_set_wal)
         SQLModel.metadata.create_all(_engine)
-        _ensure_columns(_engine)
+        _sync_schema(_engine)
     return _engine
 
 
-def _ensure_columns(eng: Engine) -> None:
-    """create_all 不给既有表加列:启动时幂等补列(存量 quos.db 零迁移)。"""
+def _sync_schema(eng: Engine) -> None:
+    """create_all 不改既有表:启动时幂等补列、删废列(存量 quos.db 零手工迁移)。"""
     from sqlalchemy import text as _text
 
     patches = {"docdraft": ["one_pager_md"], "docversion": ["one_pager_md"]}
+    drops = {"project": ["archived"]}
     with eng.begin() as conn:
         for table, cols in patches.items():
             have = {r[1] for r in conn.execute(_text(f"PRAGMA table_info({table})"))}
             for col in cols:
                 if col not in have:
                     conn.execute(_text(f"ALTER TABLE {table} ADD COLUMN {col} TEXT"))
+        for table, cols in drops.items():
+            have = {r[1] for r in conn.execute(_text(f"PRAGMA table_info({table})"))}
+            for col in cols:
+                if col in have:
+                    conn.execute(_text(f"ALTER TABLE {table} DROP COLUMN {col}"))
 
 
 def _set_wal(dbapi_conn, _record):

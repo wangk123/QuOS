@@ -17,12 +17,12 @@
 | POST | `/api/v1/projects` | 创建项目 |
 | GET | `/api/v1/projects/{pid}` | 项目详情 |
 | PATCH | `/api/v1/projects/{pid}` | 改名/改描述 |
-| POST | `/api/v1/projects/{pid}/archive` | 归档 |
-| POST | `/api/v1/projects/{pid}/restore` | 恢复 |
+| DELETE | `/api/v1/projects/{pid}` | 删除项目（物理删除，不可逆） |
 
-- **GET 列表**：query `archived: bool = false`。响应数组，元素 `{id, name, description, archived, created_at, stats}`；`stats = {materials, pending_annos, version, draft_status}`（draft_status 为 `"reviewing"` 或 null）。
+- **GET 列表**：响应数组，元素 `{id, name, description, created_at, stats}`；`stats = {materials, pending_annos, version, draft_status}`（draft_status 为 `"reviewing"` 或 null）。
 - **POST 创建**：body `{"name": str 必填非空, "description": str = ""}` → 200 元素同上；name 空白 422 `"name required"`。pid 不存在 404 `"project not found"`（下同，不再逐条重复）。
 - **GET 详情 / PATCH**：PATCH body `{"name"?: str, "description"?: str}` 均可选，只传要改的。
+- **DELETE**：连带清除该项目全部材料 / 草案 / 版本 / 基线 / 变更记录 / 批注 / 规则 / 术语与磁盘目录 `data/<pid>/`；成功 `{"ok": true}`。
 
 ## materials（材料池）
 

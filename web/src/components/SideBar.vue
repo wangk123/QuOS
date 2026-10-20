@@ -1,4 +1,4 @@
-<!-- 侧栏:项目树 + 项目内子导航(材料/文档评审/版本)+ 归档区 -->
+<!-- 侧栏:项目树 + 项目内子导航(材料/文档评审/版本) -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { route } from '../router'
@@ -12,6 +12,8 @@ async function refresh() {
 refresh()
 // 跨页签切换时刷新徽标数(评审作答会改变 pending)
 window.addEventListener('hashchange', () => refresh())
+// 项目总览增删改后同步项目树
+window.addEventListener('quos:projects-changed', () => refresh())
 
 const inProj = computed(() => route.view !== 'projects')
 const subs = computed(() => {

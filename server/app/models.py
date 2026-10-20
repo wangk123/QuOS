@@ -21,7 +21,6 @@ class Project(SQLModel, table=True):
     id: int | None = SF(default=None, primary_key=True)
     name: str = SF(index=True)
     description: str = ""
-    archived: bool = False
     created_at: datetime = SF(default_factory=_now)
 
 
