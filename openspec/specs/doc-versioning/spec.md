@@ -6,10 +6,13 @@ TBD - created by archiving change quos-v2-rebuild. Update Purpose after archive.
 ## Requirements
 
 ### Requirement: 人拍板定稿发版(自定义版本号)
-平台 SHALL 仅允许人在评审页执行定稿发版(POST /api/v1/projects/{pid}/doc/finalize):版本号由人**自定义输入**(非自增,平台给建议值;与历史版本重复则拦截),发版说明选填(写入版本历史);确认后生成 DocVersion 快照。agent 无发版权限,只能反馈建议。
+平台 SHALL 仅允许人在评审页执行定稿发版(POST /api/v1/projects/{pid}/doc/finalize):版本号由人**自定义输入**,格式仅允许 **x.x.x**(纯数字三段,`^\d+\.\d+\.\d+$`,非法格式 422 拒收;平台给建议值:基线命中 x.x.x 则 patch 位递增,否则 1.0.0);与历史版本重复则拦截;发版说明选填(写入版本历史);确认后生成 DocVersion 快照。agent 无发版权限,只能反馈建议。存量历史版本号不迁移,回退与展示照旧。
 #### Scenario: 自定义版本号发版
-- **WHEN** 用户将建议的 v3 改为 v2.1 并填写发版说明后确认
-- **THEN** 生成 v2.1 版本快照,时间线顶部出现 v2.1(带发版说明)
+- **WHEN** 用户将建议的 1.3.0 改为 1.2.5 并填写发版说明后确认
+- **THEN** 生成 1.2.5 版本快照,时间线顶部出现 1.2.5(带发版说明)
+#### Scenario: 非法版本号格式拒收
+- **WHEN** 用户输入 v3、1.2 等不符合 x.x.x 的版本号并确认
+- **THEN** 平台 422 拒收并提示版本号格式须为 x.x.x,不发版
 #### Scenario: 重复版本号拦截
 - **WHEN** 用户输入与历史版本重复的版本号并确认
 - **THEN** 平台拦截并提示版本号重复,不发版
