@@ -30,7 +30,11 @@ def _sync_schema(eng: Engine) -> None:
     """create_all 不改既有表:启动时幂等补列、删废列(存量 quos.db 零手工迁移)。"""
     from sqlalchemy import text as _text
 
-    patches = {"docdraft": ["one_pager_md"], "docversion": ["one_pager_md"]}
+    patches = {
+        "docdraft": ["one_pager_md"],
+        "docversion": ["one_pager_md"],
+        "project": ["status", "version"],
+    }
     drops = {"project": ["archived"]}
     with eng.begin() as conn:
         for table, cols in patches.items():
@@ -43,6 +47,13 @@ def _sync_schema(eng: Engine) -> None:
             for col in cols:
                 if col in have:
                     conn.execute(_text(f"ALTER TABLE {table} DROP COLUMN {col}"))
+        # 补列后存量行回填默认值,不留 NULL(旧行无治理状态/版本)
+        conn.execute(_text("UPDATE project SET status='in_progress' WHERE status IS NULL"))
+        conn.execute(_text("UPDATE project SET version='1.0.0' WHERE version IS NULL"))
+        try:
+            conn.execute(_text("CREATE UNIQUE INDEX IF NOT EXISTS ix_projects_name ON project(name)"))
+        except Exception as exc:  # 存量重名建不了索引:API 层查重兜底,不阻塞启动
+            print(f"[db] 名称唯一索引创建跳过(存量重名?): {exc}")
 
 
 def _set_wal(dbapi_conn, _record):

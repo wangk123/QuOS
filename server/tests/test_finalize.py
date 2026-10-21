@@ -32,25 +32,25 @@ def _finalize(client, pid, version, note=""):
 def test_first_release_all_added_with_material_reason(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    r = _finalize(client, pid, "v1", "首版")
+    r = _finalize(client, pid, "1.0.0", "首版")
     assert r.status_code == 200, r.text
-    assert r.json()["version"] == "v1"
+    assert r.json()["version"] == "1.0.0"
 
-    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=v1").json()
+    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=1.0.0").json()
     assert len(rows) == 1 and rows[0]["kind"] == "added"
     assert rows[0]["reason"] == "overview.pdf"  # 首版 reason=材料文件名
     assert rows[0]["approver"] == "owner"
 
     base = client.get(f"/api/v1/projects/{pid}/doc/baseline").json()
-    assert base["version"] == "v1" and base["snapshot"]["rules"]["R1"]["no"] == "R1"
+    assert base["version"] == "1.0.0" and base["snapshot"]["rules"]["R1"]["no"] == "R1"
 
 
 def test_duplicate_version_409(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid, "第二版文本"))
-    r = _finalize(client, pid, "v1")
+    r = _finalize(client, pid, "1.0.0")
     assert r.status_code == 409
     assert r.json()["detail"]["code"] == "DUP_VERSION"
 
@@ -58,7 +58,7 @@ def test_duplicate_version_409(client):
 def test_custom_version_and_modify_changelog_reason_from_answer(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
 
     # 第二轮草案:修改 R1;agent 批注已答(挂旧草案)提供 reason
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid, "修改后的规则文本"))
@@ -70,10 +70,10 @@ def test_custom_version_and_modify_changelog_reason_from_answer(client):
         {"kind": "fill", "payload": {"q": "R1 为何改?"}, "anchor": {"chapter_id": "c1", "rule_no": "R1"}}]).json()
     client.post(f"/api/v1/questions/{qs[0]['id']}/answer", json={"answer": {"text": "纪要对齐"}})
 
-    r = _finalize(client, pid, "v2.1", "自定义号")
-    assert r.status_code == 200 and r.json()["version"] == "v2.1"
+    r = _finalize(client, pid, "1.2.1", "自定义号")
+    assert r.status_code == 200 and r.json()["version"] == "1.2.1"
 
-    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=v2.1").json()
+    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=1.2.1").json()
     mod = [c for c in rows if c["kind"] == "modified"]
     assert mod and mod[0]["old_text"] == "规则一的内容"
     assert mod[0]["new_text"] == "修改后的规则文本"
@@ -89,7 +89,7 @@ def test_finalize_withdraws_auto_pending_keeps_agent_pending(client, db):
     qs = client.post(f"/api/v1/projects/{pid}/questions", json=[
         {"kind": "fill", "payload": {"q": "agent 的问题"}, "anchor": {}}]).json()
 
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
 
     allq = client.get(f"/api/v1/projects/{pid}/questions").json()
     by_q = {q["payload"].get("q"): q["status"] for q in allq}
@@ -102,7 +102,7 @@ def test_finalize_withdraws_auto_pending_keeps_agent_pending(client, db):
 def test_finalize_draft_finalized_and_terms_rebuilt(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
     assert client.get(f"/api/v1/projects/{pid}/doc/draft").json() == {"empty": True}
 
     r = client.get(f"/api/v1/projects/{pid}/doc/baseline")
@@ -112,21 +112,21 @@ def test_finalize_draft_finalized_and_terms_rebuilt(client):
 def test_revert_switches_baseline_keeps_history(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid, "v2 文本"))
-    _finalize(client, pid, "v2")
+    _finalize(client, pid, "1.1.0")
 
-    r = client.post(f"/api/v1/projects/{pid}/doc/revert", json={"version": "v1"})
+    r = client.post(f"/api/v1/projects/{pid}/doc/revert", json={"version": "1.0.0"})
     assert r.status_code == 200
     base = client.get(f"/api/v1/projects/{pid}/doc/baseline").json()
-    assert base["version"] == "v1"
+    assert base["version"] == "1.0.0"
     vers = [v["version"] for v in client.get(f"/api/v1/projects/{pid}/doc/versions").json()]
-    assert set(vers) == {"v1", "v2"}  # 历史不删
+    assert set(vers) == {"1.0.0", "1.1.0"}  # 历史不删
 
     # 回退后新草案与 v1 比对(与当前基线比,非最新版)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid, "v3 文本"))
-    _finalize(client, pid, "v3")
-    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=v3").json()
+    _finalize(client, pid, "1.2.0")
+    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=1.2.0").json()
     mod = [c for c in rows if c["kind"] == "modified"]
     assert mod and mod[0]["old_text"] == "规则一的内容"  # v1 的文本
 
@@ -134,13 +134,13 @@ def test_revert_switches_baseline_keeps_history(client):
 def test_changelog_rule_level_only(client):
     pid, mid = _setup(client)
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
-    _finalize(client, pid, "v1")
+    _finalize(client, pid, "1.0.0")
     # 第二版只改章节背景文本(规则不动)
     payload = _payload(mid)
     payload["chapters"][0]["background"] = "全新的初衷说明"
     client.post(f"/api/v1/projects/{pid}/doc/draft", json=payload)
-    _finalize(client, pid, "v2")
-    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=v2").json()
+    _finalize(client, pid, "1.1.0")
+    rows = client.get(f"/api/v1/projects/{pid}/doc/changes?version=1.1.0").json()
     assert rows == []  # 章节文本变更不进 ChangeLog
 
 
@@ -167,7 +167,7 @@ def test_concurrent_draft_single_reviewing(client):
 def test_finalize_missing_draft_404(client):
     pid, _ = _setup(client)
     r = client.post(f"/api/v1/projects/{pid}/doc/finalize",
-                    json={"draft_id": 999, "version": "v1", "note": ""})
+                    json={"draft_id": 999, "version": "1.0.0", "note": ""})
     assert r.status_code == 404
 
 
@@ -206,10 +206,32 @@ def test_concurrent_finalize_same_version_409_not_500(client_factory):
     def fin():
         fc = client_factory.make_client()  # 独立 client,真实双入口
         r = fc.post(f"/api/v1/projects/{pid}/doc/finalize",
-                    json={"draft_id": did, "version": "v1", "note": ""})
+                    json={"draft_id": did, "version": "1.0.0", "note": ""})
         codes.append(r.status_code)
     ts = [threading.Thread(target=fin) for _ in range(2)]
     for t in ts: t.start()
     for t in ts: t.join()
     assert 500 not in codes
     assert sorted(codes) == [200, 409]
+
+
+def test_finalize_version_format_x_y_z(client):
+    pid, mid = _setup(client)
+    client.post(f"/api/v1/projects/{pid}/doc/draft", json=_payload(mid))
+    for bad in ("v3", "1.2", "1.2.3.4", "1.2.x"):
+        r = _finalize(client, pid, bad)
+        assert r.status_code == 422, bad
+        assert r.json()["detail"]["code"] == "VERSION_FORMAT", bad
+    r = _finalize(client, pid, "1.2.3")
+    assert r.status_code == 200 and r.json()["version"] == "1.2.3"
+
+
+def test_legacy_version_revert_still_works(client, db):
+    """存量旧格式版本(v2-onepager)不迁移:回退按原字符串照常。"""
+    from app.models import Baseline, DocVersion, Project
+    pid = client.post("/api/v1/projects", json={"name": "存量"}).json()["id"]
+    db.add(DocVersion(project_id=pid, version="v2-onepager", snapshot={}, note="旧版"))
+    db.add(Baseline(project_id=pid, version="v2-onepager"))
+    db.commit()
+    r = client.post(f"/api/v1/projects/{pid}/doc/revert", json={"version": "v2-onepager"})
+    assert r.status_code == 200 and r.json()["ok"] is True

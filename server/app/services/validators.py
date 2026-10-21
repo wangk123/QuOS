@@ -14,6 +14,9 @@ from app.services.diagram_check import check_diagram, is_html_form
 
 _QUOTE_MIN = 6  # 短引用定位不可靠,降级软警告
 
+# 版本号统一格式:纯数字三段(项目版本与定稿版本共用)
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
 
 def normalize(s: str) -> str:
     folded = unicodedata.normalize("NFKC", s).casefold()

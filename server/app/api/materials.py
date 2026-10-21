@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.db import DATA_DIR, get_session
+from app.api.projects import assert_writable
 from app.models import Material, Project, Rule
 from app.parsers.extract import extract_text
 
@@ -26,8 +27,7 @@ def _mat_out(m: Material) -> dict:
 
 @router.post("")
 def upload_material(pid: int, file: UploadFile, db: Session = Depends(get_session)):
-    if db.get(Project, pid) is None:
-        raise HTTPException(404, "project not found")
+    assert_writable(db, pid)
     data = file.file.read()
     sha = hashlib.sha256(data).hexdigest()
 
@@ -60,6 +60,7 @@ def upload_material(pid: int, file: UploadFile, db: Session = Depends(get_sessio
 
 @router.delete("/{mid}")
 def delete_material(pid: int, mid: int, db: Session = Depends(get_session)):
+    assert_writable(db, pid)
     m = db.exec(
         select(Material).where(Material.project_id == pid, Material.id == mid)
     ).first()

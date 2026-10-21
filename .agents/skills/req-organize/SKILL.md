@@ -101,6 +101,6 @@ description: 需求整理——从异质素材（口述、碎片文档、代码�
 
 本 skill 独立通用，不绑定任何平台。若使用环境配有需求管理平台/CLI 工具（文档化交付、批注评审、版本基线），对接协议由该环境单独提供（接口文档或 CLI 说明），遵循其调用约定即可；无平台时产出物就是文档本身。规则条目、锚点等机器结构不在生成侧预铺，由评审标记与平台侧约定承载。
 
-本仓库环境（QuOS）提供 CLI：提交/拉取平台数据优先用 `uv run --directory server python -m app.cli <cmd>`（仓库根执行；文件传参，422 拒收明细完整输出 stdout 供修复闭环）。命令用法与调用纪律见 `docs/quos-agent-api.md`「CLI 调用」，端点契约见 `docs/api.md`。提交带图的文档用 `import-draft PID --md 文档.md --figures figures目录`（图文件集随 md multipart 提交）。
+本仓库环境（QuOS）提供 CLI：提交/拉取平台数据优先用 `uv run --directory server python -m app.cli <cmd>`（仓库根执行；文件传参，422 拒收明细完整输出 stdout 供修复闭环）。命令用法与调用纪律见 `docs/quos-agent-api.md`「CLI 调用」，端点契约见 `docs/api.md`。提交带图的文档用 `import-draft PID --md 文档.md --figures figures目录`（图文件集随 md multipart 提交）。项目被暂停/结项时平台只读，提交返回 409 `PROJECT_READ_ONLY`——停下告知用户切换项目状态，勿重试。
 
 **画图依赖 diagram-design skill**：图源已单轨为 diagram-design 自包含 HTML。本 skill 只表达图意图，绘制交给 `~/.agents/skills/diagram-design`（安装：`npx skills add cathrynlavery/diagram-design`）：把图的意图描述交给该 skill 产出 HTML，存入交付目录 `figures/`；使用要点——默认皮肤（跳过其 style-guide 交互门）、font link 追加 Noto Sans SC / Noto Serif SC（中文标签）、生成后跑其 self_check 通过才交付。无该 skill 时降级：主链路以线性「A → B → C」链路兜底，不出 HTML 图。

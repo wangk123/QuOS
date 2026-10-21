@@ -38,6 +38,7 @@
 
 ## 校验报告处理纪律
 
+- **项目只读态**：项目被暂停/结项后一切提交（材料/draft/import/批注）409 `{"code": "PROJECT_READ_ONLY"}`——停等人侧恢复/重开项目后再提交，不要重试绕过；定稿版本号非 `x.x.x` 三段数字 422 `VERSION_FORMAT`。
 - `POST draft` 硬错误 → 422，响应体 `{"detail":{"hard_errors":[{code, rule_no, detail}]}}`：**必须修正后重交，禁止绕过**。`QUOTE_NOT_FOUND` 的 detail.nearest 是材料内最相近片段，对照修正 quote；`BLOCK_*`/`CHAPTER_PARENT_*` 是正文块结构与层级错误，按 detail 修正；
 - **import 的格式硬校验**：ASCII 盒子图、mermaid 节点半角括号、引用块承载实质内容、mermaid 语法错误（平台用 node 端真实 parse 校验）→ 422 拒收（`FORMAT_CONTRACT`/`MERMAID_SYNTAX`，detail 带位置与修法）。**导入即验证、agent 自动修复重导，全程无人工**——渲染层不静默降级（与文档内容层 fail fast 原则一致）；前端源码降级仅为 bug 兜底且页面显式标注；
 - 软警告 → 平台自动转批注（source=auto，带 anchor），不阻塞入库；`new_terms` 由本 skill 自查申报（发现新词是 AI 职责，平台不猜词）；

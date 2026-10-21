@@ -205,3 +205,16 @@ def test_submit_draft_bad_html_diagram_422(client):
     r = client.post(f"/api/v1/projects/{pid}/doc/draft", json=body)
     assert r.status_code == 422
     assert any(e["code"] == "DIAGRAM_CHECK" for e in r.json()["detail"]["hard_errors"])
+
+
+def test_import_appendix_agent_questions_carry_draft_id(client):
+    """import 附录 A 转的 agent 批注挂当前草案 draft_id:需求状态派生才能命中「待评审」。"""
+    pid, mid = _mk_proj_with_material(client)
+    md = ('## 1 接入\n\n正文段落,行为级约束在此。\n\n'
+          '## 附录 A 待确认问题清单\n\n'
+          '**TBD-01（填空）** 短信验证码有效期是多久？素材无量化口径。\n')
+    r = _import_md(client, pid, md)
+    assert r.status_code == 200, r.text
+    stats = client.get(f"/api/v1/projects/{pid}").json()["stats"]
+    assert stats["pending_annos"] == 1
+    assert stats["requirement_status"] == "in_review"

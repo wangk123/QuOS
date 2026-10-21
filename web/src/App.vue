@@ -42,11 +42,16 @@ const view = computed(() => {
 </script>
 
 <template>
-  <div class="app">
-    <SideBar />
+  <div class="app" :class="{ 'no-side': route.view === 'projects' }">
+    <SideBar v-if="route.view !== 'projects'" />
     <div class="main">
       <header class="topbar">
         <div class="crumb">
+          <!-- 列表态无侧栏,品牌移到顶栏 -->
+          <template v-if="route.view === 'projects'">
+            <span class="brand"><span class="mark"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg></span>QuOS</span>
+            <span class="sep">/</span>
+          </template>
           <template v-for="(c, i) in crumbs" :key="i">
             <a v-if="c.hash" :href="c.hash" style="color: var(--muted); text-decoration: none">{{ c.label }}</a>
             <b v-else>{{ c.label }}</b>

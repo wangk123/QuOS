@@ -1,10 +1,16 @@
 <!-- 版本页:时间线(草案评审中+历史定稿)、条款变更 diff、「回退到此版」 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getBaseline, getChanges, getDraft, getVersions, revertDoc } from '../api'
+import { getBaseline, getChanges, getDraft, getProject, getVersions, revertDoc } from '../api'
 import { route } from '../router'
 import { toast } from '../components/toast'
 import AppModal from '../components/AppModal.vue'
+
+// 需求状态(平台派生):草案条目徽标展示
+const REQ_LABEL: Record<string, string> = {
+  idle: '未开始', in_review: '待评审', await_resubmit: '待重交', await_finalize: '待定稿', finalized: '已定稿',
+}
+const reqLabel = ref('待评审')
 
 const versions = ref<any[]>([])
 const baseline = ref<any>(null)
@@ -18,6 +24,7 @@ async function load() {
   versions.value = await getVersions(route.pid)
   baseline.value = await getBaseline(route.pid)
   hasDraft.value = (await getDraft(route.pid)).empty !== true
+  reqLabel.value = REQ_LABEL[(await getProject(route.pid)).stats.requirement_status] ?? '待评审'
   if (!selVer.value || !versions.value.some((v) => v.version === selVer.value)) {
     selVer.value = versions.value[0]?.version ?? ''
   }
@@ -70,7 +77,7 @@ const kindTag: Record<string, { cls: string; label: string }> = {
       <div class="card" style="padding: 14px 12px 6px">
         <div class="vline">
           <div v-if="hasDraft" class="vitem">
-            <div class="vv">(草案)<span class="tag warn"><span class="dot" />评审中</span></div>
+            <div class="vv">(草案)<span class="tag warn"><span class="dot" />{{ reqLabel }}</span></div>
             <div class="vd">尚未发版 · 去「文档评审」处理批注后定稿</div>
           </div>
           <div v-for="v in versions" :key="v.version" class="vitem" :class="{ sel: v.version === selVer }" @click="select(v.version)">

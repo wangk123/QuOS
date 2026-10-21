@@ -1,51 +1,94 @@
-<!-- 项目总览:表格/新建/编辑/删除 -->
+<!-- 项目总览:表格(项目版本/项目状态列) + 新建/编辑(含状态与版本) + 删除 -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { createProject, deleteProject, listProjects, patchProject, type Project } from '../api'
+import { ApiError, createProject, deleteProject, listProjects, patchProject, type Project } from '../api'
 import AppModal from '../components/AppModal.vue'
 import { toast } from '../components/toast'
+
+// 项目状态(治理开关)与合法转移,镜像后端 TRANSITIONS
+const STATUS_META: Record<string, { label: string; cls: string; hint: string }> = {
+  in_progress: { label: '进行中', cls: 'ok', hint: '进行中(写权限全开)' },
+  paused: { label: '已暂停', cls: 'warn', hint: '已暂停(只读 · 可恢复)' },
+  closed: { label: '已结项', cls: 'mute', hint: '已结项(只读 · 可重开)' },
+}
+const TRANSITIONS: Record<string, string[]> = {
+  in_progress: ['paused', 'closed'],
+  paused: ['in_progress', 'closed'],
+  closed: ['in_progress'],
+}
+const XV = /^\d+\.\d+\.\d+$/
 
 const projects = ref<Project[]>([])
 let editing: Project | null = null
 
 const modal = ref<null | 'form'>(null)
-const form = ref({ name: '', description: '' })
-const formErr = ref(false)
+const form = ref({ name: '', description: '', version: '1.0.0', status: 'in_progress' })
+const nameErr = ref('')
+const verErr = ref('')
 const deleting = ref<Project | null>(null)
+// 编辑弹窗状态可选项=当前状态+合法可达态
+const statusOptions = ref<string[]>([])
 
 async function refresh() {
   projects.value = await listProjects()
-  // 侧栏项目树只在切页时自刷,增删改后主动通知,避免残留死链接
+  // 侧栏与项目列表页只在切页时自刷,增删改后主动通知,避免残留死链接
   window.dispatchEvent(new Event('quos:projects-changed'))
 }
 refresh()
 
 function openCreate() {
   editing = null
-  form.value = { name: '', description: '' }
-  formErr.value = false
+  form.value = { name: '', description: '', version: '1.0.0', status: 'in_progress' }
+  statusOptions.value = ['in_progress', 'paused', 'closed']
+  nameErr.value = ''
+  verErr.value = ''
   modal.value = 'form'
 }
 function openEdit(p: Project) {
   editing = p
-  form.value = { name: p.name, description: p.description }
-  formErr.value = false
+  form.value = { name: p.name, description: p.description, version: p.version, status: p.status }
+  statusOptions.value = [p.status, ...TRANSITIONS[p.status]]
+  nameErr.value = ''
+  verErr.value = ''
   modal.value = 'form'
 }
 async function save() {
-  if (!form.value.name.trim()) {
-    formErr.value = true
+  const name = form.value.name.trim()
+  nameErr.value = ''
+  verErr.value = ''
+  if (!name) {
+    nameErr.value = '名称必填'
     return
   }
-  if (editing) {
-    await patchProject(editing.id, form.value)
-    toast('项目已更新')
-  } else {
-    await createProject(form.value.name.trim(), form.value.description)
-    toast('项目已创建')
+  // 前端预判重名(后端 409 兜底)
+  if (projects.value.some((p) => p.name === name && p !== editing)) {
+    nameErr.value = '项目名称已存在'
+    return
   }
-  modal.value = null
-  refresh()
+  if (!XV.test(form.value.version.trim())) {
+    verErr.value = '版本号须为 x.x.x 格式(如 1.2.0)'
+    return
+  }
+  try {
+    if (editing) {
+      await patchProject(editing.id, {
+        name, description: form.value.description,
+        version: form.value.version.trim(), status: form.value.status,
+      })
+      toast('项目已更新')
+    } else {
+      await createProject(name, form.value.description)
+      toast('项目已创建')
+    }
+    modal.value = null
+    refresh()
+  } catch (e) {
+    const d = e instanceof ApiError ? e.detail?.code : ''
+    if (d === 'DUP_NAME') nameErr.value = '项目名称已存在'
+    else if (d === 'VERSION_FORMAT') verErr.value = '版本号须为 x.x.x 格式(如 1.2.0)'
+    else if (d === 'PROJECT_READ_ONLY') toast('项目只读:请先恢复/重开再编辑内容', 'warn')
+    else throw e
+  }
 }
 function askDelete(p: Project) {
   deleting.value = p
@@ -76,7 +119,7 @@ async function doDelete() {
       <table class="tbl">
         <thead>
           <tr>
-            <th>项目</th><th>材料</th><th>批注</th><th>当前版本</th><th>草案</th><th style="text-align: right">操作</th>
+            <th>项目</th><th>材料</th><th>批注</th><th>项目版本</th><th>项目状态</th><th style="text-align: right">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -90,19 +133,14 @@ async function doDelete() {
               <span v-if="p.stats.pending_annos" class="tag warn"><span class="dot" />{{ p.stats.pending_annos }} 待评审</span>
               <span v-else class="tag mute"><span class="dot" />0</span>
             </td>
-            <td><span class="num">{{ p.stats.version ?? '—' }}</span></td>
+            <td><span class="num">{{ p.version }}</span></td>
             <td>
-              <span v-if="p.stats.draft_status === 'reviewing'" class="tag warn"><span class="dot" />草案评审中</span>
-              <span v-else class="tag mute"><span class="dot" />无</span>
+              <span class="tag" :class="STATUS_META[p.status]?.cls ?? 'mute'"><span class="dot" />{{ STATUS_META[p.status]?.label ?? p.status }}</span>
             </td>
             <td style="white-space: nowrap; text-align: right">
-              <a class="btn sm" :href="`#/p/${p.id}/review`" style="text-decoration: none">进入</a>
-              <button class="icon-btn" title="编辑" @click="openEdit(p)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
-              </button>
-              <button class="icon-btn" title="删除" @click="askDelete(p)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              </button>
+              <a class="btn sm primary" :href="`#/p/${p.id}/review`" style="text-decoration: none">进入</a>
+              <button class="btn sm" @click="openEdit(p)">编辑</button>
+              <button class="btn sm danger" @click="askDelete(p)">删除</button>
             </td>
           </tr>
           <tr v-if="!projects.length">
@@ -113,17 +151,28 @@ async function doDelete() {
     </div>
 
     <AppModal v-if="modal === 'form'" :title="editing ? '编辑项目' : '新建项目'" @close="modal = null">
-      <div class="field" :class="{ invalid: formErr }">
+      <div class="field" :class="{ invalid: nameErr }">
         <label>项目名称 <span class="req">*</span></label>
         <input v-model="form.name" type="text" placeholder="如:多模态" />
-        <div class="err-msg">名称必填</div>
+        <div class="err-msg">{{ nameErr }}</div>
+      </div>
+      <div class="field" :class="{ invalid: verErr }">
+        <label>项目版本</label>
+        <input v-model="form.version" type="text" placeholder="如 1.2.0" />
+        <div class="err-msg">{{ verErr }}</div>
+      </div>
+      <div v-if="editing" class="field">
+        <label>项目状态</label>
+        <select v-model="form.status" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm); background: var(--card); min-height: 38px">
+          <option v-for="s in statusOptions" :key="s" :value="s">{{ STATUS_META[s].hint }}</option>
+        </select>
       </div>
       <div class="field">
         <label>描述</label>
         <textarea v-model="form.description" placeholder="一句话说明这个需求域管什么" />
       </div>
       <template #foot>
-        <span class="d-note">{{ editing ? '改名不影响数据' : '创建后即可上传材料' }}</span>
+        <span class="d-note">{{ editing ? '名称全局唯一;已暂停/已结项为只读' : '创建后即可上传材料' }}</span>
         <button class="btn" @click="modal = null">取消</button>
         <button class="btn primary" @click="save">{{ editing ? '保存' : '创建' }}</button>
       </template>

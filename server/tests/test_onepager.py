@@ -65,7 +65,7 @@ def test_finalize_copies_one_pager_to_version(client):
                     files=[("md", ("doc.md", MD.encode(), "text/markdown"))])
     draft = client.get(f"/api/v1/projects/{pid}/doc/draft").json()
     r = client.post(f"/api/v1/projects/{pid}/doc/finalize",
-                    json={"draft_id": draft["draft_id"], "version": "v1", "note": ""})
+                    json={"draft_id": draft["draft_id"], "version": "1.0.0", "note": ""})
     assert r.status_code == 200, r.text
     base = client.get(f"/api/v1/projects/{pid}/doc/baseline").json()
     assert base["empty"] is False and base["one_pager_md"] == OP  # 定稿后入口不消失

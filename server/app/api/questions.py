@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.db import get_session
+from app.api.projects import assert_writable
 from app.models import DocDraft, Project, Question
 
 router = APIRouter(prefix="/api/v1", tags=["questions"])
@@ -64,8 +65,7 @@ class QuestionIn(BaseModel):
 
 @router.post("/projects/{pid}/questions")
 def submit_questions(pid: int, items: list[QuestionIn], db: Session = Depends(get_session)):
-    if db.get(Project, pid) is None:
-        raise HTTPException(404, "project not found")
+    assert_writable(db, pid)
     for it in items:
         if not it.semantic_ok():
             raise HTTPException(422, f"批注校验失败: {it.kind} {it.payload.get('q', '')[:30]}")
@@ -99,6 +99,7 @@ def answer_question(qid: int, body: AnswerBody, db: Session = Depends(get_sessio
         raise HTTPException(404, "question not found")
     if q.status == "withdrawn":
         raise HTTPException(409, "question withdrawn")
+    assert_writable(db, q.project_id)  # 作答属写操作:经批注反查项目,只读态拒收
     # pending/answered 均可作答:重新作答=覆盖(scan 逐项提交依赖此语义)
     q.status = "answered"
     q.answer = body.answer

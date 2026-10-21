@@ -19,8 +19,12 @@ def _now() -> datetime:
 
 class Project(SQLModel, table=True):
     id: int | None = SF(default=None, primary_key=True)
-    name: str = SF(index=True)
+    name: str = SF(index=True, unique=True)
     description: str = ""
+    # 治理开关(与需求状态正交):in_progress 全开 / paused 只读可恢复 / closed 只读可重开
+    status: str = "in_progress"
+    # 项目自有版本(x.x.x,手动维护),与需求定稿版本解耦
+    version: str = "1.0.0"
     created_at: datetime = SF(default_factory=_now)
 
 

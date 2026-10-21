@@ -13,6 +13,15 @@ import { GLOSSARY_CH_ID, flattenChapters } from '../utils/chapters'
 import { parseOnePager, resolveOnePagerMd } from '../utils/onepager'
 
 const projName = ref('')
+// 需求状态(等谁):平台派生五态,评审页工具条徽标展示
+const REQ_LABEL: Record<string, { label: string; cls: string }> = {
+  idle: { label: '未开始', cls: 'mute' },
+  in_review: { label: '待评审', cls: 'warn' },
+  await_resubmit: { label: '待重交', cls: 'info' },
+  await_finalize: { label: '待定稿', cls: 'warn' },
+  finalized: { label: '已定稿', cls: 'ok' },
+}
+const reqStatus = ref('idle')
 const draft = ref<any>(null)
 const baseline = ref<any>(null)
 const annos = ref<any[]>([])
@@ -37,6 +46,7 @@ const activeId = ref<number | null>(null)
 const showFinalize = ref(false)
 const fin = ref({ version: '', note: '' })
 const finErr = ref(false)
+const finErrMsg = ref('版本号必填,且不能与历史版本重复')
 
 const payload = computed(() => {
   const src: any = draft.value?.payload ?? baseline.value?.snapshot ?? null
@@ -63,14 +73,22 @@ const payload = computed(() => {
   return raw
 })
 const hasDraft = computed(() => !!draft.value && draft.value.empty !== true)
-const verLabel = computed(() => (hasDraft.value ? `${baseline.value?.version ?? '首版'} · 草案评审中` : baseline.value?.version ?? '—'))
+const verLabel = computed(() => (hasDraft.value ? `${baseline.value?.version ?? '首版'} · ${REQ_LABEL[reqStatus.value]?.label ?? ''}` : baseline.value?.version ?? '—'))
 const summary = computed(() =>
   payload.value ? `${payload.value.chapters.filter((c: any) => c.id !== GLOSSARY_CH_ID).length} 章 · ${Object.keys(payload.value.rules).length} 条规则` : '')
-const suggestedVer = computed(() => `v${versions.value.length + 1}`)
+const XV = /^\d+\.\d+\.\d+$/
+// 建议值:基线命中 x.x.x → patch 位递增;无基线或存量旧格式 → 1.0.0
+const suggestedVer = computed(() => {
+  const b: string = baseline.value?.version ?? ''
+  if (!XV.test(b)) return '1.0.0'
+  const [a, c, d] = b.split('.').map(Number)
+  return `${a}.${c}.${d + 1}`
+})
 
 async function load() {
   const p = await getProject(route.pid)
   projName.value = p.name
+  reqStatus.value = p.stats.requirement_status ?? 'idle'
   materials.value = await listMaterials(route.pid)
   versions.value = await getVersions(route.pid)
   baseline.value = await getBaseline(route.pid)
@@ -174,19 +192,27 @@ function openFinalize() {
   showFinalize.value = true
 }
 async function doFinalize() {
-  if (!fin.value.version.trim()) {
+  const v = fin.value.version.trim()
+  if (!v) {
+    finErrMsg.value = '版本号必填'
+    finErr.value = true
+    return
+  }
+  if (!XV.test(v)) {
+    finErrMsg.value = '版本号须为 x.x.x 格式(如 1.2.0)'
     finErr.value = true
     return
   }
   try {
-    await finalizeDoc(route.pid, draft.value.draft_id, fin.value.version.trim(), fin.value.note)
+    await finalizeDoc(route.pid, draft.value.draft_id, v, fin.value.note)
     showFinalize.value = false
-    toast(`已发版 ${fin.value.version}`)
+    toast(`已发版 ${v}`)
     go(`#/p/${route.pid}/versions`)
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) {
+    if (e instanceof ApiError && (e.status === 409 || e.detail?.code === 'VERSION_FORMAT')) {
       finErr.value = true
-      toast('版本号已存在', 'warn')
+      finErrMsg.value = e.detail?.code === 'VERSION_FORMAT' ? '版本号须为 x.x.x 格式(如 1.2.0)' : '版本号与历史版本重复'
+      toast(finErrMsg.value, 'warn')
     } else throw e
   }
 }
@@ -195,7 +221,7 @@ async function doFinalize() {
 <template>
   <div class="content fixed">
     <div class="rev-toolbar">
-      <span class="tag warn"><span class="dot" />{{ hasDraft ? '草案评审中' : '当前基线' }}</span>
+      <span class="tag" :class="hasDraft ? (REQ_LABEL[reqStatus]?.cls ?? 'warn') : 'ok'"><span class="dot" />{{ hasDraft ? (REQ_LABEL[reqStatus]?.label ?? '评审中') : '当前基线' }}</span>
       <span style="font-size: 0.82rem; color: var(--muted)">基于 <b>{{ baseline?.version ?? '—' }}</b> · {{ summary }}</span>
       <span class="spacer" />
       <button v-if="onepagerMd" class="btn sm" :class="{ primary: view === 'onepager' }"
@@ -230,8 +256,8 @@ async function doFinalize() {
     <AppModal v-if="showFinalize" title="定稿发版" @close="showFinalize = false">
       <div class="field" :class="{ invalid: finErr }">
         <label>版本号 <span class="req">*</span></label>
-        <input v-model="fin.version" type="text" placeholder="如 v3 或 v2.1" />
-        <div class="err-msg">版本号必填,且不能与历史版本重复</div>
+        <input v-model="fin.version" type="text" placeholder="如 1.2.0" />
+        <div class="err-msg">{{ finErrMsg }}</div>
       </div>
       <div class="field">
         <label>发版说明</label>

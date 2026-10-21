@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.api.projects import assert_writable
 from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
@@ -88,7 +89,7 @@ async def import_draft(pid: int, db: Session = Depends(get_session),
     """markdown 直接导入(multipart:md 全文 + figures 图文件集):平台内置转换(md→DocPayload,
     整行图引用收图内容进 diagram 块),后续走与 POST /draft 完全相同的校验与落库。
     硬软分流:HTML 图结构非法/引用闭合失败 422;存量 mermaid 图源与未引用图文件走软警告。"""
-    _get_project(db, pid)
+    assert_writable(db, pid)
     materials = {
         m.id: m for m in db.exec(select(Material).where(Material.project_id == pid)).all()
     }
@@ -123,6 +124,10 @@ async def import_draft(pid: int, db: Session = Depends(get_session),
                          one_pager_md=_check_one_pager(one_pager_md))
     # 附录 A 待确认问题清单 → agent 批注(锚定正文;与现存同题去重)
     if questions:
+        # 挂当前草案:需求状态派生按 reviewing 草案名下批注计数(_persist_draft 已先行落库)
+        cur_draft = db.exec(
+            select(DocDraft).where(DocDraft.project_id == pid, DocDraft.status == "reviewing")
+        ).first()
         # 去重语义:pending/answered 不重复插;withdrawn(因旧草案覆盖被撤)的同内容题复活——
         # 重导意味着这批待确认问题仍然有效,不能被「撤回后不重复问」吞掉
         olds = db.exec(select(Question).where(Question.project_id == pid)).all()
@@ -157,10 +162,12 @@ async def import_draft(pid: int, db: Session = Depends(get_session),
                 if old_q.status == "withdrawn" and old_q.source == "agent":
                     old_q.status = "pending"
                     old_q.anchor = anchor   # 复活同时刷新锚定(重导可能改进了锚定策略)
+                    old_q.draft_id = cur_draft.id if cur_draft else None
                     db.add(old_q)
                 continue
             nq = Question(project_id=pid, kind=q["kind"], payload=q["payload"],
-                          anchor=anchor, status="pending", source="agent")
+                          anchor=anchor, status="pending", source="agent",
+                          draft_id=cur_draft.id if cur_draft else None)
             db.add(nq)
             existing[key] = nq
         db.commit()
@@ -169,7 +176,7 @@ async def import_draft(pid: int, db: Session = Depends(get_session),
 
 @router.post("/draft")
 def submit_draft(pid: int, body: dict, db: Session = Depends(get_session)):
-    _get_project(db, pid)
+    assert_writable(db, pid)
     try:
         payload = DocPayload.model_validate(body)
     except Exception as exc:
@@ -273,7 +280,7 @@ class FinalizeBody(BaseModel):
 
 @router.post("/finalize")
 def finalize_draft(pid: int, body: FinalizeBody, db: Session = Depends(get_session)):
-    _get_project(db, pid)
+    assert_writable(db, pid)
     from app.services import snapshots
     ver = snapshots.finalize(db, pid, body.draft_id, body.version, body.note)
     return {"version": ver.version, "note": ver.note}
@@ -285,7 +292,7 @@ class RevertBody(BaseModel):
 
 @router.post("/revert")
 def revert_baseline(pid: int, body: RevertBody, db: Session = Depends(get_session)):
-    _get_project(db, pid)
+    assert_writable(db, pid)
     from app.services import snapshots
     snapshots.revert(db, pid, body.version)
     return {"ok": True, "baseline": body.version}

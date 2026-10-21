@@ -40,12 +40,12 @@ export const api = {
 }
 
 // ── 项目 ──
-export interface ProjStats { materials: number; pending_annos: number; version: string | null; draft_status: string | null }
-export interface Project { id: number; name: string; description: string; created_at: string; stats: ProjStats }
+export interface ProjStats { materials: number; pending_annos: number; version: string | null; draft_status: string | null; requirement_status: string }
+export interface Project { id: number; name: string; description: string; status: string; version: string; created_at: string; stats: ProjStats }
 export const listProjects = () => api.get('/projects') as Promise<Project[]>
 export const getProject = (pid: number) => api.get(`/projects/${pid}`) as Promise<Project>
 export const createProject = (name: string, description: string) => api.post('/projects', { name, description })
-export const patchProject = (pid: number, b: { name?: string; description?: string }) => api.patch(`/projects/${pid}`, b)
+export const patchProject = (pid: number, b: { name?: string; description?: string; version?: string; status?: string }) => api.patch(`/projects/${pid}`, b)
 export const deleteProject = (pid: number) => api.del(`/projects/${pid}`) as Promise<{ ok: boolean }>
 
 // ── 材料 ──

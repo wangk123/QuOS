@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Question, Rule, Term)
+from app.services.validators import VERSION_RE
 
 
 def _answer_text(answer: dict | None) -> str:
@@ -93,6 +94,9 @@ def finalize(db: Session, pid: int, draft_id: int, version: str, note: str) -> D
     if not version.strip():
         raise HTTPException(422, "version required")
     version = version.strip()
+    # 版本号只允许 x.x.x(纯数字三段);存量历史版本不受影响,仅约束新增
+    if not VERSION_RE.match(version):
+        raise HTTPException(422, {"code": "VERSION_FORMAT", "version": version})
     dup = db.exec(
         select(DocVersion).where(DocVersion.project_id == pid, DocVersion.version == version)
     ).first()
