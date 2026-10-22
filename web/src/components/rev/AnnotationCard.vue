@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Question } from '../../api'
+import { annoType, ANNO_TYPE_CLS } from '../../utils/annotype'
 
 const props = defineProps<{ q: Question; open: boolean; active: boolean }>()
 const emit = defineEmits<{
@@ -13,6 +14,8 @@ const emit = defineEmits<{
 
 const done = computed(() => props.q.status === 'answered')
 const v = computed(() => props.q.answer ?? {})
+const typeLabel = computed(() => annoType(props.q))
+const typeCls = computed(() => ANNO_TYPE_CLS[typeLabel.value])
 
 /* 输入类作答走本地草稿,显式提交(避免半成品直接落库) */
 const isTerm = computed(() => props.q.kind === 'confirm' && props.q.payload?.klabel === '术语确认')
@@ -31,13 +34,10 @@ const answerText = computed(() => {
   return '全部通过'
 })
 
-function klabel(): string {
-  return props.q.payload?.klabel ?? ({ choice: '待决策', confirm: '确认', fill: '补写', scan: '批量确认' } as any)[props.q.kind] ?? '批注'
-}
 </script>
 
 <template>
-  <div class="acard" :class="{ ok: done, closed: !open, active }" :id="'ac-' + q.id">
+  <div class="acard" :class="[typeCls, { ok: done, closed: !open, active }]" :id="'ac-' + q.id">
     <div class="a-top" :title="q.payload.q" @click="emit('toggle')">
       <span class="a-q">{{ q.payload.q }}</span>
       <button v-if="!done" class="a-locate" title="定位到正文" aria-label="定位到正文" @click.stop="emit('locate')">
@@ -46,7 +46,8 @@ function klabel(): string {
       <span class="a-chev">▸</span>
     </div>
     <div class="a-meta">
-      <span class="a-id">#{{ q.id }}</span><span>·</span><span class="a-kind">{{ klabel() }}</span>
+      <span class="a-type" :class="typeCls">{{ typeLabel }}</span>
+      <span class="a-id">#{{ q.id }}</span><span>·</span><span class="a-kind">{{ q.payload.klabel }}</span>
       <span v-if="q.source === 'auto'" style="margin-left: auto">软校验</span>
     </div>
     <div class="a-body">

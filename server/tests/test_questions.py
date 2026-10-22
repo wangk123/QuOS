@@ -31,6 +31,19 @@ def test_choice_requires_two_options(client):
     assert r.status_code == 422
 
 
+def test_choice_rejects_malformed_options(client):
+    """options 元素须为 {k, t} 对象:字符串数组/缺键 422 打回(前端按 o.k/o.t 渲染)。"""
+    pid = _proj(client)
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "choice", "payload": {"q": "口径?", "options": ["A：维持", "B：只留已实现"]},
+         "anchor": {"chapter_id": "c1"}}])
+    assert r.status_code == 422 and "k, t" in r.json()["detail"]
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "choice", "payload": {"q": "口径?", "options": [{"k": "A"}, {"k": "B", "t": "b"}]},
+         "anchor": {}}])
+    assert r.status_code == 422 and "k, t" in r.json()["detail"]
+
+
 def test_fill_requires_question_text(client):
     pid = _proj(client)
     r = client.post(f"/api/v1/projects/{pid}/questions", json=[

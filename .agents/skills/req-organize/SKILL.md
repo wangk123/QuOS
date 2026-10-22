@@ -103,4 +103,6 @@ description: 需求整理——从异质素材（口述、碎片文档、代码�
 
 本仓库环境（QuOS）提供 CLI：提交/拉取平台数据优先用 `uv run --directory server python -m app.cli <cmd>`（仓库根执行；文件传参，422 拒收明细完整输出 stdout 供修复闭环）。命令用法与调用纪律见 `docs/quos-agent-api.md`「CLI 调用」，端点契约见 `docs/api.md`。提交带图的文档用 `import-draft PID --md 文档.md --figures figures目录`（图文件集随 md multipart 提交）。项目被暂停/结项时平台只读，提交返回 409 `PROJECT_READ_ONLY`——停下告知用户切换项目状态，勿重试。
 
+**问题清单的锚点契约**：`post-questions` 提交消歧题时，`anchor.seg` 必须填题面所指的**正文原句片段（逐字引用，能在正文里搜到）**——平台按原文匹配把批注落到行内；只有章节/场景级粒度时只给 `chapter_id`、不要造 seg（平台挂章节徽标）。禁止拿问题编号（Q1/TBD-01 等）充当 seg——正文里不存在这串字，批注只能挂到章标题，评审无法定位到行。choice 的 `options` 元素须为 `{k, t}` 对象（k=选项键 A/B、t=文案；**字符串数组会被平台 422 拒收**，按拒收明细修复重交）。
+
 **画图依赖 diagram-design skill**：图源已单轨为 diagram-design 自包含 HTML。本 skill 只表达图意图，绘制交给 `~/.agents/skills/diagram-design`（安装：`npx skills add cathrynlavery/diagram-design`）：把图的意图描述交给该 skill 产出 HTML，存入交付目录 `figures/`；使用要点——默认皮肤（跳过其 style-guide 交互门）、font link 追加 Noto Sans SC / Noto Serif SC（中文标签）、生成后跑其 self_check 通过才交付。无该 skill 时降级：主链路以线性「A → B → C」链路兜底，不出 HTML 图。

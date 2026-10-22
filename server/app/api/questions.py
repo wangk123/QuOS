@@ -54,21 +54,31 @@ class QuestionIn(BaseModel):
             raise ValueError("kind 必须是 choice/confirm/fill/scan")
         return v
 
-    def semantic_ok(self) -> bool:
+    def semantic_err(self) -> str | None:
+        """结构校验:返回错误原因,None=通过。坏结构在入库前 422 打回,agent 按明细修复重交。"""
+        q = str(self.payload.get("q", "")).strip()
         if self.kind == "choice":
             opts = self.payload.get("options") or []
-            return len(opts) >= 2
-        if self.kind == "fill":
-            return bool(str(self.payload.get("q", "")).strip())
-        return True
+            if len(opts) < 2:
+                return "choice 需 ≥2 options"
+            for i, o in enumerate(opts):
+                if not (isinstance(o, dict) and str(o.get("k", "")).strip()
+                        and str(o.get("t", "")).strip()):
+                    return (f"choice options[{i}] 须为 {{k, t}} 对象(k=选项键,t=文案),"
+                            f"当前: {o!r}"[:120])
+        elif self.kind == "fill":
+            if not q:
+                return "fill 需非空 q"
+        return None
 
 
 @router.post("/projects/{pid}/questions")
 def submit_questions(pid: int, items: list[QuestionIn], db: Session = Depends(get_session)):
     assert_writable(db, pid)
-    for it in items:
-        if not it.semantic_ok():
-            raise HTTPException(422, f"批注校验失败: {it.kind} {it.payload.get('q', '')[:30]}")
+    for i, it in enumerate(items):
+        err = it.semantic_err()
+        if err:
+            raise HTTPException(422, f"批注校验失败[第{i + 1}条 {it.kind}]: {err}")
     batch = uuid4().hex[:12]
     reviewing = db.exec(
         select(DocDraft)

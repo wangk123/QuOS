@@ -67,7 +67,7 @@ function ruleHtml(no: string, text: string): string {
   }
   const term = props.annos.find(
     (a) => !a.anchor.rule_no && a.anchor.seg && text.includes(a.anchor.seg)
-      && a.payload?.klabel === '术语确认' && !usedTermIds.has(a.id),
+      && a.payload?.klabel === '术语确认' && !usedTermIds.has(a.id) && !blockHitIds.has(a.id),
   )
   if (term) {
     usedTermIds.add(term.id)
@@ -79,10 +79,66 @@ function ruleHtml(no: string, text: string): string {
 }
 const usedTermIds = new Set<number>() // 术语批注只锚首个出现处,跨规则渲染前重置
 
+/* 段落级 seg 命中扫描:chapter 锚定且无 rule_no 的批注,seg 出现在本章段落文本即算行内命中 */
+const blockHitIds = new Set<number>()
+function scanBlockHits(chs: ChapterP[]) {
+  blockHitIds.clear()
+  for (const c of chs) {
+    const texts = [c.background ?? '', ...(c.blocks ?? []).flatMap((b) =>
+      b.type === 'para' ? [b.text ?? ''] : b.type === 'exceptions' ? (b.items ?? []) : [])]
+    for (const a of props.annos) {
+      if (a.anchor?.chapter_id === c.id && !a.anchor?.rule_no && a.anchor?.seg
+        && !blockHitIds.has(a.id) && texts.some((t) => t.includes(a.anchor.seg)))
+        blockHitIds.add(a.id)
+    }
+  }
+}
+/* 段落/背景/异常项文本 → 行内批注高亮(只处理扫描命中的批注) */
+function blockHtml(cId: string, text: string): string {
+  let html = esc(text)
+  for (const a of props.annos) {
+    if (blockHitIds.has(a.id) && a.anchor.chapter_id === cId && text.includes(a.anchor.seg)) {
+      const seg = esc(a.anchor.seg)
+      const cls = a.status === 'answered' ? 'anno resolved' : 'anno'
+      html = html.replace(seg, `<mark class="${cls}" data-a="${a.id}">${seg}<sup>#${a.id}</sup></mark>`)
+    }
+  }
+  return html
+}
+
+/* 规则行角标:rule_no 锚定但 seg 未落进规则文本的批注,挂到规则行首 */
+const ruleMarkedIds = new Set<number>()
+const ruleBadgeIds = new Set<number>()
+function scanRuleHits() {
+  ruleMarkedIds.clear()
+  ruleBadgeIds.clear()
+  for (const a of props.annos) {
+    const no = a.anchor?.rule_no
+    if (!no || !(no in props.payload.rules)) continue
+    const t = props.payload.rules[no]?.text ?? ''
+    if (a.anchor?.seg && t.includes(a.anchor.seg)) ruleMarkedIds.add(a.id)
+    else ruleBadgeIds.add(a.id)
+  }
+}
+function ruleBadges(no: string): Question[] {
+  return props.annos.filter((a) => a.anchor?.rule_no === no && ruleBadgeIds.has(a.id))
+}
+
+/* 章节 chip:锚到本章、且正文行内与规则行都未命中的批注(含 chapter:true 章节级锚),一条一个 */
+function chChips(chId: string): Question[] {
+  return props.annos.filter((a) => a.anchor?.chapter_id === chId
+    && !blockHitIds.has(a.id) && !ruleMarkedIds.has(a.id) && !ruleBadgeIds.has(a.id))
+}
+function chipLabel(a: Question): string {
+  return String(a.payload?.klabel ?? '批注').replace(/^待确认\s*/, '')
+}
+
 /* 层级编号复用共享展开(与左栏树一致);表号/图号全篇递增 */
 interface Rendered { c: ChapterP; no: string; sub: boolean; rules: { no: string; html: string }[]; blocks: (BlockP & { tno?: string; fno?: string })[] }
 const chaptersHtml = computed<Rendered[]>(() => {
   usedTermIds.clear()
+  scanBlockHits(props.payload.chapters)
+  scanRuleHits()
   let tbl = 0, fig = 0
   return flattenChapters(props.payload.chapters).map(({ c, no, sub }) => ({
     c, no, sub,
@@ -95,9 +151,6 @@ const chaptersHtml = computed<Rendered[]>(() => {
   }))
 })
 
-function chAnnos(chId: string): Question[] {
-  return props.annos.filter((a) => a.anchor.chapter_id === chId && a.anchor.chapter)
-}
 function det(no: string) {
   return props.payload.rules[no] ?? null
 }
@@ -144,9 +197,10 @@ function onClickBody(e: MouseEvent) {
     <section v-for="r in chaptersHtml" :id="'ch-' + r.c.id" :key="r.c.id" class="chapter" :class="{ sub: r.sub }">
       <h2 :class="{ sub: r.sub }">
         <span class="chno">{{ r.no }}</span>{{ r.c.title }}<span v-if="r.c.pri" class="pri">{{ r.c.pri }}</span>
-        <span v-for="a in chAnnos(r.c.id)" :key="a.id" class="ch-anno" @click.stop="emit('activate', a.id)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-          {{ a.payload.klabel }} ×{{ chAnnos(r.c.id).length }}
+        <span v-for="a in chChips(r.c.id)" :key="a.id" class="ch-anno" :class="{ resolved: a.status === 'answered' }"
+              :id="'ca-' + a.id" :title="`${a.payload.klabel}:${a.payload.q}`" @click.stop="emit('activate', a.id)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+          {{ chipLabel(a) }} <span class="cid">#{{ a.id }}</span>
         </span>
       </h2>
 
@@ -169,10 +223,12 @@ function onClickBody(e: MouseEvent) {
       </table>
 
       <template v-else>
-      <p v-if="r.c.background" class="bg">{{ r.c.background }}</p>
+      <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
+      <p v-if="r.c.background" class="bg" v-html="blockHtml(r.c.id, r.c.background)" />
 
       <template v-for="(b, bi) in r.blocks" :key="bi">
-        <p v-if="b.type === 'para'" class="bg">{{ b.text }}</p>
+        <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
+        <p v-if="b.type === 'para'" class="bg" v-html="blockHtml(r.c.id, b.text ?? '')" />
         <template v-else-if="b.type === 'states'">
           <div class="sl">状态与流程</div>
           <div class="flowbox">
@@ -204,7 +260,9 @@ function onClickBody(e: MouseEvent) {
         <template v-else-if="b.type === 'exceptions'">
           <div class="sl">异常路径</div>
           <ul class="exc">
-            <li v-for="(e, i) in b.items" :key="i"><span class="e">E{{ i + 1 }}</span><span>{{ e }}</span></li>
+            <li v-for="(e, i) in b.items" :key="i"><span class="e">E{{ i + 1 }}</span>
+              <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
+              <span v-html="blockHtml(r.c.id, e)" /></li>
           </ul>
         </template>
       </template>
@@ -213,6 +271,10 @@ function onClickBody(e: MouseEvent) {
         <div class="sl">规则</div>
         <div v-for="rule in r.rules" :key="rule.no" class="rline">
           <span class="rno" :data-rule="rule.no" title="点击查看可判定表述与出处">{{ rule.no }}</span>
+          <span v-for="a in ruleBadges(rule.no)" :key="a.id" class="ch-anno rl" :id="'ra-' + a.id"
+                :title="`${a.payload.klabel}:${a.payload.q}`" @click.stop="emit('activate', a.id)">
+            ✎ <span class="cid">#{{ a.id }}</span>
+          </span>
           <!-- eslint-disable-next-line vue/no-v-html — 内容已 esc 白名单化 -->
           <p v-html="rule.html" />
           <!-- 规则详情 popover -->

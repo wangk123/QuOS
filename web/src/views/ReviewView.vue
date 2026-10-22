@@ -28,9 +28,7 @@ const annos = ref<any[]>([])
 const materials = ref<any[]>([])
 const versions = ref<any[]>([])
 
-const mode = ref<'side' | 'focus'>('side')
-/* 章节目录三态:固定(常驻挤占正文)/悬浮(鼠标移入浮现、移开隐藏)/隐藏(只留把手);固定态记忆到 localStorage */
-const tocPinned = ref(localStorage.getItem('quos.tocPin') === '1')
+/* 章节目录三态:固定(常驻挤占正文)/悬浮(鼠标移入浮现、移开隐藏)/隐藏(只留把手);固定态记忆到 localStorage */const tocPinned = ref(localStorage.getItem('quos.tocPin') === '1')
 const tocHover = ref(false)
 const tocMode = computed(() => (tocPinned.value ? 'pinned' : tocHover.value ? 'hover' : 'hidden') as 'pinned' | 'hover' | 'hidden')
 watch(tocPinned, v => localStorage.setItem('quos.tocPin', v ? '1' : '0'))
@@ -40,9 +38,12 @@ function togglePin() {
 }
 function tocShow() { if (!tocPinned.value) tocHover.value = true }
 function tocHide() { if (!tocPinned.value) tocHover.value = false }
-const focusIdx = ref(0)
 const openSet = ref(new Set<number>())
 const activeId = ref<number | null>(null)
+/* 批注栏整栏开合:收起后正文独占全宽;记忆到 localStorage(默认展开) */
+const railOpen = ref(localStorage.getItem('quos.railOpen') !== '0')
+watch(railOpen, v => localStorage.setItem('quos.railOpen', v ? '1' : '0'))
+const pendingN = computed(() => annos.value.filter((a: any) => a.status !== 'answered').length)
 const showFinalize = ref(false)
 const fin = ref({ version: '', note: '' })
 const finErr = ref(false)
@@ -98,12 +99,18 @@ async function load() {
 }
 onMounted(load)
 
-/* 批注分组标题注入章节名(anchor 只有 chapter_id) */
-watch(payload, (p) => {
+/* 批注分组标题注入章节号+章名(anchor 只有 chapter_id);_ord=文档顺序,供分组排序。
+   双源监听:payload 与 annos 加载先后不定,任一到位都重注入 */
+watch([payload, annos], ([p]) => {
   if (!p) return
-  const titles = new Map(p.chapters.map((c: any) => [c.id, c.title]))
+  const flat = flattenChapters(p.chapters)
+  const info = new Map(flat.map((f, i) => [f.c.id, { label: `${f.no} ${f.c.title}`, ord: i }]))
   for (const a of annos.value) {
-    if (a.anchor?.chapter_id) a.anchor.chapter_title = titles.get(a.anchor.chapter_id) ?? a.anchor.chapter_id
+    const inf = a.anchor?.chapter_id ? info.get(a.anchor.chapter_id) : undefined
+    if (inf) {
+      a.anchor.chapter_label = inf.label
+      a.anchor._ord = inf.ord
+    }
   }
 })
 
@@ -114,15 +121,18 @@ function toggle(qid: number) {
   else s.add(qid)
   openSet.value = s
 }
+/* 定位链:行内 mark → 规则行角标 → 章节 chip → 章首兜底;命中滚动居中并闪烁 */
 async function locateAnno(qid: number) {
   activeId.value = qid
   openSet.value = new Set([...openSet.value, qid])
   await nextTick()
-  const mk = document.getElementById('mk-' + qid)
-  if (mk) {
-    mk.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    mk.classList.add('hit')
-    setTimeout(() => mk.classList.remove('hit'), 1400)
+  const el = document.querySelector(`mark[data-a="${qid}"]`)
+    ?? document.getElementById('ra-' + qid)
+    ?? document.getElementById('ca-' + qid)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('hit')
+    setTimeout(() => el.classList.remove('hit'), 2900)
     return
   }
   const a = annos.value.find((q: any) => q.id === qid)
@@ -158,11 +168,6 @@ function undo(qid: number) {
     q.answer = null
   }
   toast('已重开,重新作答后提交', 'warn')
-}
-function fstep(d: number) {
-  focusIdx.value = (focusIdx.value + d + annos.value.length) % annos.value.length
-  const q = annos.value[focusIdx.value]
-  if (q) locateAnno(q.id)
 }
 function jumpChapter(ch: string) {
   document.getElementById('ch-' + ch)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -229,7 +234,7 @@ async function doFinalize() {
       <button v-if="hasDraft" id="btnFinalize" class="btn primary sm" @click="openFinalize">定稿发版</button>
     </div>
 
-    <div class="rev-body full">
+    <div class="rev-body full" :class="{ 'rail-closed': !railOpen }">
       <div class="rev-col doc-col">
         <OnePager v-if="onepagerDoc" :doc="onepagerDoc" style="padding: 18px 22px" @jump="onepagerJump" />
         <DocPaper v-else-if="payload" :payload="payload" :annos="annos" :materials="materials"
@@ -245,11 +250,15 @@ async function doFinalize() {
         </div>
       </div>
 
-      <aside class="rev-col rail-col">
+      <button v-if="!railOpen" class="rail-handle" type="button"
+              :title="`展开批注栏(待处理 ${pendingN})`" @click="railOpen = true">
+        « 批注 <span class="n">{{ pendingN }}</span>
+      </button>
+
+      <aside v-show="railOpen" class="rev-col rail-col">
         <AnnotationRail :annos="annos" :open-set="openSet" :active-id="activeId"
-                        :mode="mode" :focus-idx="focusIdx"
                         @toggle="toggle" @locate="locateAnno" @answer="answer" @undo="undo"
-                        @set-mode="mode = $event" @fstep="fstep" />
+                        @jump="jumpChapter" @collapse="railOpen = false" />
       </aside>
     </div>
 

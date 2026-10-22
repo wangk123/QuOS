@@ -13,7 +13,7 @@
 5. 提交草案（二选一）：
    - **推荐：`POST /api/v1/projects/{pid}/doc/draft/import`** — **multipart**：`md` 文件 part + `figures` 图文件集（diagram-design HTML 图，md 以整行 `![图意图](figures/<slug>.html)` 引用，引用文件缺失或引用未独立成行会被 422 拒收）+ `rules_meta`（form，可选）+ `one_pager_md`（form，可选，一页纸由 req-onepager skill 产出的伴生概览，随草案入库、评审页可查看）。平台内置转换（章节/规则/块/表格/术语表/图），quote 自动匹配项目材料文本，violation 可选精修、缺省模板兜底。**agent 只产 md + figures/ 图目录即可**，不用手拼 JSON。CLI：`uv run --directory server python -m app.cli import-draft PID --md 文档.md [--figures 图目录] [--meta meta.json] [--one-pager 一页纸.md]`；
    - `POST /api/v1/projects/{pid}/doc/draft` — body 即 payload 本体（手工构造 payload 时用；quote 必须从材料 parsed_text 原文复制，NFKC+空白折叠后子串匹配；图片类材料 parsed_text 为空可豁免）。CLI：`uv run --directory server python -m app.cli submit-draft PID --file payload.json`；
-6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段（「术语确认」归 confirm，payload.klabel 区分）。CLI：`uv run --directory server python -m app.cli post-questions PID --file items.json`；
+6. `POST /api/v1/projects/{pid}/questions` — 批量提交消歧批注，元素 `{kind, payload, anchor}`：kind 限 choice/confirm/fill/scan；anchor `{chapter_id, rule_no?, seg?}` 把批注锚到正文片段——`seg` 须为正文原句片段（可在正文搜到）才行内锚定，仅章节级粒度只给 `chapter_id`，勿用问题编号充当 seg；choice 的 `options` 元素须为 `{k, t}` 对象（k=选项键 A/B、t=文案；字符串数组 422 打回，明细含序号与原因）（「术语确认」归 confirm，payload.klabel 区分）。CLI：`uv run --directory server python -m app.cli post-questions PID --file items.json`；
 7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）。CLI：`uv run --directory server python -m app.cli questions PID --status answered`；
 8. 全部批注收敛后提示用户在平台上「定稿发版」（版本号/说明由人定，agent 无发版权）。
 
