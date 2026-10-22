@@ -100,12 +100,20 @@ async function load() {
 onMounted(load)
 
 /* 批注分组标题注入章节号+章名(anchor 只有 chapter_id);_ord=文档顺序,供分组排序。
-   双源监听:payload 与 annos 加载先后不定,任一到位都重注入 */
+   双源监听:payload 与 annos 加载先后不定,任一到位都重注入。
+   seg-only 锚(无/假 chapter_id)按文档顺序回填首个文本命中章:树计数/分组/chip/行内高亮随之归位 */
 watch([payload, annos], ([p]) => {
   if (!p) return
   const flat = flattenChapters(p.chapters)
   const info = new Map(flat.map((f, i) => [f.c.id, { label: `${f.no} ${f.c.title}`, ord: i }]))
+  const textsOf = new Map(flat.map((f) => [f.c.id, [f.c.background ?? '',
+    ...(f.c.blocks ?? []).flatMap((b) => b.type === 'para' ? [b.text ?? ''] : b.type === 'exceptions' ? (b.items ?? []) : [])]]))
   for (const a of annos.value) {
+    const cid = a.anchor?.chapter_id
+    if (a.anchor?.seg && (!cid || !info.has(cid))) {
+      const hit = flat.find((f) => (textsOf.get(f.c.id) ?? []).some((t) => t.includes(a.anchor.seg)))
+      if (hit) a.anchor.chapter_id = hit.c.id
+    }
     const inf = a.anchor?.chapter_id ? info.get(a.anchor.chapter_id) : undefined
     if (inf) {
       a.anchor.chapter_label = inf.label
