@@ -13,7 +13,8 @@
 agent 对接接口（`projects` / `materials` / `baseline` / `draft` / `import-draft` / `submit-draft` / `questions` / `post-questions` / `versions` / `changes`）增删改，**同一次改动必须同步**：
 
 1. `server/app/cli.py` 对应子命令；
-2. `docs/quos-agent-api.md`「CLI 调用」节的命令表；
-3. `.agents/skills/req-organize/SKILL.md`「配套对接」节的指引（若涉及调用方式变化）。
+2. `docs/quos-agent-api.md`「CLI 手册」节：速查表 + 对应命令小节（含输入文件字段级 schema 与错误明细）；
+3. `.agents/skills/req-organize/SKILL.md`「配套对接」节的指引（若涉及调用方式变化）；
+4. **skill 内联契约句**（req-organize「问题清单的锚点契约」段、req-review「批注标记」段中的字段硬约束）——契约变了内联句必须同批更新，与手册口径一致；内联句只放行为级硬约束三五条，字段全量以手册为权威，禁止把手册细节复制进 skill。
 
 CLI 是外部 agent 的首选对接通道，不同步等于接口变更未完成。

@@ -17,9 +17,13 @@
 7. `GET /api/v1/projects/{pid}/questions?status=answered` — 下次唤起时取已答批注，据答案更新草案重新提交（覆盖 reviewing 旧草案）。CLI：`uv run --directory server python -m app.cli questions PID --status answered`；
 8. 全部批注收敛后提示用户在平台上「定稿发版」（版本号/说明由人定，agent 无发版权）。
 
-## CLI 调用
+## CLI 手册
 
-对接平台**优先用 CLI**（相对手拼 curl）：大内容（md 全文、payload、批注数组）一律文件传参，不经 shell 转义；422 拒收明细完整输出 stdout（JSON 机器可读），配合「校验报告处理纪律」修复重交。在**仓库根**执行，完整形式 `uv run --directory server python -m app.cli <cmd>`（`--base` 可覆盖基址，默认 `http://127.0.0.1:8000`；不设命令别名）。
+对接平台**优先用 CLI**（相对手拼 curl）：大内容（md 全文、payload、批注数组）一律文件传参，不经 shell 转义；422 拒收明细完整输出 stdout（JSON 机器可读），配合「校验报告处理纪律」修复重交。在**仓库根**执行，完整形式 `uv run --directory server python -m app.cli <cmd>`；`--base` 为全局参数、**须置于子命令之前**（如 `python -m app.cli --base http://127.0.0.1:9000 projects`），默认 `http://127.0.0.1:8000`；不设命令别名。
+
+**输出与退出码**：成功响应 JSON 出 stdout、退出码 0；HTTP 错误（422/404/409）响应体 JSON 仍出 stdout、stderr 一行状态、退出码 1；连接失败（服务未起）或输入文件不存在/非法 JSON，退出码 2（stderr 说明原因）。参数细节另可 `--help`；HTTP 端点契约（请求/响应结构全量）见 `docs/api.md`。
+
+**速查表**
 
 | 命令 | 用途 |
 |---|---|
@@ -27,14 +31,67 @@
 | `materials PID` | 材料清单（parsed_text 出处源） |
 | `baseline PID` | 当前基线（冷启动判断） |
 | `draft PID` | 当前 reviewing 草案 |
-| `import-draft PID --md FILE [--figures DIR] [--meta FILE] [--one-pager FILE]` | markdown 草案导入（推荐提交路径，可携 figures/ 图目录与伴生一页纸） |
+| `import-draft PID --md FILE [--figures DIR] [--meta FILE] [--one-pager FILE]` | markdown 草案导入（推荐提交路径） |
 | `submit-draft PID --file FILE` | 手工 DocPayload 提交 |
 | `questions PID [--status STATUS]` | 批注列表 |
 | `post-questions PID --file FILE` | 批量提交消歧批注 |
 | `versions PID` | 版本列表 |
 | `changes PID [--version V]` | 条款级变更记录 |
 
-输出约定：成功响应 JSON 出 stdout、退出码 0；HTTP 错误（422/404/409）响应体 JSON 仍出 stdout、stderr 一行状态、退出码 1；连接失败（服务未起）退出码 2。参数细节看 `--help`；端点契约（参数/请求体/响应字段）见 `docs/api.md`。
+### 查询类
+
+- **`projects`** — 全量项目。元素含 `id`（即 pid）/`name`/`status`/`version`/`stats`（materials、pending_annos、version、draft_status、requirement_status）。
+- **`materials PID`** — 项目材料。元素含 `id`/`filename`/`sha256`/`parsed_text`——**quote 复制与出处核对的唯一来源**。
+- **`baseline PID`** — 当前基线；无定稿返回 `{"empty":true}`（冷启动，全量整理），有则增量加工。
+- **`draft PID`** — 当前 reviewing 草案（无则 `empty:true`）。`payload` 章节id 形如 `c2`/`c2-1`（按文档顺序生成）——**批注 anchor.chapter_id 必须从这里取**；`one_pager_md` 为伴生一页纸（可空）。
+- **`questions PID [--status pending|answered|withdrawn]`** — 批注列表（默认全量）。元素字段同 GET 端点：`{id, batch_id, kind, payload, anchor, status, answer, answered_at, source, draft_id, created_at}`。
+- **`versions PID` / `changes PID [--version V]`** — 版本历史与条款级变更记录。
+
+### 提交类
+
+#### `import-draft PID --md FILE [--figures DIR] [--meta FILE] [--one-pager FILE]`（推荐路径）
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `--md` | ✓ | 草案 markdown 文件（UTF-8） |
+| `--figures` | | 图目录：diagram-design 自包含 HTML 图集；目录内所有 `.html` 全量随交，md 以整行 `![图意图](figures/<slug>.html)` 引用 |
+| `--meta` | | rules_meta JSON：`{规则号: {violation, quote}}`（violation 精修；quote 缺省由平台自动匹配材料） |
+| `--one-pager` | | 需求一页纸 markdown（req-onepager skill 产出的伴生概览，随草案入库、评审页可查看） |
+
+- **覆盖语义（事务）**：新草案入库同时，旧 reviewing 转 superseded、其 pending 批注自动撤回（answered 存续）——重导重发安全。
+- **422 拒收**：图引用未独立成行/引用文件缺失（`FORMAT_CONTRACT`）、ASCII 盒子图、mermaid 语法错误（`MERMAID_SYNTAX`，detail 带位置与修法）。导入即验证，按明细修复重导。
+- **409**：`PROJECT_READ_ONLY`（项目暂停/结项，停等人侧恢复）；`SINGLE_REVIEWING`（并发提交）。
+
+#### `submit-draft PID --file FILE`（手工 payload，一般不用）
+
+文件为 DocPayload JSON：`{meta, overview, glossary, new_terms, chapters, rules}`。章节 `{id, title, pri, parent?, background, blocks, rule_nos}`，blocks 每块 `{type: para|states|table|figure|exceptions, text?, title?, columns?, rows?, flows?, items?}`；rules 每条 `{no, text, violation, quote, material_id, status, replaced_by}`。**quote 必须从材料 parsed_text 原文复制**（NFKC+空白折叠后子串匹配；图片类材料豁免）。422 硬错误 `{"detail":{"hard_errors":[{code, rule_no, detail}]}}`——`QUOTE_NOT_FOUND` 的 detail.nearest 为最相近片段，必须修正重交。
+
+#### `post-questions PID --file FILE`
+
+文件为批注 JSON 数组，每个元素：
+
+```json
+{
+  "kind": "choice | confirm | fill | scan",
+  "payload": {
+    "klabel": "待确认 Q1（可选，列表展示标签）",
+    "q": "题面：所有题型必填且非空",
+    "ctx": "来源说明（可选）",
+    "options": [{ "k": "A", "t": "选项文案", "c": "可选备注" }]
+  },
+  "anchor": {
+    "chapter_id": "c2-1（draft payload 真实章节 id）",
+    "rule_no": "GP-01（可选，有规则文档时）",
+    "seg": "题面所指的正文原句片段（逐字）"
+  }
+}
+```
+
+- **`payload.q` 所有题型必填非空**——误用 `question`/`label` 等字段名 422 拒收（明细会提示误用字段）；
+- **choice 的 `options` ≥2 且每个元素为 `{k, t}` 对象**（k=选项键、t=文案、c 可选）——字符串数组/缺键拒收；
+- **锚定语义**：`seg` 为正文原句片段（可在 draft payload 章节文本搜到）→ 前端行内锚定；只有章节/场景级粒度 → 只给 `chapter_id`（挂章节徽标）；**禁止拿问题编号（Q1/TBD-01）充当 seg**；
+- 「术语确认」归 confirm，`payload.klabel` 用「术语确认」区分；
+- **整批原子**：任一元素校验失败全批拒收，不落半批。错误明细格式 `批注校验失败[第N条 kind]: 原因`——按明细修复整批重交。
 
 ## 校验报告处理纪律
 

@@ -1,4 +1,4 @@
-"""CLI 通道:agent 对接端点的命令行包装,用法见 docs/quos-agent-api.md「CLI 调用」。"""
+"""CLI 通道:agent 对接端点的命令行包装,用法与字段级 schema 见 docs/quos-agent-api.md「CLI 手册」。"""
 import argparse
 import json
 import os
