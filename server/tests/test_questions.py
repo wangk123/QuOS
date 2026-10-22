@@ -51,6 +51,18 @@ def test_fill_requires_question_text(client):
     assert r.status_code == 422
 
 
+def test_q_required_for_all_kinds(client):
+    """q 为所有题型必填:choice/confirm 缺 q(或误用 question 字段名)一律 422,不得入库成空白卡。"""
+    pid = _proj(client)
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "choice", "payload": {"question": "口径?", "options": [{"k": "A", "t": "a"}, {"k": "B", "t": "b"}]},
+         "anchor": {}}])
+    assert r.status_code == 422 and "q" in r.json()["detail"] and "question" in r.json()["detail"]
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "confirm", "payload": {"klabel": "确认"}, "anchor": {}}])
+    assert r.status_code == 422 and "payload.q" in r.json()["detail"]
+
+
 def test_kind_restricted_to_four(client):
     pid = _proj(client)
     r = client.post(f"/api/v1/projects/{pid}/questions", json=[

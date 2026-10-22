@@ -68,7 +68,7 @@
 | POST | `/api/v1/questions/{qid}/answer` | 作答（人在平台操作） |
 
 - **GET 列表**：query `status?`（pending/answered/withdrawn）。响应 `[{id, batch_id, kind, payload, anchor, status, answer, answered_at, source, draft_id, created_at}]`；`source` = agent（agent 提交）/ auto（软警告转题）；`anchor = {chapter_id?, rule_no?, seg?, chapter?}`。锚定语义：`seg` 为正文原句片段时前端行内锚定（规则文本与章节段落内匹配），否则降级挂章节徽标——提交方应引用正文原文，勿用问题编号充当 seg。
-- **POST 批量**：body 为数组，元素 `{kind: "choice"|"confirm"|"fill"|"scan", payload: {...}, anchor: {...}}`；语义校验失败 422（choice 需 ≥2 options，且**每个元素须为 `{k, t}` 对象**——k=选项键（如 A/B）、t=文案、c 可选备注；字符串数组/缺键一律打回，错误明细含序号与原因；fill 需非空 q）。整批同 batch_id，挂当前 reviewing 草案。响应创建后的完整数组（同 GET 元素）。
+- **POST 批量**：body 为数组，元素 `{kind: "choice"|"confirm"|"fill"|"scan", payload: {...}, anchor: {...}}`；`payload = {klabel?, q, ctx?, options?}`——**`q`（题面）为所有题型必填且非空**，误用 `question`/`label` 等字段名会被 422 拒收并在明细中提示；choice 另需 `options` ≥2 且每个元素为 `{k, t}` 对象（k=选项键如 A/B、t=文案、c 可选备注），字符串数组/缺键一律打回。错误明细含序号与原因，agent 按明细修复重交。整批同 batch_id，挂当前 reviewing 草案。响应创建后的完整数组（同 GET 元素）。
 - **POST answer**：body `{"answer": {...}}`；withdrawn 批注 409 `"question withdrawn"`。pending/answered 均可作答（重新作答=覆盖，scan 逐项提交依赖此语义）。
 
 ## health

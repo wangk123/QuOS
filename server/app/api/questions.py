@@ -55,8 +55,14 @@ class QuestionIn(BaseModel):
         return v
 
     def semantic_err(self) -> str | None:
-        """结构校验:返回错误原因,None=通过。坏结构在入库前 422 打回,agent 按明细修复重交。"""
+        """结构校验:返回错误原因,None=通过。坏结构在入库前 422 打回,agent 按明细修复重交。
+        q 为所有题型必填(题面即问题本体);options 仅 choice 需要,元素须 {k, t} 对象。"""
         q = str(self.payload.get("q", "")).strip()
+        if not q:
+            # 常见错误:字段名误用 question/label 等——提示到位,一轮修复
+            alt = [k for k in ("question", "label", "text") if str(self.payload.get(k, "")).strip()]
+            hint = f"(文本似乎误写在 {alt[0]!r} 字段,契约字段名为 q)" if alt else ""
+            return f"{self.kind} 题的 payload.q 必填且非空{hint}"
         if self.kind == "choice":
             opts = self.payload.get("options") or []
             if len(opts) < 2:
@@ -66,9 +72,6 @@ class QuestionIn(BaseModel):
                         and str(o.get("t", "")).strip()):
                     return (f"choice options[{i}] 须为 {{k, t}} 对象(k=选项键,t=文案),"
                             f"当前: {o!r}"[:120])
-        elif self.kind == "fill":
-            if not q:
-                return "fill 需非空 q"
         return None
 
 
