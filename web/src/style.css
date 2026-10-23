@@ -243,6 +243,12 @@ mark.anno.resolved sup{color:var(--ok)}
 .acard.t-fill{border-left-color:var(--anno-line)}
 .acard.t-scan{border-left-color:var(--border-2)}
 .acard.ok{background:#F8FAFB}
+/* 结构异常卡:红条+展开显式报错,不静默渲染空白(fail fast 铁律) */
+.acard.bad{border-left-color:var(--danger)}
+.acard.closed .a-bad{display:none}
+.a-bad{margin-top:8px;display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:#991B1B;background:var(--danger-soft);border:1px solid #FCA5A5;border-radius:var(--radius-sm);padding:8px 11px}
+.a-bad b{font-size:.76rem}
+.a-bad .raw{color:var(--muted);font-size:.7rem}
 .acard.active{box-shadow:0 0 0 2px rgba(217,119,6,.3);border-color:var(--anno-line)}
 .acard .a-top{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
 .acard .a-q{font-size:.85rem;font-weight:600;color:var(--fg);flex:1;min-width:0}

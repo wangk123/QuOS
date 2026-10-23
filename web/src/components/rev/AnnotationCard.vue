@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Question } from '../../api'
-import { annoType, ANNO_TYPE_CLS } from '../../utils/annotype'
+import { annoType, ANNO_TYPE_CLS, annoStructErr } from '../../utils/annotype'
 
 const props = defineProps<{ q: Question; open: boolean; active: boolean }>()
 const emit = defineEmits<{
@@ -16,6 +16,8 @@ const done = computed(() => props.q.status === 'answered')
 const v = computed(() => props.q.answer ?? {})
 const typeLabel = computed(() => annoType(props.q))
 const typeCls = computed(() => ANNO_TYPE_CLS[typeLabel.value])
+/* 结构异常:折叠/定位照常,展开显式报错不给作答 UI(fail fast;异常优先于已答展示,坏数据不粉饰) */
+const structErr = computed(() => annoStructErr(props.q))
 
 /* 输入类作答走本地草稿,显式提交(避免半成品直接落库) */
 const isTerm = computed(() => props.q.kind === 'confirm' && props.q.payload?.klabel === '术语确认')
@@ -37,7 +39,7 @@ const answerText = computed(() => {
 </script>
 
 <template>
-  <div class="acard" :class="[typeCls, { ok: done, closed: !open, active }]" :id="'ac-' + q.id">
+  <div class="acard" :class="[typeCls, { ok: done && !structErr, bad: !!structErr, closed: !open, active }]" :id="'ac-' + q.id">
     <div class="a-top" :title="q.payload.q" @click="emit('toggle')">
       <span class="a-q">{{ q.payload.q }}</span>
       <button v-if="!done" class="a-locate" title="定位到正文" aria-label="定位到正文" @click.stop="emit('locate')">
@@ -50,7 +52,13 @@ const answerText = computed(() => {
       <span class="a-id">#{{ q.id }}</span><span>·</span><span class="a-kind">{{ q.payload.klabel }}</span>
       <span v-if="q.source === 'auto'" style="margin-left: auto">软校验</span>
     </div>
-    <div class="a-body">
+    <!-- 结构异常显式亮出:不静默渲染空白、不给作答 UI(fail fast 铁律) -->
+    <div v-if="structErr" class="a-bad" role="alert">
+      <b>批注数据结构异常,不可作答</b>
+      <span>{{ structErr }}</span>
+      <span class="raw">#{{ q.id }} payload 原文见接口 /questions;新数据请按 CLI 手册字段契约重交</span>
+    </div>
+    <div v-else class="a-body">
       <div v-if="q.payload.ctx" class="a-ctx">{{ q.payload.ctx }}</div>
 
       <!-- 选择题 -->
