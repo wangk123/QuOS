@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.api.projects import assert_writable
+from app.api.questions import QuestionIn
 from app.db import get_session
 from app.models import (Baseline, ChangeLog, DocDraft, DocPayload, DocVersion,
                         Material, Project, Question, Rule, Term)
@@ -105,6 +106,18 @@ async def import_draft(pid: int, db: Session = Depends(get_session),
                 "code": "FORMAT_CONTRACT",
                 "detail": f"rules_meta 非合法 JSON: {exc.msg} (line {exc.lineno})"}]})
     payload, questions = md_to_payload(md_text, materials, rules_meta_obj, fig_map)
+    # 转换层同款结构校验:附录一行式载体只承载题面,选择题无选项载体——422 打回而非静默入库
+    # (导入转换直插 question 表,不走 POST /questions 的 semantic_err,此处补同一道闸)
+    bad_qs = []
+    for i, q in enumerate(questions, 1):
+        err = QuestionIn(kind=q["kind"], payload=q["payload"], anchor=q["anchor"]).semantic_err()
+        if err:
+            bad_qs.append(f"第{i}条[{q['payload'].get('klabel', q['kind'])}]: {err}")
+    if bad_qs:
+        raise HTTPException(422, {"hard_errors": [{
+            "code": "QUESTION_FORMAT",
+            "detail": "附录A待确认清单转换出结构非法的批注: " + "; ".join(bad_qs)
+                      + " | md 一行式清单只支持填空/确认;选择题(需选项)请经 post-questions 提交"}]})
     # fail fast:格式契约违规与图结构非法导入即拒收,agent 修复后重导(全程无人工)
     hard = [{"code": "FORMAT_CONTRACT", "detail": w}
             for w in detect_format_issues(md_text, set(fig_map))]

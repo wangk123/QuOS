@@ -6,7 +6,7 @@
 
 - 基址：`http://127.0.0.1:8000`（本地无鉴权；8000 被占时换端口并相应调整）
 - 全部响应 JSON、成功状态码 200；错误用 HTTP 语义：**404** 资源不存在（detail 字符串）/ **409** 冲突 / **422** 校验拒收
-- **draft 提交两端点**（POST `/doc/draft`、`/doc/draft/import`）的 422/409 带 code：422 结构 `{"detail": {"hard_errors": [{"code", "rule_no?", "detail"}]}}`（import 的 FORMAT_CONTRACT/DIAGRAM_CHECK 无 rule_no），`detail.nearest` 是 QUOTE_NOT_FOUND 时材料内最相近片段；409 见 `SINGLE_REVIEWING`。materials 的 409 也带 `{"code": ...}`（`DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`）。其余端点的 422/409 为 FastAPI 默认结构或 detail 字符串，以各端点小节为准
+- **draft 提交两端点**（POST `/doc/draft`、`/doc/draft/import`）的 422/409 带 code：422 结构 `{"detail": {"hard_errors": [{"code", "rule_no?", "detail"}]}}`（import 的 FORMAT_CONTRACT/DIAGRAM_CHECK 无 rule_no；import 另有 `QUESTION_FORMAT`——附录A待确认清单转换出结构非法批注时整批拒收，一行式清单只支持填空/确认，选择题走 POST questions），`detail.nearest` 是 QUOTE_NOT_FOUND 时材料内最相近片段；409 见 `SINGLE_REVIEWING`。materials 的 409 也带 `{"code": ...}`（`DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`）。其余端点的 422/409 为 FastAPI 默认结构或 detail 字符串，以各端点小节为准
 - 主要错误码：`SCHEMA`（payload 结构不合法）/ `QUOTE_NOT_FOUND` / `BLOCK_*`、`CHAPTER_PARENT_*`（块结构与层级）/ `FORMAT_CONTRACT`、`DIAGRAM_CHECK`（md 导入格式与图结构硬校验）/ `SINGLE_REVIEWING`（409，并发撞唯一 reviewing）/ `DUPLICATE_MATERIAL`、`MATERIAL_IN_USE`（409）
 
 ## projects（项目管理）
@@ -68,7 +68,7 @@
 | POST | `/api/v1/questions/{qid}/answer` | 作答（人在平台操作） |
 
 - **GET 列表**：query `status?`（pending/answered/withdrawn）。响应 `[{id, batch_id, kind, payload, anchor, status, answer, answered_at, source, draft_id, created_at}]`；`source` = agent（agent 提交）/ auto（软警告转题）；`anchor = {chapter_id?, rule_no?, seg?, chapter?}`。锚定语义：`seg` 为正文原句片段时前端行内锚定（规则文本与章节段落内匹配），否则降级挂章节徽标——提交方应引用正文原文，勿用问题编号充当 seg。
-- **POST 批量**：body 为数组，元素 `{kind: "choice"|"confirm"|"fill"|"scan", payload: {...}, anchor: {...}}`；`payload = {klabel?, q, ctx?, options?}`——**`q`（题面）为所有题型必填且非空**，误用 `question`/`label` 等字段名会被 422 拒收并在明细中提示；choice 另需 `options` ≥2 且每个元素为 `{k, t}` 对象（k=选项键如 A/B、t=文案、c 可选备注），字符串数组/缺键一律打回。错误明细含序号与原因，agent 按明细修复重交。整批同 batch_id，挂当前 reviewing 草案。响应创建后的完整数组（同 GET 元素）。
+- **POST 批量**：body 为数组，元素 `{kind: "choice"|"confirm"|"fill"|"scan", payload: {...}, anchor: {...}}`；`payload = {klabel?, q, ctx?, options?, items?}`——**`q`（题面）为所有题型必填且非空**，误用 `question`/`label` 等字段名会被 422 拒收并在明细中提示；choice 另需 `options` 为 ≥2 元素的数组且每个元素为 `{k, t}` 对象（k=选项键如 A/B 且**不重复**、t=文案、c 可选备注），非列表（数字/字符串等）与字符串数组/缺键一律打回；scan 需 `items` 为非空字符串数组。错误明细含序号与原因，agent 按明细修复重交。整批同 batch_id，挂当前 reviewing 草案。响应创建后的完整数组（同 GET 元素）。
 - **POST answer**：body `{"answer": {...}}`；withdrawn 批注 409 `"question withdrawn"`。pending/answered 均可作答（重新作答=覆盖，scan 逐项提交依赖此语义）。
 - **POST reopen**：`/questions/{qid}/reopen` 无 body；已答批注重开为 pending 并**清空旧答案**（评审页「重新作答」的持久化入口）。仅 answered 可重开：pending 409 `"仅已答批注可重开"`、withdrawn 409 `"question withdrawn"`、只读项目 409 `PROJECT_READ_ONLY`。
 

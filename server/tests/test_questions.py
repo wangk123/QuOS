@@ -44,6 +44,31 @@ def test_choice_rejects_malformed_options(client):
     assert r.status_code == 422 and "k, t" in r.json()["detail"]
 
 
+def test_choice_rejects_nonlist_and_duplicate_keys(client):
+    """options 非列表(数字/字符串)不得 500,须 422;选项键重复 422(作答无法区分)。"""
+    pid = _proj(client)
+    for bad in (123, "AB", {"A": "a"}):
+        r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+            {"kind": "choice", "payload": {"q": "口径?", "options": bad}, "anchor": {}}])
+        assert r.status_code == 422, (bad, r.status_code)
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "choice", "payload": {"q": "口径?",
+                                       "options": [{"k": "A", "t": "a"}, {"k": "A", "t": "b"}]},
+         "anchor": {}}])
+    assert r.status_code == 422 and "重复" in r.json()["detail"]
+
+
+def test_scan_requires_string_items(client):
+    pid = _proj(client)
+    for bad in (None, [], ["ok", "  "], [1, 2]):
+        r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+            {"kind": "scan", "payload": {"q": "批量?", "items": bad}, "anchor": {}}])
+        assert r.status_code == 422, (bad, r.status_code)
+    r = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "scan", "payload": {"q": "批量?", "items": ["项一", "项二"]}, "anchor": {}}])
+    assert r.status_code == 200
+
+
 def test_fill_requires_question_text(client):
     pid = _proj(client)
     r = client.post(f"/api/v1/projects/{pid}/questions", json=[

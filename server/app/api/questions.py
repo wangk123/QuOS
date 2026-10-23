@@ -64,14 +64,23 @@ class QuestionIn(BaseModel):
             hint = f"(文本似乎误写在 {alt[0]!r} 字段,契约字段名为 q)" if alt else ""
             return f"{self.kind} 题的 payload.q 必填且非空{hint}"
         if self.kind == "choice":
-            opts = self.payload.get("options") or []
-            if len(opts) < 2:
-                return "choice 需 ≥2 options"
+            opts = self.payload.get("options")
+            if not isinstance(opts, list) or len(opts) < 2:
+                return "choice options 须为 ≥2 元素的数组"
             for i, o in enumerate(opts):
                 if not (isinstance(o, dict) and str(o.get("k", "")).strip()
                         and str(o.get("t", "")).strip()):
                     return (f"choice options[{i}] 须为 {{k, t}} 对象(k=选项键,t=文案),"
                             f"当前: {o!r}"[:120])
+            ks = [str(o["k"]).strip() for o in opts]
+            if len(set(ks)) != len(ks):
+                dup = sorted({x for x in ks if ks.count(x) > 1})
+                return f"choice options 选项键重复: {dup}(作答按选项键回填,键须唯一)"
+        elif self.kind == "scan":
+            items = self.payload.get("items")
+            if (not isinstance(items, list) or not items
+                    or any(not isinstance(it, str) or not it.strip() for it in items)):
+                return "scan 题的 payload.items 须为非空字符串数组(逐项核对清单)"
         return None
 
 

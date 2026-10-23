@@ -61,7 +61,7 @@
 | `--one-pager` | | 需求一页纸 markdown（req-onepager skill 产出的伴生概览，随草案入库、评审页可查看） |
 
 - **覆盖语义（事务）**：新草案入库同时，旧 reviewing 转 superseded、其 pending 批注自动撤回（answered 存续）——重导重发安全。
-- **422 拒收**：图引用未独立成行/引用文件缺失（`FORMAT_CONTRACT`）、ASCII 盒子图、mermaid 语法错误（`MERMAID_SYNTAX`，detail 带位置与修法）。导入即验证，按明细修复重导。
+- **422 拒收**：图引用未独立成行/引用文件缺失（`FORMAT_CONTRACT`）、ASCII 盒子图、mermaid 语法错误（`MERMAID_SYNTAX`，detail 带位置与修法）、附录A清单转换出结构非法批注（`QUESTION_FORMAT`——一行式清单只支持填空/确认，选择题需选项，走 `post-questions` 提交）。导入即验证，按明细修复重导。
 - **409**：`PROJECT_READ_ONLY`（项目暂停/结项，停等人侧恢复）；`SINGLE_REVIEWING`（并发提交）。
 
 #### `submit-draft PID --file FILE`（手工 payload，一般不用）
@@ -90,7 +90,7 @@
 ```
 
 - **`payload.q` 所有题型必填非空**——误用 `question`/`label` 等字段名 422 拒收（明细会提示误用字段）；
-- **choice 的 `options` ≥2 且每个元素为 `{k, t}` 对象**（k=选项键、t=文案、c 可选）——字符串数组/缺键拒收；
+- **choice 的 `options` 须为 ≥2 元素的数组**且每个元素为 `{k, t}` 对象（k=选项键、t=文案、c 可选，**选项键不得重复**——作答 `{key}` 无法区分）——非列表（数字/字符串等）、字符串数组、缺键、重复键一律拒收；scan 需 `items` 为非空字符串数组；
 - **锚定语义**：`seg` 为正文原句片段（可在 draft payload 章节文本搜到）→ 前端行内锚定；只有章节/场景级粒度 → 只给 `chapter_id`（挂章节徽标）；**禁止拿问题编号（Q1/TBD-01）充当 seg**；
 - 「术语确认」归 confirm，`payload.klabel` 用「术语确认」区分；
 - **整批原子**：任一元素校验失败全批拒收，不落半批。错误明细格式 `批注校验失败[第N条 kind]: 原因`——按明细修复整批重交。

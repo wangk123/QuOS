@@ -142,6 +142,19 @@ def test_import_with_figures_makes_diagram(client):
     assert blocks[-1]["type"] == "diagram" and blocks[-1]["text"] == FIG_HTML
 
 
+def test_import_tbd_choice_without_options_422(client):
+    """附录一行式清单只承载题面:无选项的 choice 转换即 422 QUESTION_FORMAT,不得静默入库。"""
+    pid, mid = _mk_proj_with_material(client)
+    md = ('## 1 接入\n\n背景段。\n\n**TBD-01（选择）** 无选项选择题应被打回。\n\n'
+          '**TBD-02（填空）** 合法对照组。\n')
+    r = _import_md(client, pid, md)
+    assert r.status_code == 422
+    he = r.json()["detail"]["hard_errors"][0]
+    assert he["code"] == "QUESTION_FORMAT" and "post-questions" in he["detail"]
+    qs = client.get(f"/api/v1/projects/{pid}/questions").json()
+    assert qs == []   # 整批拒收,库里零残留
+
+
 def test_import_missing_figure_422(client):
     pid, _ = _mk_proj_with_material(client)
     r = _import_md(client, pid, '## 1 接入\n\n![x](figures/none.html)\n')
