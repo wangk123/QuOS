@@ -100,6 +100,22 @@ def test_answer_missing_question_404(client):
                        json={"answer": {"text": "x"}}).status_code == 404
 
 
+def test_reopen_answered_persists_and_clears(client):
+    """重新作答=平台持久化:重开清空旧答案;pending 再开 409。"""
+    pid = _proj(client)
+    q = client.post(f"/api/v1/projects/{pid}/questions", json=[
+        {"kind": "fill", "payload": {"q": "口径?"}, "anchor": {}}]).json()[0]
+    assert client.post(f"/api/v1/questions/{q['id']}/answer",
+                       json={"answer": {"text": "旧答案"}}).status_code == 200
+    r = client.post(f"/api/v1/questions/{q['id']}/reopen")
+    assert r.status_code == 200 and r.json()["status"] == "pending"
+    assert r.json()["answer"] is None and r.json()["answered_at"] is None
+    fetched = client.get(f"/api/v1/projects/{pid}/questions?status=pending").json()
+    assert q["id"] in [x["id"] for x in fetched]
+    r = client.post(f"/api/v1/questions/{q['id']}/reopen")
+    assert r.status_code == 409 and "仅已答" in r.json()["detail"]
+
+
 def test_reanswer_overwrites_previous(client):
     """重新作答 = 覆盖(终审 I3/I2:scan 逐项提交与 undo 重答依赖覆盖语义)。"""
     pid = _proj(client)

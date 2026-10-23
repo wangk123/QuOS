@@ -100,6 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("pid", type=int)
     p.add_argument("--file", required=True, help="批注 JSON 数组文件路径")
 
+    sub.add_parser("reopen-question", help="重开已答批注(重新作答,清空旧答案)").add_argument("qid", type=int)
+
     sub.add_parser("versions", help="版本列表").add_argument("pid", type=int)
     p = sub.add_parser("changes", help="变更记录")
     p.add_argument("pid", type=int)
@@ -145,6 +147,8 @@ def _dispatch(args, client: httpx.Client) -> int:
     if args.cmd == "post-questions":
         return _request(client, "POST", _pid_path(args.pid, "questions"),
                         json_body=_read_json(args.file, "批注文件"))
+    if args.cmd == "reopen-question":
+        return _request(client, "POST", f"/api/v1/questions/{args.qid}/reopen")
     if args.cmd == "versions":
         return _request(client, "GET", _pid_path(args.pid, "doc/versions"))
     if args.cmd == "changes":

@@ -1,7 +1,7 @@
 <!-- 文档评审页(核心):固定视口三栏独立滚动;无草案时渲染基线只读态 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { answerQuestion, finalizeDoc, getBaseline, getDraft, getProject, getVersions, listMaterials, listQuestions, ApiError } from '../api'
+import { answerQuestion, finalizeDoc, getBaseline, getDraft, getProject, getVersions, listMaterials, listQuestions, reopenQuestion, ApiError } from '../api'
 import { route, go } from '../router'
 import { toast } from '../components/toast'
 import AppModal from '../components/AppModal.vue'
@@ -167,15 +167,17 @@ async function answer(qid: number, ans: any) {
     else throw e
   }
 }
-function undo(qid: number) {
-  /* M1 简化:本地重开输入(再次提交覆盖);平台无 undo 端点 */
-  openSet.value = new Set([...openSet.value, qid])
-  const q = annos.value.find((x: any) => x.id === qid)
-  if (q) {
-    q.status = 'pending'
-    q.answer = null
+async function undo(qid: number) {
+  /* 重新作答=平台持久化重开(清空旧答案),刷新不回弹;重新提交仍走 answer 覆盖 */
+  try {
+    const updated = await reopenQuestion(qid)
+    const q = annos.value.find((x: any) => x.id === qid)
+    if (q) Object.assign(q, updated)
+    openSet.value = new Set([...openSet.value, qid])
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) toast('该批注不可重开(仅已答可重开)', 'warn')
+    else throw e
   }
-  toast('已重开,重新作答后提交', 'warn')
 }
 function jumpChapter(ch: string) {
   document.getElementById('ch-' + ch)?.scrollIntoView({ behavior: 'smooth', block: 'start' })

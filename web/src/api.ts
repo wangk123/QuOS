@@ -81,3 +81,4 @@ export const listQuestions = (pid: number, status?: string) =>
   api.get(`/projects/${pid}/questions${status ? `?status=${status}` : ''}`) as Promise<Question[]>
 export const submitQuestions = (pid: number, items: any[]) => api.post(`/projects/${pid}/questions`, items)
 export const answerQuestion = (qid: number, answer: any) => api.post(`/questions/${qid}/answer`, { answer })
+export const reopenQuestion = (qid: number) => api.post(`/questions/${qid}/reopen`) as Promise<Question>

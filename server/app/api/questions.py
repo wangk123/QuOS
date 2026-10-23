@@ -101,6 +101,27 @@ def submit_questions(pid: int, items: list[QuestionIn], db: Session = Depends(ge
     return [_q_out(q) for q in out]
 
 
+@router.post("/questions/{qid}/reopen")
+def reopen_question(qid: int, db: Session = Depends(get_session)):
+    """重新作答:已答批注重开为 pending 并清空旧答案。评审页「重新作答」的持久化入口
+    (此前仅前端本地态,刷新即回弹);agent 消歧循环用 answer 覆盖语义即可,无需先重开。"""
+    q = db.get(Question, qid)
+    if q is None:
+        raise HTTPException(404, "question not found")
+    if q.status == "withdrawn":
+        raise HTTPException(409, "question withdrawn")
+    if q.status != "answered":
+        raise HTTPException(409, "仅已答批注可重开")
+    assert_writable(db, q.project_id)
+    q.status = "pending"
+    q.answer = None
+    q.answered_at = None
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+    return _q_out(q)
+
+
 class AnswerBody(BaseModel):
     answer: dict
 

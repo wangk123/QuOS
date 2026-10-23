@@ -35,6 +35,7 @@
 | `submit-draft PID --file FILE` | 手工 DocPayload 提交 |
 | `questions PID [--status STATUS]` | 批注列表 |
 | `post-questions PID --file FILE` | 批量提交消歧批注 |
+| `reopen-question QID` | 重开已答批注（清空旧答案） |
 | `versions PID` | 版本列表 |
 | `changes PID [--version V]` | 条款级变更记录 |
 
@@ -46,6 +47,7 @@
 - **`draft PID`** — 当前 reviewing 草案（无则 `empty:true`）。`payload` 章节id 形如 `c2`/`c2-1`（按文档顺序生成）——**批注 anchor.chapter_id 必须从这里取**；`one_pager_md` 为伴生一页纸（可空）。
 - **`questions PID [--status pending|answered|withdrawn]`** — 批注列表（默认全量）。元素字段同 GET 端点：`{id, batch_id, kind, payload, anchor, status, answer, answered_at, source, draft_id, created_at}`。
 - **`versions PID` / `changes PID [--version V]`** — 版本历史与条款级变更记录。
+- **`reopen-question QID`** — 已答批注重开为 pending 并清空旧答案（评审页「重新作答」的后端）。仅 answered 可重开（pending 409「仅已答批注可重开」、withdrawn 409、只读项目 409）；agent 消歧循环重答直接用 answer 覆盖语义即可，无需先重开。
 
 ### 提交类
 
